@@ -37,24 +37,48 @@ impl EventService {
         Ok(processed_event)
     }
 
-    pub async fn list_events(&self, user_id: i64, category: Option<String>, limit: u32) -> Result<Vec<Event>> {
+    pub async fn list_events(&self, user_id: i64, category: Option<String>, limit: u32, offset: u32) -> Result<Vec<Event>> {
         let db_events = if let Some(cat) = category {
-            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata FROM events WHERE user_id = ? AND category = ? ORDER BY timestamp DESC LIMIT ?")
-                .bind(user_id).bind(cat).bind(limit)
+            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata FROM events WHERE user_id = ? AND category = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
+                .bind(user_id).bind(cat).bind(limit).bind(offset)
         } else {
-            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata FROM events WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?")
-                .bind(user_id).bind(limit)
+            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata FROM events WHERE user_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
+                .bind(user_id).bind(limit).bind(offset)
         }.fetch_all(&self.db).await?;
 
-        Ok(db_events.into_iter().filter_map(|e| Event::try_from(e).ok()).collect())
+        Ok(db_events.into_iter().filter_map(|e| {
+            match Event::try_from(e) {
+                Ok(ev) => Some(ev),
+                Err(err) => {
+                    tracing::error!("Failed to convert DB event: {}", err);
+                    None
+                }
+            }
+        }).collect())
     }
 
     pub async fn poll_and_save_plugin(&self, user_id: i64, name: &str) -> Result<usize> {
         let events = self.plugin_manager.poll_plugin(user_id, name).await?;
         let count = events.len();
+        
+        // Wir nutzen eine Transaktion für atomares Speichern der gepollten Events
+        let mut tx = self.db.begin().await?;
         for event in events {
-            let _ = self.ingest_event(user_id, event).await?;
+            let processed_event = self.plugin_manager.run_ingest_pipeline(user_id, event).await?;
+            
+            sqlx::query("INSERT INTO events (id, user_id, timestamp, category, source, payload, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                .bind(processed_event.id.to_string())
+                .bind(user_id)
+                .bind(processed_event.timestamp.to_rfc3339())
+                .bind(&processed_event.category)
+                .bind(&processed_event.source)
+                .bind(serde_json::to_string(&processed_event.payload)?)
+                .bind(processed_event.metadata.as_ref().map(|m| serde_json::to_string(m).unwrap()))
+                .execute(&mut *tx)
+                .await?;
         }
+        tx.commit().await?;
+        
         Ok(count)
     }
 
@@ -76,7 +100,7 @@ impl EventService {
         }
     }
 
-    pub async fn search_semantic(&self, user_id: i64, semantic_query: &str, limit: u32) -> Result<Vec<Event>> {
+    pub async fn search_semantic(&self, user_id: i64, semantic_query: &str, limit: u32, offset: u32) -> Result<Vec<Event>> {
         let manifests = self.plugin_manager.get_plugin_manifests().await;
         let mut target_categories = std::collections::HashSet::new();
 
@@ -91,16 +115,20 @@ impl EventService {
         if target_categories.is_empty() { return Ok(vec![]); }
 
         let mut all_events = Vec::new();
+        // Pagination logic here is a bit tricky with multiple categories,
+        // for simplicity in this prototype, we just query more and slice later.
         for cat in target_categories {
-            all_events.extend(self.list_events(user_id, Some(cat), limit).await?);
+            // We pass 0 offset to underlying query and handle offset at the end 
+            // to correctly merge streams. A true time-series DB would do this better.
+            all_events.extend(self.list_events(user_id, Some(cat), limit + offset, 0).await?);
         }
 
         all_events.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        all_events.truncate(limit as usize);
-        Ok(all_events)
+        let paged_events = all_events.into_iter().skip(offset as usize).take(limit as usize).collect::<Vec<_>>();
+        Ok(paged_events)
     }
 
-    pub async fn get_enriched_timeline(&self, user_id: i64, base_category: &str, limit: u32) -> Result<Vec<Value>> {
+    pub async fn get_enriched_timeline(&self, user_id: i64, base_category: &str, limit: u32, offset: u32) -> Result<Vec<Value>> {
         let manifests = self.plugin_manager.get_plugin_manifests().await;
         let mut context_categories = std::collections::HashMap::new();
 
@@ -112,7 +140,7 @@ impl EventService {
             }
         }
 
-        let base_events = self.list_events(user_id, Some(base_category.to_string()), limit).await?;
+        let base_events = self.list_events(user_id, Some(base_category.to_string()), limit, offset).await?;
         let mut enriched_timeline = Vec::new();
 
         for ev in base_events {
@@ -125,13 +153,18 @@ impl EventService {
             });
 
             for (semantic_type, cat) in &context_categories {
+                // Optimierte Suche: Wir suchen das letzte Event vor oder zum Zeitpunkt des Basis-Events.
+                // Dies nutzt den (user_id, timestamp) Index optimal aus.
                 let context_payload = sqlx::query_scalar::<_, String>(
-                    "SELECT payload FROM events WHERE user_id = ? AND category = ? ORDER BY ABS(julianday(substr(timestamp, 1, 19)) - julianday(substr(?, 1, 19))) ASC LIMIT 1"
+                    "SELECT payload FROM events WHERE user_id = ? AND category = ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT 1"
                 )
                 .bind(user_id).bind(cat).bind(&ts).fetch_optional(&self.db).await?;
 
                 if let Some(p) = context_payload {
-                    entry["context"][semantic_type] = serde_json::from_str::<Value>(&p).unwrap_or_default();
+                    match serde_json::from_str::<Value>(&p) {
+                        Ok(json) => { entry["context"][semantic_type] = json; },
+                        Err(e) => { tracing::warn!("Failed to parse context JSON for {}: {}", semantic_type, e); }
+                    }
                 }
             }
             enriched_timeline.push(entry);
@@ -193,10 +226,86 @@ impl EventService {
         let end = format!("{}T23:59:59Z", date);
 
         for plugin_name in manifests.keys() {
-            if let Ok(p_summary) = self.plugin_manager.get_plugin_summary(user_id, plugin_name, start.clone(), end.clone()).await {
-                if !p_summary.is_empty() { full_summary.push(p_summary); }
-            }
+            if let Ok(p_summary) = self.plugin_manager.get_plugin_summary(user_id, plugin_name, start.clone(), end.clone()).await
+                && !p_summary.is_empty() { full_summary.push(p_summary); }
         }
         Ok(full_summary)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::SqlitePool;
+    use scry_proto::Event;
+    use std::sync::Arc;
+    use crate::plugins::PluginManager;
+    use chrono::Utc;
+    use uuid::Uuid;
+    use serde_json::json;
+
+    async fn setup_test_db() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query(r#"
+            CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, password_hash TEXT);
+            CREATE TABLE events (
+                id TEXT PRIMARY KEY, user_id INTEGER, timestamp TEXT, 
+                category TEXT, source TEXT, payload TEXT, metadata TEXT
+            );
+            INSERT INTO users (id, username, password_hash) VALUES (1, 'alice', 'hash'), (2, 'bob', 'hash');
+        "#).execute(&pool).await.unwrap();
+        pool
+    }
+
+    #[tokio::test]
+    async fn test_ingest_and_list_events() {
+        let db = setup_test_db().await;
+        // Wir nutzen einen leeren PluginManager für den Test
+        let pm = Arc::new(PluginManager::new("./non_existent_plugins", db.clone()).unwrap());
+        let service = EventService::new(db, pm);
+
+        let event = Event {
+            id: Uuid::new_v4(),
+            timestamp: Utc::now(),
+            category: "test.event".to_string(),
+            source: "test-suite".to_string(),
+            payload: json!({"temp": 22.5}),
+            metadata: None,
+        };
+
+        // Ingest
+        service.ingest_event(1, event.clone()).await.unwrap();
+
+        // List
+        let events = service.list_events(1, Some("test.event".to_string()), 10, 0).await.unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].category, "test.event");
+        assert_eq!(events[0].payload["temp"], 22.5);
+    }
+
+    #[tokio::test]
+    async fn test_multi_tenancy_isolation() {
+        let db = setup_test_db().await;
+        let pm = Arc::new(PluginManager::new("./non_existent_plugins", db.clone()).unwrap());
+        let service = EventService::new(db, pm);
+
+        let event_alice = Event {
+            id: Uuid::new_v4(),
+            timestamp: Utc::now(),
+            category: "private".to_string(),
+            source: "alice-phone".to_string(),
+            payload: json!({"secret": "alice_data"}),
+            metadata: None,
+        };
+
+        service.ingest_event(1, event_alice).await.unwrap();
+
+        // Bob (User 2) sollte Alices Event nicht sehen
+        let bob_events = service.list_events(2, None, 10, 0).await.unwrap();
+        assert_eq!(bob_events.len(), 0);
+
+        // Alice (User 1) sollte ihr Event sehen
+        let alice_events = service.list_events(1, None, 10, 0).await.unwrap();
+        assert_eq!(alice_events.len(), 1);
     }
 }

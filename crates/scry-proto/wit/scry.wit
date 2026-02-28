@@ -46,7 +46,13 @@ interface types {
 interface host {
     use types.{event};
 
-    query: func(query-json: string) -> result<string, string>;
+    variant query-param {
+        s(string),
+        i(s64),
+        f(f64),
+    }
+
+    query: func(sql: string, params: list<query-param>) -> result<string, string>;
     http-get: func(url: string) -> result<string, string>;
     set-state: func(key: string, value: string);
     get-state: func(key: string) -> option<string>;

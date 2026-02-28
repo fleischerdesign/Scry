@@ -127,26 +127,52 @@ macro_rules! scry_plugin {
 
         mod host {
             use $crate::serde_json::json;
-            pub fn count_grouped(category: &str, payload_key: &str, limit: u32) -> Vec<$crate::serde_json::Value> {
-                let q = json!({"type": "count_grouped", "category": category, "payload_key": payload_key, "limit": limit});
-                match super::scry::plugin::host::query(&q.to_string()) {
+            use super::scry::plugin::host::QueryParam;
+
+            pub fn query(sql: &str, params: Vec<QueryParam>) -> Vec<$crate::serde_json::Value> {
+                match super::scry::plugin::host::query(sql, &params) {
                     Ok(res) => $crate::serde_json::from_str(&res).unwrap_or_default(),
                     Err(_) => vec![]
                 }
             }
-            pub fn count_over_time(category: &str, interval: &str, days: u32) -> Vec<$crate::serde_json::Value> {
-                let q = json!({"type": "count_over_time", "category": category, "interval": interval, "days": days});
-                match super::scry::plugin::host::query(&q.to_string()) {
-                    Ok(res) => $crate::serde_json::from_str(&res).unwrap_or_default(),
-                    _ => vec![]
-                }
+
+            pub fn count_grouped(category: &str, payload_key: &str, limit: u32) -> Vec<$crate::serde_json::Value> {
+                let sql = "SELECT json_extract(payload, '$.' || ?) as key, COUNT(*) as count FROM events WHERE category = ? GROUP BY key ORDER BY count DESC LIMIT ?";
+                query(sql, vec![
+                    QueryParam::S(payload_key.to_string()),
+                    QueryParam::S(category.to_string()),
+                    QueryParam::I(limit as i64),
+                ])
             }
+
+            pub fn count_over_time(category: &str, interval: &str, days: u32) -> Vec<$crate::serde_json::Value> {
+                let format = match interval { "1h" => "%Y-%m-%dT%H:00:00Z", _ => "%Y-%m-%d" };
+                let sql = "SELECT strftime(?, timestamp) as label, COUNT(*) as count FROM events WHERE category = ? AND timestamp > date('now', ?) GROUP BY label ORDER BY label ASC";
+                query(sql, vec![
+                    QueryParam::S(format.to_string()),
+                    QueryParam::S(category.to_string()),
+                    QueryParam::S(format!("-{} days", days)),
+                ])
+            }
+
             pub fn join_nearest(base_category: &str, join_category: &str, limit: u32) -> Vec<$crate::serde_json::Value> {
-                let q = json!({"type": "join_nearest", "base_category": base_category, "join_category": join_category, "limit": limit});
-                match super::scry::plugin::host::query(&q.to_string()) {
-                    Ok(res) => $crate::serde_json::from_str(&res).unwrap_or_default(),
-                    _ => vec![]
-                }
+                let sql = r#"
+                    SELECT 
+                        CAST(b.payload AS TEXT) as base,
+                        CAST(j.payload AS TEXT) as joined
+                    FROM events b
+                    JOIN events j ON j.category = ?
+                    WHERE b.category = ?
+                    GROUP BY b.id
+                    HAVING MIN(ABS(julianday(substr(b.timestamp, 1, 19)) - julianday(substr(j.timestamp, 1, 19))))
+                    ORDER BY b.timestamp DESC
+                    LIMIT ?
+                "#;
+                query(sql, vec![
+                    QueryParam::S(join_category.to_string()),
+                    QueryParam::S(base_category.to_string()),
+                    QueryParam::I(limit as i64),
+                ])
             }
             pub fn log_info(msg: &str) { super::scry::plugin::host::log("info", msg); }
             pub fn log_warn(msg: &str) { super::scry::plugin::host::log("warn", msg); }

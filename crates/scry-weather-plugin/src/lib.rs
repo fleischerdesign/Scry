@@ -52,8 +52,8 @@ impl ScryPlugin for WeatherPlugin {
         
         match host::http_get(&url) {
             Ok(text) => {
-                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-                    if let Some(current) = json.get("current_weather") {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text)
+                    && let Some(current) = json.get("current_weather") {
                         return vec![
                             scry_plugin_sdk::Event {
                                 id: uuid::Uuid::new_v4(),
@@ -65,7 +65,6 @@ impl ScryPlugin for WeatherPlugin {
                             }
                         ];
                     }
-                }
                 vec![]
             },
             Err(_) => vec![]
@@ -76,12 +75,11 @@ impl ScryPlugin for WeatherPlugin {
         // Hier könnten wir eigentlich einen Join oder AVG über den Zeitraum machen,
         // für den Prototyp nehmen wir das aktuellste Event.
         let events = host::join_nearest("weather.current", "weather.current", 1);
-        if let Some(first) = events.first() {
-            if let Some(base) = first.get("base") {
+        if let Some(first) = events.first()
+            && let Some(base) = first.get("base") {
                 let temp = base.get("temperature").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 return format!("The weather was around {:.1} degrees.", temp);
             }
-        }
         "Weather data unavailable.".to_string()
     }
 }

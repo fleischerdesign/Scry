@@ -1,6 +1,55 @@
 use serde::{Deserialize, Serialize};
 use scry_proto::Event;
 use utoipa::ToSchema;
+use crate::event_service::EventService;
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
+use serde_json::json;
+use thiserror::Error;
+use validator::Validate;
+
+#[derive(Error, Debug)]
+pub enum AppError {
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+    #[error("Plugin error: {0}")]
+    Plugin(#[from] anyhow::Error),
+    #[error("Authentication failed: {0}")]
+    Auth(String),
+    #[error("Invalid request: {0}")]
+    BadRequest(String),
+    #[error("Validation error: {0}")]
+    Validation(#[from] validator::ValidationErrors),
+    #[error("Internal server error")]
+    Internal,
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let (status, message) = match self {
+            AppError::Database(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            AppError::Plugin(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            AppError::Auth(msg) => (StatusCode::UNAUTHORIZED, msg),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::Validation(e) => (StatusCode::BAD_REQUEST, e.to_string()),
+            AppError::Internal => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()),
+        };
+
+        let body = Json(json!({
+            "error": message,
+        }));
+
+        (status, body).into_response()
+    }
+}
+
+#[derive(Clone)]
+pub struct AppState {
+    pub event_service: EventService,
+}
 
 #[derive(sqlx::FromRow, Debug)]
 pub struct DbEvent {
@@ -59,14 +108,17 @@ pub struct User {
     pub username: String,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema, Validate)]
 pub struct RegisterRequest {
+    #[validate(length(min = 3, max = 50))]
     pub username: String,
+    #[validate(length(min = 8, max = 100))]
     pub password: String,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema, Validate)]
 pub struct LoginRequest {
+    #[validate(length(min = 3, max = 50))]
     pub username: String,
     pub password: String,
 }
@@ -80,6 +132,7 @@ pub struct AuthResponse {
 #[derive(Clone, Debug)]
 pub struct AuthContext {
     pub user_id: i64,
+    #[allow(dead_code)]
     pub scopes: Vec<String>,
 }
 
