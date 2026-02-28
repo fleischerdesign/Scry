@@ -20,6 +20,7 @@
             pkgs.openssl
             pkgs.nodejs_latest
             pkgs.pnpm
+            pkgs.just
             pkgs.nodePackages.typescript-language-server
           ];
           shellHook = "echo 'Scry Dev Shell (Rust + Node.js Latest + pnpm)'";

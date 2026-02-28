@@ -18,6 +18,3 @@ CREATE TABLE IF NOT EXISTS dashboard_widgets (
     sort_order INTEGER DEFAULT 0,
     FOREIGN KEY (dashboard_id) REFERENCES dashboards(id) ON DELETE CASCADE
 );
-
--- Initiales Standard-Dashboard für User 1
-INSERT OR IGNORE INTO dashboards (id, user_id, name, is_default) VALUES ('default-1', 1, 'My Daily Life', 1);
