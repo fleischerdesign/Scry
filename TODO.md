@@ -6,7 +6,8 @@
 - [x] **Plugin State API**: Persistent memory for plugins. ✅
 - [ ] **Field-Level Encryption**: Support for encrypting sensitive payload fields at rest.
 - [ ] **Structured Logging**: Let plugins emit logs that appear in the main Scry log.
-- [ ] **Robust Error Handling**: Replace remaining `.unwrap()` calls with proper error types.
+- [x] **Robust Error Handling**: Machine-readable error codes and detailed logging. ✅
+- [ ] **Type Safety (Cross-Stack)**: Use `specta` or `ts-rs` to automatically generate TypeScript types from Rust models.
 
 ## 🔌 Phase 2: Plugin Ecosystem & SDK (The "Kernel" Approach)
 - [x] **Capability Manifests**: Plugins declare identity and basic metadata. ✅

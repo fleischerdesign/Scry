@@ -2,6 +2,7 @@ mod plugins;
 mod event_service;
 mod models;
 mod handlers;
+mod error;
 
 use axum::{
     extract::State,
@@ -146,12 +147,12 @@ async fn main() -> anyhow::Result<()> {
                         }
                     };
 
-                    let manifests = scheduler_state.event_service.plugin_manager().get_plugin_manifests().await;
+                    let manifests: std::collections::HashMap<String, crate::plugins::scry::plugin::types::Manifest> = scheduler_state.event_service.plugin_manager().get_plugin_manifests().await;
                     
                     for user_id in user_ids {
                         for name in manifests.keys() {
                             let svc = scheduler_state.event_service.clone();
-                            let plugin_name = name.clone();
+                            let plugin_name: String = name.clone();
                             tokio::spawn(async move {
                                 if let Err(e) = svc.poll_and_save_plugin(user_id, &plugin_name).await {
                                     tracing::warn!(user_id = %user_id, plugin = %plugin_name, "Scheduler poll failed: {}", e);

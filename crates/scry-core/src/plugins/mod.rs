@@ -103,7 +103,10 @@ impl scry::plugin::host::Host for MyCtx {
                     }
                     results.push(serde_json::Value::Object(map));
                 }
-                Ok(Ok(serde_json::to_string(&results).unwrap()))
+                match serde_json::to_string(&results) {
+                    Ok(json) => Ok(Ok(json)),
+                    Err(e) => Ok(Err(format!("JSON Serialization Error: {}", e))),
+                }
             },
             Err(e) => Ok(Err(e.to_string())),
         }
@@ -329,14 +332,17 @@ impl PluginManager {
         for name in names {
             let should_run = {
                 let plugins = self.plugins.read().await;
-                let manifest = &plugins.get(&name).unwrap().manifest;
-                manifest.subscriptions.iter().any(|sub| {
-                    if sub.ends_with('*') {
-                        event.category.starts_with(&sub[..sub.len() - 1])
-                    } else {
-                        &event.category == sub
-                    }
-                })
+                if let Some(plugin) = plugins.get(&name) {
+                    plugin.manifest.subscriptions.iter().any(|sub| {
+                        if sub.ends_with('*') {
+                            event.category.starts_with(&sub[..sub.len() - 1])
+                        } else {
+                            &event.category == sub
+                        }
+                    })
+                } else {
+                    false
+                }
             };
 
             if should_run {
@@ -347,7 +353,7 @@ impl PluginManager {
                         category: event.category.clone(),
                         source: event.source.clone(),
                         payload: serde_json::to_string(&event.payload)?,
-                        metadata: event.metadata.as_ref().map(|m| serde_json::to_string(m).unwrap()),
+                        metadata: event.metadata.as_ref().map(|m| serde_json::to_string(m).ok()).flatten(),
                     };
                     let processed = instance.call_on_ingest(&mut store, &ev).await?.map_err(|e| anyhow::anyhow!(e))?;
                     let mapped = ScryEvent {

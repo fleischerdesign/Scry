@@ -1,9 +1,9 @@
-use anyhow::Result;
-use sqlx::SqlitePool;
 use std::sync::Arc;
+use std::collections::HashMap;
 use crate::plugins::PluginManager;
 use scry_proto::Event;
-use crate::models::DbEvent;
+use crate::models::{DbEvent};
+use crate::error::{Error, Result};
 use serde_json::Value;
 
 #[derive(Clone)]
@@ -26,7 +26,8 @@ impl EventService {
     pub fn plugin_manager(&self) -> &PluginManager { &self.plugin_manager }
 
     pub async fn ingest_event(&self, user_id: i64, event: Event) -> Result<Event> {
-        let processed_event = self.plugin_manager.run_ingest_pipeline(user_id, event).await?;
+        let processed_event: Event = self.plugin_manager.run_ingest_pipeline(user_id, event).await
+            .map_err(|e| Error::Plugin(e))?;
         
         sqlx::query("INSERT INTO events (id, user_id, timestamp, category, source, payload, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)")
             .bind(processed_event.id.to_string())
@@ -34,8 +35,8 @@ impl EventService {
             .bind(processed_event.timestamp.to_rfc3339())
             .bind(&processed_event.category)
             .bind(&processed_event.source)
-            .bind(serde_json::to_string(&processed_event.payload)?)
-            .bind(processed_event.metadata.as_ref().map(|m| serde_json::to_string(m).unwrap()))
+            .bind(serde_json::to_string(&processed_event.payload).map_err(|e| Error::BadRequest(e.to_string()))?)
+            .bind(processed_event.metadata.as_ref().map(|m| serde_json::to_string(m).ok()).flatten())
             .execute(&self.db)
             .await?;
 
@@ -72,12 +73,11 @@ impl EventService {
     }
 
     pub async fn poll_and_save_plugin(&self, user_id: i64, name: &str) -> Result<usize> {
-        let events = self.plugin_manager.poll_plugin(user_id, name).await?;
+        let events: Vec<Event> = self.plugin_manager.poll_plugin(user_id, name).await
+            .map_err(|e| Error::Plugin(e))?;
         let count = events.len();
         
         for event in events {
-            // Durch Aufruf von ingest_event stellen wir sicher, 
-            // dass Speichern UND Broadcasting passieren.
             self.ingest_event(user_id, event).await?;
         }
         
@@ -85,9 +85,9 @@ impl EventService {
     }
 
     pub async fn correlate_semantic(&self, user_id: i64, base_semantic: &str, join_semantic: &str, limit: u32) -> Result<Vec<Value>> {
-        let manifests = self.plugin_manager.get_plugin_manifests().await;
-        let mut base_cat = None;
-        let mut join_cat = None;
+        let manifests: HashMap<String, crate::plugins::scry::plugin::types::Manifest> = self.plugin_manager.get_plugin_manifests().await;
+        let mut base_cat: Option<String> = None;
+        let mut join_cat: Option<String> = None;
 
         for m in manifests.values() {
             for export in &m.exports {
@@ -98,12 +98,12 @@ impl EventService {
 
         match (base_cat, join_cat) {
             (Some(bc), Some(jc)) => self.correlate_nearest(user_id, &bc, &jc, limit).await,
-            _ => Err(anyhow::anyhow!("Semantic types not found")),
+            _ => Err(Error::NotFound(format!("Semantic types {} or {} not found", base_semantic, join_semantic))),
         }
     }
 
     pub async fn search_semantic(&self, user_id: i64, semantic_query: &str, limit: u32, offset: u32) -> Result<Vec<Event>> {
-        let manifests = self.plugin_manager.get_plugin_manifests().await;
+        let manifests: HashMap<String, crate::plugins::scry::plugin::types::Manifest> = self.plugin_manager.get_plugin_manifests().await;
         let mut target_categories = std::collections::HashSet::new();
 
         for m in manifests.values() {
@@ -117,11 +117,7 @@ impl EventService {
         if target_categories.is_empty() { return Ok(vec![]); }
 
         let mut all_events = Vec::new();
-        // Pagination logic here is a bit tricky with multiple categories,
-        // for simplicity in this prototype, we just query more and slice later.
         for cat in target_categories {
-            // We pass 0 offset to underlying query and handle offset at the end 
-            // to correctly merge streams. A true time-series DB would do this better.
             all_events.extend(self.list_events(user_id, Some(cat), limit + offset, 0).await?);
         }
 
@@ -131,7 +127,7 @@ impl EventService {
     }
 
     pub async fn get_enriched_timeline(&self, user_id: i64, base_category: &str, limit: u32, offset: u32) -> Result<Vec<Value>> {
-        let manifests = self.plugin_manager.get_plugin_manifests().await;
+        let manifests: HashMap<String, crate::plugins::scry::plugin::types::Manifest> = self.plugin_manager.get_plugin_manifests().await;
         let mut context_categories = std::collections::HashMap::new();
 
         for m in manifests.values() {
@@ -156,8 +152,6 @@ impl EventService {
             });
 
             for (semantic_type, cat) in &context_categories {
-                // Optimierte Suche: Wir suchen das letzte Event vor oder zum Zeitpunkt des Basis-Events.
-                // Dies nutzt den (user_id, timestamp) Index optimal aus.
                 let context_payload = sqlx::query_scalar::<_, String>(
                     "SELECT payload FROM events WHERE user_id = ? AND category = ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT 1"
                 )
@@ -205,20 +199,19 @@ impl EventService {
     }
 
     pub async fn resolve_semantic_info(&self, semantic_type: &str) -> Result<(String, String)> {
-        let manifests = self.plugin_manager.get_plugin_manifests().await;
+        let manifests: HashMap<String, crate::plugins::scry::plugin::types::Manifest> = self.plugin_manager.get_plugin_manifests().await;
         for m in manifests.values() {
             for export in &m.exports {
                 if export.semantic_type == semantic_type {
-                    // Wir konvertieren den Pfad (z.B. payload.artist) in SQLite Syntax (artist)
                     let path = export.path.strip_prefix("payload.").unwrap_or(&export.path).to_string();
                     return Ok((export.category.clone(), path));
                 }
             }
         }
-        Err(anyhow::anyhow!("Semantic type {} not found in catalog", semantic_type))
+        Err(Error::NotFound(format!("Semantic type {} not found in catalog", semantic_type)))
     }
 
-    pub async fn get_semantic_top(&self, user_id: i64, semantic_type: &str, limit: u32, days: Option<u32>) -> Result<Vec<Value>> {
+    pub async fn get_semantic_top(&self, _user_id: i64, semantic_type: &str, limit: u32, days: Option<u32>) -> Result<Vec<Value>> {
         let (category, path) = self.resolve_semantic_info(semantic_type).await?;
         
         let mut sql = format!(
@@ -246,10 +239,9 @@ impl EventService {
         }).collect())
     }
 
-    pub async fn get_semantic_series(&self, user_id: i64, semantic_type: &str, days: u32) -> Result<Vec<Value>> {
+    pub async fn get_semantic_series(&self, _user_id: i64, semantic_type: &str, days: u32) -> Result<Vec<Value>> {
         let (category, path) = self.resolve_semantic_info(semantic_type).await?;
         
-        // Zeitverlauf über die letzten X Tage
         let sql = format!(
             "SELECT strftime('%Y-%m-%d', timestamp) as label, AVG(CAST(payload ->> '{}' as REAL)) as value FROM events WHERE category = ? AND timestamp > date('now', ?) GROUP BY label ORDER BY label ASC",
             path
@@ -279,12 +271,12 @@ impl EventService {
 
         Ok(crate::models::SemanticStats {
             base_type: base_semantic.to_string(), join_type: join_semantic.to_string(),
-            sample_size, correlations: serde_json::to_value(distribution)?,
+            sample_size, correlations: serde_json::to_value(distribution).map_err(|_e| Error::Internal)?,
         })
     }
 
     pub async fn generate_daily_summary(&self, user_id: i64, date: &str) -> Result<Vec<String>> {
-        let manifests = self.plugin_manager.get_plugin_manifests().await;
+        let manifests: HashMap<String, crate::plugins::scry::plugin::types::Manifest> = self.plugin_manager.get_plugin_manifests().await;
         let mut full_summary = Vec::new();
         let start = format!("{}T00:00:00Z", date);
         let end = format!("{}T23:59:59Z", date);
