@@ -1,0 +1,32 @@
+# Rust
+/target
+/debug
+**/*.rs.bk
+*.pdb
+
+# Nix / Direnv
+/result
+/.direnv/
+.envrc
+
+# Scry Data & Logs
+scry.db*
+*.db-shm
+*.db-wal
+server.log
+*.log
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# WASM Plugins (compiled)
+/plugins/*.wasm
+
+# Frontend (Node/Web)
+node_modules/
+/web/dist/
+/web/build/
+.eslintcache
+.stylelintcache

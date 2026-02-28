@@ -1,0 +1,69 @@
+package scry:plugin;
+
+interface types {
+    record event {
+        id: string,
+        timestamp: string,
+        category: string,
+        source: string,
+        payload: string,
+        metadata: option<string>,
+    }
+
+    record data-field {
+        category: string,
+        path: string,
+        semantic-type: string,
+        description: string,
+    }
+
+    record manifest {
+        id: string,
+        name: string,
+        version: string,
+        description: string,
+        subscriptions: list<string>,
+        capabilities: list<string>,
+        exports: list<data-field>,
+        poll-interval: option<u32>,
+    }
+
+    enum visualization { table, bar-chart, line-chart, pie-chart }
+
+    record report-metadata {
+        id: string,
+        name: string,
+        description: string,
+        viz: visualization,
+    }
+
+    record report-data {
+        columns: list<string>,
+        data-json: string,
+    }
+}
+
+interface host {
+    use types.{event};
+
+    query: func(query-json: string) -> result<string, string>;
+    http-get: func(url: string) -> result<string, string>;
+    set-state: func(key: string, value: string);
+    get-state: func(key: string) -> option<string>;
+    get-config: func(key: string) -> option<string>;
+    log: func(level: string, message: string);
+}
+
+world plugin {
+    import host;
+    use types.{event, report-metadata, report-data, manifest};
+
+    export get-manifest: func() -> manifest;
+    export on-ingest: func(ev: event) -> result<event, string>;
+    export on-poll: func() -> list<event>;
+    export get-reports: func() -> list<report-metadata>;
+    export run-report: func(report-id: string) -> result<report-data, string>;
+    
+    // NEU: Plugin-spezifische Zusammenfassung für einen Zeitraum
+    export get-summary: func(start-ts: string, end-ts: string) -> string;
+}
