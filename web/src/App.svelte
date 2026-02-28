@@ -5,6 +5,7 @@
 	import { onMount } from "svelte";
 	import { router } from "./lib/router.svelte";
 	import { ui } from "./lib/ui.svelte";
+	import { fly } from "svelte/transition";
 	
 	// Pages
 	import Overview from "./lib/pages/Overview.svelte";
@@ -179,6 +180,22 @@
 		</div>
 	</div>
 {/if}
+
+<div class="toast toast-end toast-bottom z-[100]">
+	{#each ui.toasts as toast (toast.id)}
+		<div 
+			in:fly={{ y: 20, duration: 300 }} 
+			out:fly={{ x: 100, duration: 300 }}
+			class="alert"
+			class:alert-info={toast.type === 'info'}
+			class:alert-success={toast.type === 'success'}
+			class:alert-warning={toast.type === 'warning'}
+			class:alert-error={toast.type === 'error'}
+		>
+			<span>{toast.message}</span>
+		</div>
+	{/each}
+</div>
 
 <style>
 	:global(.btn) { text-transform: none; }
