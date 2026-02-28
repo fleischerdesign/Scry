@@ -8,7 +8,7 @@ use axum::{
     http::StatusCode,
     middleware::{self, Next},
     response::{Response},
-    routing::{get, post},
+    routing::{get, post, delete},
     Router,
     http::Request,
 };
@@ -27,6 +27,7 @@ use tokio::time::{sleep, Duration};
 use notify::{Watcher, RecursiveMode};
 use tower_http::cors::Any;
 use tower_http::cors::CorsLayer;
+use tokio_util::sync::CancellationToken;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -36,12 +37,18 @@ use tower_http::cors::CorsLayer;
         handlers::get_data_by_type, 
         handlers::get_timeline, 
         handlers::get_daily_summary,
+        handlers::get_semantic_top,
+        handlers::get_semantic_series,
         handlers::correlate_events,
         handlers::get_system_status, handlers::get_system_plugins, handlers::poll_plugin_manually,
+        handlers::update_plugin_config, handlers::get_profile, handlers::update_profile,
+        handlers::get_dashboards, handlers::add_widget,
+        handlers::create_dashboard, handlers::delete_widget,
         handlers::ingest_event,
+        handlers::run_plugin_report,
         handlers::health_check
     ),
-    components(schemas(Event, User, RegisterRequest, LoginRequest, AuthResponse, ApiReportMetadata, ApiReportData, PluginReports, CorrelationResult, SemanticStats)),
+    components(schemas(Event, User, RegisterRequest, LoginRequest, AuthResponse, ApiReportMetadata, ApiReportData, PluginReports, CorrelationResult, SemanticStats, PluginStatus, SemanticParams, Dashboard, DashboardWidget)),
     modifiers(&SecurityAddon),
     tags((name = "scry", description = "Scry Multi-Tenant Platform API"))
 )]
@@ -108,37 +115,53 @@ async fn main() -> anyhow::Result<()> {
     })?;
     watcher.watch(std::path::Path::new("./plugins"), RecursiveMode::NonRecursive)?;
 
-    let event_service = EventService::new(db, plugin_manager);
-    let shared_state = Arc::new(AppState { event_service });
+    let cancel_token = CancellationToken::new();
+    let mut event_service = EventService::new(db, plugin_manager);
+    let (event_sender, _rx) = tokio::sync::broadcast::channel(1024);
+    event_service.set_event_sender(event_sender.clone());
+    
+    let shared_state = Arc::new(AppState { 
+        event_service, 
+        event_sender,
+        cancel_token: cancel_token.clone()
+    });
 
     // Background Scheduler Task (Multi-Tenant aware)
     let scheduler_state = shared_state.clone();
+    let scheduler_token = cancel_token.clone();
     tokio::spawn(async move {
         loop {
-            let db = scheduler_state.event_service.db();
-            // Lade alle User IDs
-            let user_ids: Vec<i64> = match sqlx::query_scalar::<_, i64>("SELECT id FROM users").fetch_all(db).await {
-                Ok(ids) => ids,
-                Err(e) => {
-                    tracing::error!("Failed to fetch users for scheduler: {}", e);
-                    vec![]
+            tokio::select! {
+                _ = scheduler_token.cancelled() => {
+                    tracing::info!("Scheduler shutting down...");
+                    break;
                 }
-            };
-
-            let manifests = scheduler_state.event_service.plugin_manager().get_plugin_manifests().await;
-            
-            for user_id in user_ids {
-                for name in manifests.keys() {
-                    let svc = scheduler_state.event_service.clone();
-                    let plugin_name = name.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) = svc.poll_and_save_plugin(user_id, &plugin_name).await {
-                            tracing::warn!(user_id = %user_id, plugin = %plugin_name, "Poll failed: {}", e);
+                _ = async {
+                    let db = scheduler_state.event_service.db();
+                    let user_ids: Vec<i64> = match sqlx::query_scalar::<_, i64>("SELECT id FROM users").fetch_all(db).await {
+                        Ok(ids) => ids,
+                        Err(e) => {
+                            tracing::error!("Failed to fetch users for scheduler: {}", e);
+                            vec![]
                         }
-                    });
-                }
+                    };
+
+                    let manifests = scheduler_state.event_service.plugin_manager().get_plugin_manifests().await;
+                    
+                    for user_id in user_ids {
+                        for name in manifests.keys() {
+                            let svc = scheduler_state.event_service.clone();
+                            let plugin_name = name.clone();
+                            tokio::spawn(async move {
+                                if let Err(e) = svc.poll_and_save_plugin(user_id, &plugin_name).await {
+                                    tracing::warn!(user_id = %user_id, plugin = %plugin_name, "Scheduler poll failed: {}", e);
+                                }
+                            });
+                        }
+                    }
+                    sleep(Duration::from_secs(60)).await;
+                } => {}
             }
-            sleep(Duration::from_secs(60)).await;
         }
     });
 
@@ -156,33 +179,39 @@ async fn main() -> anyhow::Result<()> {
                 .route("/*path", get(get_data_by_type)))
             .nest("/streams", Router::new()
                 .route("/timeline", get(get_timeline))
-                .route("/summary", get(get_daily_summary)))
+                .route("/summary", get(get_daily_summary))
+                .route("/live", get(stream_live_events)))
             .nest("/analytics", Router::new()
                 .route("/correlations", get(correlate_events))
-                .route("/stats", get(get_semantic_stats)))
+                .route("/stats", get(get_semantic_stats))
+                .route("/semantic/top", get(get_semantic_top))
+                .route("/semantic/series", get(get_semantic_series))
+                .route("/plugins/:id/reports/:report_id", get(run_plugin_report)))
             .nest("/system", Router::new()
                 .route("/status", get(get_system_status))
                 .route("/plugins", get(get_system_plugins))
-                .route("/plugins/:id/poll", post(poll_plugin_manually)))
+                .route("/plugins/:id/poll", post(poll_plugin_manually))
+                .route("/plugins/:id/config", post(update_plugin_config))
+                .route("/dashboards", get(get_dashboards).post(create_dashboard))
+                .route("/dashboards/:id/widgets", post(add_widget))
+                .route("/dashboards/:id/widgets/:widget_id", delete(delete_widget))
+                .route("/profile", get(get_profile).post(update_profile)))
             .route("/ingest", post(ingest_event))
             .layer(middleware::from_fn_with_state(shared_state.clone(), auth_middleware)));
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::HeaderName::from_static("x-api-key")]);
 
     let app = Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .nest("/api/v1", api_v1)
-        .route("/", get(|| async { "Scry Platform API" }))
-        .route("/health", get(health_check))
+        .fallback_service(
+            tower_http::services::ServeDir::new("web/dist")
+                .fallback(tower_http::services::ServeFile::new("web/dist/index.html"))
+        )
         .layer(cors)
-        .layer(tower_http::trace::TraceLayer::new_for_http())
-        // Schutz vor zu großen Payloads (max 1 MB)
-        .layer(tower_http::limit::RequestBodyLimitLayer::new(1024 * 1024))
-        // Begrenzung der gleichzeitig verarbeiteten Requests (max 50)
-        .layer(tower::limit::ConcurrencyLimitLayer::new(50))
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
@@ -190,7 +219,8 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     
     // Graceful Shutdown Signal Handler
-    let shutdown = async {
+    let final_cancel_token = cancel_token.clone();
+    let shutdown = async move {
         let ctrl_c = async {
             tokio::signal::ctrl_c()
                 .await
@@ -212,7 +242,8 @@ async fn main() -> anyhow::Result<()> {
             _ = ctrl_c => {},
             _ = terminate => {},
         }
-        tracing::info!("Shutdown signal received, starting graceful shutdown...");
+        tracing::info!("Shutdown signal received, triggering cancellation tokens...");
+        final_cancel_token.cancel();
     };
 
     axum::serve(listener, app)
@@ -224,11 +255,24 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn auth_middleware(State(state): State<Arc<AppState>>, mut req: Request<axum::body::Body>, next: Next) -> Result<Response, StatusCode> {
+    if req.method() == axum::http::Method::OPTIONS {
+        return Ok(next.run(req).await);
+    }
+
     let auth_header = req.headers().get("X-API-Key").and_then(|h| h.to_str().ok());
-    if let Some(key) = auth_header {
+    let query_key = req.uri().query()
+        .and_then(|q| serde_urlencoded::from_str::<std::collections::HashMap<String, String>>(q).ok())
+        .and_then(|m| m.get("api_key").cloned());
+
+    let key_to_check = auth_header.map(|s| s.to_string()).or(query_key);
+    
+    if let Some(key) = key_to_check {
         let db = state.event_service.db();
         let auth = sqlx::query_as::<_, (i64, String)>("SELECT user_id, scopes FROM api_keys WHERE key = ?")
-            .bind(key).fetch_optional(db).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .bind(&key).fetch_optional(db).await.map_err(|e| {
+                tracing::error!("Auth DB Error: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
         
         if let Some((user_id, scopes_str)) = auth {
             let ctx = AuthContext {
@@ -237,6 +281,8 @@ async fn auth_middleware(State(state): State<Arc<AppState>>, mut req: Request<ax
             };
             req.extensions_mut().insert(ctx);
             return Ok(next.run(req).await);
+        } else {
+            tracing::warn!("Invalid API Key provided: {}", key);
         }
     }
     Err(StatusCode::UNAUTHORIZED)

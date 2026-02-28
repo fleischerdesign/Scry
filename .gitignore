@@ -7,7 +7,6 @@
 # Nix / Direnv
 /result
 /.direnv/
-.envrc
 
 # Scry Data & Logs
 scry.db*
@@ -28,5 +27,13 @@ server.log
 node_modules/
 /web/dist/
 /web/build/
+/web/.vite/
+/web/.svelte-kit/
+/web/.pnpm-store/
 .eslintcache
 .stylelintcache
+*.local
+pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+

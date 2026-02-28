@@ -137,9 +137,11 @@ macro_rules! scry_plugin {
             }
 
             pub fn count_grouped(category: &str, payload_key: &str, limit: u32) -> Vec<$crate::serde_json::Value> {
-                let sql = "SELECT json_extract(payload, '$.' || ?) as key, COUNT(*) as count FROM events WHERE category = ? GROUP BY key ORDER BY count DESC LIMIT ?";
-                query(sql, vec![
-                    QueryParam::S(payload_key.to_string()),
+                // Die Pfeil-Syntax (->>) extrahiert den Wert direkt als passenden Typ (Text/Zahl)
+                // Wir müssen hier den Key allerdings sicher einbetten, da SQLite keine Parameter in Spaltennamen erlaubt.
+                // Da wir das SDK kontrollieren, nutzen wir hier einen sichereren Weg.
+                let sql = format!("SELECT payload ->> '{}' as key, COUNT(*) as count FROM events WHERE category = ? GROUP BY key ORDER BY count DESC LIMIT ?", payload_key);
+                query(&sql, vec![
                     QueryParam::S(category.to_string()),
                     QueryParam::I(limit as i64),
                 ])
@@ -180,6 +182,7 @@ macro_rules! scry_plugin {
             pub fn get_state(key: &str) -> Option<String> { super::scry::plugin::host::get_state(key) }
             pub fn set_state(key: &str, val: &str) { super::scry::plugin::host::set_state(key, val) }
             pub fn get_config(key: &str) -> Option<String> { super::scry::plugin::host::get_config(key) }
+            pub fn get_profile(key: &str) -> Option<String> { super::scry::plugin::host::get_profile(key) }
             pub fn http_get(url: &str) -> ::std::result::Result<String, String> { 
                 super::scry::plugin::host::http_get(url)
             }

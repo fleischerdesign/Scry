@@ -17,9 +17,12 @@
           buildInputs = [ 
             rust 
             pkgs.sqlite 
-            pkgs.openssl 
+            pkgs.openssl
+            pkgs.nodejs_latest
+            pkgs.pnpm
+            pkgs.nodePackages.typescript-language-server
           ];
-          shellHook = "echo 'Scry Dev Shell (OpenSSL included)'";
+          shellHook = "echo 'Scry Dev Shell (Rust + Node.js Latest + pnpm)'";
         };
       });
 }

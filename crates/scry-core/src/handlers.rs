@@ -1,6 +1,6 @@
 use axum::{
     extract::{State, Json, Query, Path},
-    http::StatusCode,
+    http::{StatusCode, Request},
     response::IntoResponse,
     Extension,
 };
@@ -15,6 +15,47 @@ use crate::models::*;
 use validator::Validate;
 
 // --- Handlers ---
+
+use axum::response::sse::{Event as SseEvent, Sse};
+use futures::stream::{Stream, StreamExt};
+use std::convert::Infallible;
+
+pub async fn stream_live_events(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>,
+) -> Sse<impl Stream<Item = Result<SseEvent, Infallible>>> {
+    let mut rx = state.event_sender.subscribe();
+    let cancel_token = state.cancel_token.clone();
+
+    let stream = async_stream::stream! {
+        loop {
+            tokio::select! {
+                // Beende den Stream, wenn der Server herunterfährt
+                _ = cancel_token.cancelled() => {
+                    break;
+                }
+                // Warte auf neue Events
+                res = rx.recv() => {
+                    match res {
+                        Ok(event) => {
+                            let is_user_event = event.metadata.as_ref()
+                                .and_then(|m| m.get("user_id"))
+                                .and_then(|u| u.as_i64()) == Some(auth.user_id);
+                            
+                            if is_user_event {
+                                yield Ok(SseEvent::default().data(serde_json::to_string(&event).unwrap()));
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(_) => break,
+                    }
+                }
+            }
+        }
+    };
+
+    Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default())
+}
 
 #[utoipa::path(post, path = "/api/v1/auth/register", request_body = RegisterRequest, responses((status = 200, body = AuthResponse)))]
 pub async fn register_user(State(state): State<Arc<AppState>>, Json(req): Json<RegisterRequest>) -> Result<Json<AuthResponse>, AppError> {
@@ -59,13 +100,62 @@ pub async fn login_user(State(state): State<Arc<AppState>>, Json(req): Json<Logi
     Ok(Json(AuthResponse { api_key, user: User { id: user.0, username: user.1 } }))
 }
 
+#[utoipa::path(get, path = "/api/v1/system/plugins/{id}/reports/{report_id}", responses((status = 200, body = ApiReportData)), security(("api_key" = [])))]
+pub async fn run_plugin_report(
+    State(state): State<Arc<AppState>>,
+    Path((id, report_id)): Path<(String, String)>,
+    Extension(auth): Extension<AuthContext>
+) -> Result<Json<ApiReportData>, AppError> {
+    let data = state.event_service.plugin_manager().run_plugin_report(auth.user_id, &id, report_id).await?;
+    Ok(Json(ApiReportData {
+        columns: data.columns,
+        data_json: data.data_json,
+    }))
+}
+
+#[utoipa::path(get, path = "/api/v1/system/profile", responses((status = 200, body = serde_json::Value)), security(("api_key" = [])))]
+pub async fn get_profile(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<Json<serde_json::Value>, AppError> {
+    let db = state.event_service.db();
+    let rows = sqlx::query_as::<_, (String, String)>("SELECT key, value FROM user_profile WHERE user_id = ?").bind(auth.user_id).fetch_all(db).await?;
+    let mut map = serde_json::Map::new();
+    for (k, v) in rows { map.insert(k, json!(v)); }
+    Ok(Json(serde_json::Value::Object(map)))
+}
+
+#[utoipa::path(post, path = "/api/v1/system/profile", responses((status = 200)), security(("api_key" = [])))]
+pub async fn update_profile(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(req): Json<serde_json::Map<String, serde_json::Value>>) -> Result<impl IntoResponse, AppError> {
+    let db = state.event_service.db();
+    for (k, v) in req {
+        let v_str = v.as_str().unwrap_or("").to_string();
+        sqlx::query("INSERT INTO user_profile (user_id, key, value) VALUES (?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = EXCLUDED.value")
+            .bind(auth.user_id).bind(k).bind(v_str).execute(db).await?;
+    }
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(post, path = "/api/v1/system/plugins/{id}/config", responses((status = 200)), security(("api_key" = [])))]
+pub async fn update_plugin_config(State(state): State<Arc<AppState>>, Path(id): Path<String>, Extension(auth): Extension<AuthContext>, Json(req): Json<serde_json::Map<String, serde_json::Value>>) -> Result<impl IntoResponse, AppError> {
+    let db = state.event_service.db();
+    for (k, v) in req {
+        let v_str = v.as_str().unwrap_or("").to_string();
+        sqlx::query("INSERT INTO plugin_config (user_id, plugin_id, key, value) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, plugin_id, key) DO UPDATE SET value = EXCLUDED.value")
+            .bind(auth.user_id).bind(&id).bind(k).bind(v_str).execute(db).await?;
+    }
+    Ok(StatusCode::OK)
+}
+
 #[utoipa::path(get, path = "/api/v1/discovery/catalog", responses((status = 200, description = "Catalog")), security(("api_key" = [])))]
-pub async fn get_catalog(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+pub async fn get_catalog(State(state): State<Arc<AppState>>, Extension(_auth): Extension<AuthContext>) -> impl IntoResponse {
     let manifests = state.event_service.plugin_manager().get_plugin_manifests().await;
     let mut catalog = serde_json::Map::new();
     for (plugin_name, manifest) in manifests {
         for export in manifest.exports {
-            let entry = json!({ "plugin": plugin_name, "path": export.path, "description": export.description, "category": export.category });
+            let entry = json!({ 
+                "plugin": plugin_name, 
+                "path": export.path, 
+                "description": export.description, 
+                "category": export.category 
+            });
             catalog.entry(export.semantic_type).or_insert_with(|| json!([])).as_array_mut().unwrap().push(entry);
         }
     }
@@ -107,6 +197,85 @@ pub async fn get_semantic_stats(State(state): State<Arc<AppState>>, Query(params
     Ok(Json(stats))
 }
 
+#[utoipa::path(post, path = "/api/v1/system/dashboards", responses((status = 200)), security(("api_key" = [])))]
+pub async fn create_dashboard(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(req): Json<serde_json::Value>) -> Result<impl IntoResponse, AppError> {
+    let db = state.event_service.db();
+    let id = Uuid::new_v4().to_string();
+    let name = req["name"].as_str().ok_or_else(|| AppError::BadRequest("Missing name".to_string()))?;
+    
+    let slug = name.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .replace("--", "-");
+    
+    sqlx::query("INSERT INTO dashboards (id, user_id, name, slug) VALUES (?, ?, ?, ?)")
+        .bind(id).bind(auth.user_id).bind(name).bind(slug).execute(db).await?;
+    
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(delete, path = "/api/v1/system/dashboards/{id}/widgets/{widget_id}", responses((status = 200)), security(("api_key" = [])))]
+pub async fn delete_widget(State(state): State<Arc<AppState>>, Path((_id, widget_id)): Path<(String, String)>, Extension(_auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
+    let db = state.event_service.db();
+    sqlx::query("DELETE FROM dashboard_widgets WHERE id = ?").bind(widget_id).execute(db).await?;
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(get, path = "/api/v1/system/dashboards", responses((status = 200, body = [Dashboard])), security(("api_key" = [])))]
+pub async fn get_dashboards(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<Dashboard>>, AppError> {
+    let db = state.event_service.db();
+    let dashboards = sqlx::query_as::<_, (String, String, String, bool)>("SELECT id, name, COALESCE(slug, id) as slug, is_default FROM dashboards WHERE user_id = ?")
+        .bind(auth.user_id).fetch_all(db).await?;
+    
+    let mut results = Vec::new();
+    for (id, name, slug, is_default) in dashboards {
+        let widgets_rows = sqlx::query_as::<_, (String, String, String, Option<String>, String, i32, i32)>(
+            "SELECT id, dashboard_id, type, title, config, width_span, sort_order FROM dashboard_widgets WHERE dashboard_id = ? ORDER BY sort_order ASC"
+        ).bind(&id).fetch_all(db).await?;
+        
+        let widgets = widgets_rows.into_iter().map(|w| DashboardWidget {
+            id: w.0, dashboard_id: w.1, r#type: w.2, title: w.3,
+            config: serde_json::from_str(&w.4).unwrap_or(json!({})),
+            width_span: w.5, sort_order: w.6
+        }).collect();
+        
+        results.push(Dashboard { id, name, slug, is_default, widgets });
+    }
+    Ok(Json(results))
+}
+
+#[utoipa::path(post, path = "/api/v1/system/dashboards/{id}/widgets", responses((status = 200)), security(("api_key" = [])))]
+pub async fn add_widget(State(state): State<Arc<AppState>>, Path(id): Path<String>, Extension(_auth): Extension<AuthContext>, Json(req): Json<serde_json::Value>) -> Result<impl IntoResponse, AppError> {
+    let db = state.event_service.db();
+    let widget_id = Uuid::new_v4().to_string();
+    let w_type = req["type"].as_str().ok_or_else(|| AppError::BadRequest("Missing type".to_string()))?;
+    let config = serde_json::to_string(&req["config"]).unwrap_or_else(|_| "{}".to_string());
+    let span = req["width_span"].as_i64().unwrap_or(1) as i32;
+    
+    tracing::debug!("Adding widget {} to dashboard {}", w_type, id);
+
+    sqlx::query("INSERT INTO dashboard_widgets (id, dashboard_id, type, title, config, width_span) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(widget_id).bind(id).bind(w_type).bind(req["title"].as_str()).bind(config).bind(span).execute(db).await.map_err(|e| {
+            tracing::error!("Failed to insert widget: {}", e);
+            AppError::Database(e)
+        })?;
+    
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(get, path = "/api/v1/analytics/semantic/top", params(SemanticParams), responses((status = 200, body = [serde_json::Value])), security(("api_key" = [])))]
+pub async fn get_semantic_top(State(state): State<Arc<AppState>>, Query(params): Query<SemanticParams>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let top = state.event_service.get_semantic_top(auth.user_id, &params.semantic_type, params.limit.unwrap_or(10), params.days).await?;
+    Ok(Json(top))
+}
+
+#[utoipa::path(get, path = "/api/v1/analytics/semantic/series", params(SemanticParams), responses((status = 200, body = [serde_json::Value])), security(("api_key" = [])))]
+pub async fn get_semantic_series(State(state): State<Arc<AppState>>, Query(params): Query<SemanticParams>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let series = state.event_service.get_semantic_series(auth.user_id, &params.semantic_type, params.days.unwrap_or(7)).await?;
+    Ok(Json(series))
+}
+
 #[utoipa::path(get, path = "/api/v1/analytics/correlations", params(CorrelateParams), responses((status = 200, body = [CorrelationResult])), security(("api_key" = [])))]
 pub async fn correlate_events(State(state): State<Arc<AppState>>, Query(params): Query<CorrelateParams>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<CorrelationResult>>, AppError> {
     let limit = params.limit.unwrap_or(50);
@@ -132,13 +301,28 @@ pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoRespon
     }
 }
 
-#[utoipa::path(get, path = "/api/v1/system/plugins", responses((status = 200, body = [PluginReports])), security(("api_key" = [])))]
-pub async fn get_system_plugins(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<PluginReports>>, AppError> {
-    let reports = state.event_service.plugin_manager().list_plugin_reports(auth.user_id).await?;
-    let api_reports = reports.into_iter().map(|(plugin, metadata_list)| {
-        PluginReports { plugin, reports: metadata_list.into_iter().map(|m| ApiReportMetadata { id: m.id, name: m.name, description: m.description, viz: format!("{:?}", m.viz) }).collect() }
-    }).collect();
-    Ok(Json(api_reports))
+#[utoipa::path(get, path = "/api/v1/system/plugins", responses((status = 200, body = [PluginStatus])), security(("api_key" = [])))]
+pub async fn get_system_plugins(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<PluginStatus>>, AppError> {
+    let manifests = state.event_service.plugin_manager().get_plugin_manifests().await;
+    let mut statuses = Vec::new();
+
+    for (id, m) in manifests {
+        let reports = state.event_service.plugin_manager().list_plugin_reports(auth.user_id).await?;
+        let p_reports = reports.into_iter().find(|(p_id, _)| p_id == &id).map(|(_, r)| r).unwrap_or_default();
+        
+        statuses.push(PluginStatus {
+            id: id.clone(),
+            name: m.name,
+            version: m.version,
+            description: m.description,
+            capabilities: m.capabilities,
+            subscriptions: m.subscriptions,
+            reports: p_reports.into_iter().map(|r| ApiReportMetadata {
+                id: r.id, name: r.name, description: r.description, viz: format!("{:?}", r.viz),
+            }).collect()
+        });
+    }
+    Ok(Json(statuses))
 }
 
 #[utoipa::path(post, path = "/api/v1/system/plugins/{id}/poll", responses((status = 200, description = "Poll")), security(("api_key" = [])))]
@@ -164,6 +348,9 @@ pub struct SummaryParams { pub date: Option<String> }
 
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct CorrelateParams { pub base_category: Option<String>, pub join_category: Option<String>, pub base_semantic: Option<String>, pub join_semantic: Option<String>, pub limit: Option<u32> }
+
+#[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
+pub struct SemanticParams { pub semantic_type: String, pub limit: Option<u32>, pub days: Option<u32> }
 
 #[cfg(test)]
 mod tests {

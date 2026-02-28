@@ -46,6 +46,11 @@ impl ScryPlugin for WeatherPlugin {
     }
 
     fn on_poll(&self) -> Vec<scry_plugin_sdk::Event> {
+        // Nutze globales Profil für die Stadt, falls vorhanden (Log-Demo)
+        if let Some(city) = host::get_profile("location.city") {
+            host::log_info(&format!("Polling weather for global city: {}", city));
+        }
+
         let lat = host::get_config("latitude").unwrap_or_else(|| "52.52".to_string());
         let lon = host::get_config("longitude").unwrap_or_else(|| "13.41".to_string());
         let url = format!("https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current_weather=true", lat, lon);

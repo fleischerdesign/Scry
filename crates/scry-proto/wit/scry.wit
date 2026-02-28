@@ -57,6 +57,7 @@ interface host {
     set-state: func(key: string, value: string);
     get-state: func(key: string) -> option<string>;
     get-config: func(key: string) -> option<string>;
+    get-profile: func(key: string) -> option<string>;
     log: func(level: string, message: string);
 }
 

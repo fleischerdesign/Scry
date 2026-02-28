@@ -49,6 +49,8 @@ impl IntoResponse for AppError {
 #[derive(Clone)]
 pub struct AppState {
     pub event_service: EventService,
+    pub event_sender: tokio::sync::broadcast::Sender<Event>,
+    pub cancel_token: tokio_util::sync::CancellationToken,
 }
 
 #[derive(sqlx::FromRow, Debug)]
@@ -88,6 +90,17 @@ pub struct ApiReportMetadata {
 pub struct ApiReportData {
     pub columns: Vec<String>,
     pub data_json: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct PluginStatus {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub description: String,
+    pub capabilities: Vec<String>,
+    pub subscriptions: Vec<String>,
+    pub reports: Vec<ApiReportMetadata>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -134,6 +147,26 @@ pub struct AuthContext {
     pub user_id: i64,
     #[allow(dead_code)]
     pub scopes: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
+pub struct Dashboard {
+    pub id: String,
+    pub name: String,
+    pub slug: String,
+    pub is_default: bool,
+    pub widgets: Vec<DashboardWidget>,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
+pub struct DashboardWidget {
+    pub id: String,
+    pub dashboard_id: String,
+    pub r#type: String,
+    pub title: Option<String>,
+    pub config: serde_json::Value,
+    pub width_span: i32,
+    pub sort_order: i32,
 }
 
 #[derive(Serialize, ToSchema)]

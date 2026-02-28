@@ -51,11 +51,13 @@ impl scry::plugin::host::Host for MyCtx {
             return Ok(Err("Only SELECT queries are allowed".to_string()));
         }
 
-        // Wir nutzen eine CTE (Common Table Expression), um das 'events' Table für das Plugin
-        // transparent vorzufiltern. So kann das Plugin einfach 'SELECT * FROM events' schreiben,
-        // sieht aber nur seine eigenen Daten. Das ist sicherer und performanter.
+        // Wir benennen die gefilterte Tabelle 'events', damit das Plugin-SQL 
+        // (das 'FROM events' nutzt) automatisch auf die gefilterten Daten zugreift.
+        // Um eine 'circular reference' zu vermeiden, muss der innere Teil der CTE 
+        // die echte Tabelle referenzieren. SQLite löst das auf, indem wir die echte 
+        // Tabelle mit 'main.events' ansprechen.
         let safe_sql = format!(
-            "WITH events AS (SELECT * FROM events WHERE user_id = ?) {}",
+            "WITH events AS (SELECT id, user_id, timestamp, category, source, json(payload) as payload, metadata FROM main.events WHERE user_id = ?) {}",
             sql
         );
         let mut query = sqlx::query(&safe_sql);
@@ -82,10 +84,17 @@ impl scry::plugin::host::Host for MyCtx {
                         let name = col.name();
                         let val = match row.try_get_raw(col.ordinal()) {
                             Ok(raw) if !raw.is_null() => {
-                                match col.type_info().name() {
-                                    "INTEGER" | "INT64" => serde_json::to_value(row.get::<i64, _>(col.ordinal())).unwrap_or(serde_json::Value::Null),
-                                    "REAL" | "FLOAT" => serde_json::to_value(row.get::<f64, _>(col.ordinal())).unwrap_or(serde_json::Value::Null),
-                                    _ => serde_json::Value::String(row.get::<String, _>(col.ordinal())),
+                                // Aggressives Type-Matching: Wir probieren nacheinander die gängigen Typen
+                                if let Ok(v) = row.try_get::<i64, _>(col.ordinal()) {
+                                    serde_json::to_value(v).unwrap_or(serde_json::Value::Null)
+                                } else if let Ok(v) = row.try_get::<f64, _>(col.ordinal()) {
+                                    serde_json::to_value(v).unwrap_or(serde_json::Value::Null)
+                                } else if let Ok(v) = row.try_get::<String, _>(col.ordinal()) {
+                                    serde_json::Value::String(v)
+                                } else {
+                                    // Letzter Versuch: Roh-Repräsentation als String
+                                    tracing::warn!("Failed to map column '{}' with type {:?}", col.name(), col.type_info());
+                                    serde_json::Value::Null
                                 }
                             },
                             _ => serde_json::Value::Null,
@@ -121,7 +130,15 @@ impl scry::plugin::host::Host for MyCtx {
     }
 
     async fn get_config(&mut self, key: String) -> Result<Option<String>> {
-        self.get_state(key).await
+        let row = sqlx::query_as::<_, (String,)>("SELECT value FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ?")
+            .bind(self.user_id).bind(&self.plugin_name).bind(key).fetch_optional(&self.db).await?;
+        Ok(row.map(|r| r.0))
+    }
+
+    async fn get_profile(&mut self, key: String) -> Result<Option<String>> {
+        let row = sqlx::query_as::<_, (String,)>("SELECT value FROM user_profile WHERE user_id = ? AND key = ?")
+            .bind(self.user_id).bind(key).fetch_optional(&self.db).await?;
+        Ok(row.map(|r| r.0))
     }
 
     async fn log(&mut self, level: String, message: String) -> Result<()> {

@@ -8,16 +8,21 @@ use serde_json::Value;
 
 #[derive(Clone)]
 pub struct EventService {
-    db: SqlitePool,
+    db: sqlx::SqlitePool,
     plugin_manager: Arc<PluginManager>,
+    event_sender: Option<tokio::sync::broadcast::Sender<Event>>,
 }
 
 impl EventService {
-    pub fn new(db: SqlitePool, plugin_manager: Arc<PluginManager>) -> Self {
-        Self { db, plugin_manager }
+    pub fn new(db: sqlx::SqlitePool, plugin_manager: Arc<PluginManager>) -> Self {
+        Self { db, plugin_manager, event_sender: None }
     }
 
-    pub fn db(&self) -> &SqlitePool { &self.db }
+    pub fn set_event_sender(&mut self, sender: tokio::sync::broadcast::Sender<Event>) {
+        self.event_sender = Some(sender);
+    }
+
+    pub fn db(&self) -> &sqlx::SqlitePool { &self.db }
     pub fn plugin_manager(&self) -> &PluginManager { &self.plugin_manager }
 
     pub async fn ingest_event(&self, user_id: i64, event: Event) -> Result<Event> {
@@ -33,6 +38,15 @@ impl EventService {
             .bind(processed_event.metadata.as_ref().map(|m| serde_json::to_string(m).unwrap()))
             .execute(&self.db)
             .await?;
+
+        // BROADCAST: Hier zentral für alle Quellen!
+        if let Some(ref sender) = self.event_sender {
+            let mut broadcast_event = processed_event.clone();
+            let mut meta = broadcast_event.metadata.unwrap_or_else(|| serde_json::json!({}));
+            meta["user_id"] = serde_json::json!(user_id);
+            broadcast_event.metadata = Some(meta);
+            let _ = sender.send(broadcast_event);
+        }
 
         Ok(processed_event)
     }
@@ -61,23 +75,11 @@ impl EventService {
         let events = self.plugin_manager.poll_plugin(user_id, name).await?;
         let count = events.len();
         
-        // Wir nutzen eine Transaktion für atomares Speichern der gepollten Events
-        let mut tx = self.db.begin().await?;
         for event in events {
-            let processed_event = self.plugin_manager.run_ingest_pipeline(user_id, event).await?;
-            
-            sqlx::query("INSERT INTO events (id, user_id, timestamp, category, source, payload, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)")
-                .bind(processed_event.id.to_string())
-                .bind(user_id)
-                .bind(processed_event.timestamp.to_rfc3339())
-                .bind(&processed_event.category)
-                .bind(&processed_event.source)
-                .bind(serde_json::to_string(&processed_event.payload)?)
-                .bind(processed_event.metadata.as_ref().map(|m| serde_json::to_string(m).unwrap()))
-                .execute(&mut *tx)
-                .await?;
+            // Durch Aufruf von ingest_event stellen wir sicher, 
+            // dass Speichern UND Broadcasting passieren.
+            self.ingest_event(user_id, event).await?;
         }
-        tx.commit().await?;
         
         Ok(count)
     }
@@ -148,6 +150,7 @@ impl EventService {
             let mut entry = serde_json::json!({
                 "id": ev.id,
                 "timestamp": ts,
+                "category": ev.category,
                 "event": ev.payload,
                 "context": {}
             });
@@ -198,6 +201,67 @@ impl EventService {
                 "base": serde_json::from_str::<Value>(&b).unwrap_or_default(),
                 "joined": j.and_then(|s| serde_json::from_str::<Value>(&s).ok()).unwrap_or_default(),
             })
+        }).collect())
+    }
+
+    pub async fn resolve_semantic_info(&self, semantic_type: &str) -> Result<(String, String)> {
+        let manifests = self.plugin_manager.get_plugin_manifests().await;
+        for m in manifests.values() {
+            for export in &m.exports {
+                if export.semantic_type == semantic_type {
+                    // Wir konvertieren den Pfad (z.B. payload.artist) in SQLite Syntax (artist)
+                    let path = export.path.strip_prefix("payload.").unwrap_or(&export.path).to_string();
+                    return Ok((export.category.clone(), path));
+                }
+            }
+        }
+        Err(anyhow::anyhow!("Semantic type {} not found in catalog", semantic_type))
+    }
+
+    pub async fn get_semantic_top(&self, user_id: i64, semantic_type: &str, limit: u32, days: Option<u32>) -> Result<Vec<Value>> {
+        let (category, path) = self.resolve_semantic_info(semantic_type).await?;
+        
+        let mut sql = format!(
+            "SELECT payload ->> '{}' as key, COUNT(*) as count FROM events WHERE category = ?",
+            path
+        );
+
+        if days.is_some() {
+            sql.push_str(" AND timestamp > date('now', ?)");
+        }
+
+        sql.push_str(" GROUP BY key ORDER BY count DESC LIMIT ?");
+
+        let mut query = sqlx::query_as::<_, (Option<String>, i64)>(&sql)
+            .bind(category);
+
+        if let Some(d) = days {
+            query = query.bind(format!("-{} days", d));
+        }
+
+        let rows = query.bind(limit).fetch_all(&self.db).await?;
+
+        Ok(rows.into_iter().map(|(k, c)| {
+            serde_json::json!({ "key": k.unwrap_or_else(|| "Unknown".to_string()), "count": c })
+        }).collect())
+    }
+
+    pub async fn get_semantic_series(&self, user_id: i64, semantic_type: &str, days: u32) -> Result<Vec<Value>> {
+        let (category, path) = self.resolve_semantic_info(semantic_type).await?;
+        
+        // Zeitverlauf über die letzten X Tage
+        let sql = format!(
+            "SELECT strftime('%Y-%m-%d', timestamp) as label, AVG(CAST(payload ->> '{}' as REAL)) as value FROM events WHERE category = ? AND timestamp > date('now', ?) GROUP BY label ORDER BY label ASC",
+            path
+        );
+
+        let rows = sqlx::query_as::<_, (String, f64)>(&sql)
+            .bind(category)
+            .bind(format!("-{} days", days))
+            .fetch_all(&self.db).await?;
+
+        Ok(rows.into_iter().map(|(l, v)| {
+            serde_json::json!({ "label": l, "value": v })
         }).collect())
     }
 
