@@ -21,7 +21,7 @@ impl ScryPlugin for MusicPlugin {
         }
     }
 
-    fn on_ingest(&self, mut ev: scry_plugin_sdk::Event) -> Result<scry_plugin_sdk::Event, String> {
+    async fn on_ingest(&self, mut ev: scry_plugin_sdk::Event) -> Result<scry_plugin_sdk::Event, String> {
         if ev.category == "music.scrobble" {
             let mut metadata = ev.metadata.unwrap_or(json!({}));
             if let Some(obj) = metadata.as_object_mut() {
@@ -33,7 +33,7 @@ impl ScryPlugin for MusicPlugin {
         Ok(ev)
     }
 
-    fn get_reports(&self) -> Vec<scry_plugin_sdk::ReportMetadata> {
+    async fn get_reports(&self) -> Vec<scry_plugin_sdk::ReportMetadata> {
         vec![
             scry_plugin_sdk::ReportMetadata {
                 id: "top-artists".to_string(),
@@ -44,9 +44,9 @@ impl ScryPlugin for MusicPlugin {
         ]
     }
 
-    fn run_report(&self, report_id: &str) -> Result<scry_plugin_sdk::ReportData, String> {
+    async fn run_report(&self, report_id: &str) -> Result<scry_plugin_sdk::ReportData, String> {
         if report_id == "top-artists" {
-            let stats = host::count_grouped("music.scrobble", "artist", 10);
+            let stats = host::count_grouped("music.scrobble", "artist", 10).await;
             Ok(scry_plugin_sdk::ReportData {
                 columns: vec!["Künstler".to_string(), "Scrobbles".to_string()],
                 data_json: serde_json::to_string(&stats).unwrap(),
@@ -56,12 +56,12 @@ impl ScryPlugin for MusicPlugin {
         }
     }
 
-    fn on_poll(&self) -> Vec<scry_plugin_sdk::Event> {
-        let current_count = host::get_state("poll_count").and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
+    async fn on_poll(&self) -> Vec<scry_plugin_sdk::Event> {
+        let current_count = host::get_state("poll_count").await.and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
         let new_count = current_count + 1;
-        host::set_state("poll_count", &new_count.to_string());
+        host::set_state("poll_count", &new_count.to_string()).await;
 
-        let zen = match host::http_get("https://api.github.com/zen") {
+        let zen = match host::http_get("https://api.github.com/zen").await {
             Ok(text) => text,
             Err(_) => "Keep it clean.".to_string(),
         };
@@ -82,8 +82,8 @@ impl ScryPlugin for MusicPlugin {
         ]
     }
 
-    fn get_summary(&self, _start: &str, _end: &str) -> String {
-        let stats = host::count_grouped("music.scrobble", "artist", 3);
+    async fn get_summary(&self, _start: &str, _end: &str) -> String {
+        let stats = host::count_grouped("music.scrobble", "artist", 3).await;
         if stats.is_empty() {
             return "No music scrobbled today.".to_string();
         }

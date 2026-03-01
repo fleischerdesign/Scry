@@ -150,7 +150,7 @@ async fn main() -> anyhow::Result<()> {
                     let manifests: std::collections::HashMap<String, crate::plugins::scry::plugin::types::Manifest> = scheduler_state.event_service.plugin_manager().get_plugin_manifests().await;
                     
                     for user_id in user_ids {
-                        for name in manifests.keys() {
+                        for (name, _) in &manifests {
                             let svc = scheduler_state.event_service.clone();
                             let plugin_name: String = name.clone();
                             tokio::spawn(async move {
@@ -207,6 +207,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        .route("/health", get(health_check))
         .nest("/api/v1", api_v1)
         .fallback_service(
             tower_http::services::ServeDir::new("web/dist")

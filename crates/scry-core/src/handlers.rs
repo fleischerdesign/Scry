@@ -1,13 +1,12 @@
 use axum::{
     extract::{State, Json, Query, Path},
-    http::{StatusCode, Request},
+    http::StatusCode,
     response::IntoResponse,
     Extension,
 };
 use scry_proto::Event;
 use serde::Deserialize;
 use std::sync::Arc;
-use std::collections::HashMap;
 use uuid::Uuid;
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use password_hash::{PasswordHash, SaltString, rand_core::OsRng};
@@ -19,7 +18,7 @@ use crate::error::{Error, Result};
 // --- Handlers ---
 
 use axum::response::sse::{Event as SseEvent, Sse};
-use futures::stream::{Stream, StreamExt};
+use futures::stream::Stream;
 use std::convert::Infallible;
 
 pub async fn stream_live_events(

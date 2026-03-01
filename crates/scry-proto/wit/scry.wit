@@ -66,11 +66,10 @@ world plugin {
     use types.{event, report-metadata, report-data, manifest};
 
     export get-manifest: func() -> manifest;
+    export on-init: func() -> result<_, string>;
     export on-ingest: func(ev: event) -> result<event, string>;
     export on-poll: func() -> list<event>;
     export get-reports: func() -> list<report-metadata>;
     export run-report: func(report-id: string) -> result<report-data, string>;
-    
-    // NEU: Plugin-spezifische Zusammenfassung für einen Zeitraum
     export get-summary: func(start-ts: string, end-ts: string) -> string;
 }

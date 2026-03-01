@@ -2,9 +2,7 @@ use serde::{Deserialize, Serialize};
 use scry_proto::Event;
 use utoipa::ToSchema;
 use crate::event_service::EventService;
-use serde_json::json;
 use validator::Validate;
-use crate::error::Error;
 
 #[derive(Clone)]
 pub struct AppState {

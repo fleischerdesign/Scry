@@ -13,11 +13,12 @@ pub mod prelude {
 
 pub trait ScryPlugin: Default {
     fn get_manifest(&self) -> Manifest;
-    fn on_ingest(&self, event: Event) -> Result<Event, String> { Ok(event) }
-    fn get_reports(&self) -> Vec<ReportMetadata> { vec![] }
-    fn run_report(&self, _id: &str) -> Result<ReportData, String> { Err("Not implemented".to_string()) }
-    fn on_poll(&self) -> Vec<Event> { vec![] }
-    fn get_summary(&self, _start: &str, _end: &str) -> String { String::new() }
+    async fn on_init(&self) -> Result<(), String> { Ok(()) }
+    async fn on_ingest(&self, event: Event) -> Result<Event, String> { Ok(event) }
+    async fn get_reports(&self) -> Vec<ReportMetadata> { vec![] }
+    async fn run_report(&self, _id: &str) -> Result<ReportData, String> { Err("Not implemented".to_string()) }
+    async fn on_poll(&self) -> Vec<Event> { vec![] }
+    async fn get_summary(&self, _start: &str, _end: &str) -> String { String::new() }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -49,12 +50,13 @@ macro_rules! scry_plugin {
             world: "plugin",
             path: "../../crates/scry-proto/wit",
             additional_derives: [serde::Serialize, serde::Deserialize],
+            async: true,
         });
 
         struct GuestImpl;
 
         impl Guest for GuestImpl {
-            fn get_manifest() -> scry::plugin::types::Manifest {
+            async fn get_manifest() -> scry::plugin::types::Manifest {
                 let m = <$plugin_type>::default().get_manifest();
                 scry::plugin::types::Manifest {
                     id: m.id, name: m.name, version: m.version, description: m.description,
@@ -66,7 +68,12 @@ macro_rules! scry_plugin {
                 }
             }
 
-            fn on_ingest(ev: scry::plugin::types::Event) -> ::std::result::Result<scry::plugin::types::Event, ::std::string::String> {
+            async fn on_init() -> Result<(), String> {
+                let plugin = <$plugin_type>::default();
+                plugin.on_init().await
+            }
+
+            async fn on_ingest(ev: scry::plugin::types::Event) -> Result<scry::plugin::types::Event, String> {
                 let plugin = <$plugin_type>::default();
                 let sdk_ev = $crate::Event {
                     id: $crate::uuid::Uuid::parse_str(&ev.id).map_err(|e| e.to_string())?,
@@ -75,7 +82,7 @@ macro_rules! scry_plugin {
                     payload: $crate::serde_json::from_str(&ev.payload).map_err(|e| e.to_string())?,
                     metadata: ev.metadata.and_then(|m| $crate::serde_json::from_str(&m).ok()),
                 };
-                match plugin.on_ingest(sdk_ev) {
+                match plugin.on_ingest(sdk_ev).await {
                     Ok(res) => Ok(scry::plugin::types::Event {
                         id: res.id.to_string(), timestamp: res.timestamp.to_rfc3339(),
                         category: res.category, source: res.source,
@@ -85,9 +92,9 @@ macro_rules! scry_plugin {
                 }
             }
 
-            fn get_reports() -> Vec<scry::plugin::types::ReportMetadata> {
+            async fn get_reports() -> Vec<scry::plugin::types::ReportMetadata> {
                 let plugin = <$plugin_type>::default();
-                plugin.get_reports().into_iter().map(|m| scry::plugin::types::ReportMetadata {
+                plugin.get_reports().await.into_iter().map(|m| scry::plugin::types::ReportMetadata {
                     id: m.id, name: m.name, description: m.description,
                     viz: match m.viz {
                         $crate::Visualization::Table => scry::plugin::types::Visualization::Table,
@@ -98,17 +105,17 @@ macro_rules! scry_plugin {
                 }).collect()
             }
 
-            fn run_report(id: String) -> ::std::result::Result<scry::plugin::types::ReportData, ::std::string::String> {
+            async fn run_report(id: String) -> Result<scry::plugin::types::ReportData, String> {
                 let plugin = <$plugin_type>::default();
-                match plugin.run_report(&id) {
+                match plugin.run_report(&id).await {
                     Ok(res) => Ok(scry::plugin::types::ReportData { columns: res.columns, data_json: res.data_json }),
                     Err(e) => Err(e),
                 }
             }
 
-            fn on_poll() -> Vec<scry::plugin::types::Event> {
+            async fn on_poll() -> Vec<scry::plugin::types::Event> {
                 let plugin = <$plugin_type>::default();
-                plugin.on_poll().into_iter().map(|result| {
+                plugin.on_poll().await.into_iter().map(|result| {
                     scry::plugin::types::Event {
                         id: result.id.to_string(), timestamp: result.timestamp.to_rfc3339(),
                         category: result.category, source: result.source,
@@ -117,9 +124,9 @@ macro_rules! scry_plugin {
                 }).collect()
             }
 
-            fn get_summary(start: String, end: String) -> String {
+            async fn get_summary(start: String, end: String) -> String {
                 let plugin = <$plugin_type>::default();
-                plugin.get_summary(&start, &end)
+                plugin.get_summary(&start, &end).await
             }
         }
 
@@ -129,35 +136,35 @@ macro_rules! scry_plugin {
             use $crate::serde_json::json;
             use super::scry::plugin::host::QueryParam;
 
-            pub fn query(sql: &str, params: Vec<QueryParam>) -> Vec<$crate::serde_json::Value> {
-                match super::scry::plugin::host::query(sql, &params) {
+            pub async fn query(sql: &str, params: Vec<QueryParam>) -> Vec<$crate::serde_json::Value> {
+                match super::scry::plugin::host::query(sql.to_string(), params).await {
                     Ok(res) => $crate::serde_json::from_str(&res).unwrap_or_default(),
-                    Err(_) => vec![]
+                    Err(e) => {
+                        super::scry::plugin::host::log("error".to_string(), format!("SDK: Query failed: {}", e)).await;
+                        vec![]
+                    }
                 }
             }
 
-            pub fn count_grouped(category: &str, payload_key: &str, limit: u32) -> Vec<$crate::serde_json::Value> {
-                // Die Pfeil-Syntax (->>) extrahiert den Wert direkt als passenden Typ (Text/Zahl)
-                // Wir müssen hier den Key allerdings sicher einbetten, da SQLite keine Parameter in Spaltennamen erlaubt.
-                // Da wir das SDK kontrollieren, nutzen wir hier einen sichereren Weg.
+            pub async fn count_grouped(category: &str, payload_key: &str, limit: u32) -> Vec<$crate::serde_json::Value> {
                 let sql = format!("SELECT payload ->> '{}' as key, COUNT(*) as count FROM events WHERE category = ? GROUP BY key ORDER BY count DESC LIMIT ?", payload_key);
                 query(&sql, vec![
                     QueryParam::S(category.to_string()),
                     QueryParam::I(limit as i64),
-                ])
+                ]).await
             }
 
-            pub fn count_over_time(category: &str, interval: &str, days: u32) -> Vec<$crate::serde_json::Value> {
+            pub async fn count_over_time(category: &str, interval: &str, days: u32) -> Vec<$crate::serde_json::Value> {
                 let format = match interval { "1h" => "%Y-%m-%dT%H:00:00Z", _ => "%Y-%m-%d" };
                 let sql = "SELECT strftime(?, timestamp) as label, COUNT(*) as count FROM events WHERE category = ? AND timestamp > date('now', ?) GROUP BY label ORDER BY label ASC";
                 query(sql, vec![
                     QueryParam::S(format.to_string()),
                     QueryParam::S(category.to_string()),
                     QueryParam::S(format!("-{} days", days)),
-                ])
+                ]).await
             }
 
-            pub fn join_nearest(base_category: &str, join_category: &str, limit: u32) -> Vec<$crate::serde_json::Value> {
+            pub async fn join_nearest(base_category: &str, join_category: &str, limit: u32) -> Vec<$crate::serde_json::Value> {
                 let sql = r#"
                     SELECT 
                         CAST(b.payload AS TEXT) as base,
@@ -174,17 +181,23 @@ macro_rules! scry_plugin {
                     QueryParam::S(join_category.to_string()),
                     QueryParam::S(base_category.to_string()),
                     QueryParam::I(limit as i64),
-                ])
+                ]).await
             }
-            pub fn log_info(msg: &str) { super::scry::plugin::host::log("info", msg); }
-            pub fn log_warn(msg: &str) { super::scry::plugin::host::log("warn", msg); }
-            pub fn log_error(msg: &str) { super::scry::plugin::host::log("error", msg); }
-            pub fn get_state(key: &str) -> Option<String> { super::scry::plugin::host::get_state(key) }
-            pub fn set_state(key: &str, val: &str) { super::scry::plugin::host::set_state(key, val) }
-            pub fn get_config(key: &str) -> Option<String> { super::scry::plugin::host::get_config(key) }
-            pub fn get_profile(key: &str) -> Option<String> { super::scry::plugin::host::get_profile(key) }
-            pub fn http_get(url: &str) -> ::std::result::Result<String, String> { 
-                super::scry::plugin::host::http_get(url)
+            pub async fn log_info(msg: &str) { super::scry::plugin::host::log("info".to_string(), msg.to_string()).await; }
+            pub async fn log_warn(msg: &str) { super::scry::plugin::host::log("warn".to_string(), msg.to_string()).await; }
+            pub async fn log_error(msg: &str) { super::scry::plugin::host::log("error".to_string(), msg.to_string()).await; }
+            pub async fn get_state(key: &str) -> Option<String> { super::scry::plugin::host::get_state(key.to_string()).await }
+            pub async fn set_state(key: &str, val: &str) { super::scry::plugin::host::set_state(key.to_string(), val.to_string()).await }
+            pub async fn get_config(key: &str) -> Option<String> { super::scry::plugin::host::get_config(key.to_string()).await }
+            pub async fn get_profile(key: &str) -> Option<String> { super::scry::plugin::host::get_profile(key.to_string()).await }
+            pub async fn http_get(url: &str) -> ::std::result::Result<String, String> { 
+                match super::scry::plugin::host::http_get(url.to_string()).await {
+                    Ok(res) => Ok(res),
+                    Err(e) => {
+                        super::scry::plugin::host::log("error".to_string(), format!("SDK: HTTP GET failed: {}", e)).await;
+                        Err(e)
+                    }
+                }
             }
         }
     };
