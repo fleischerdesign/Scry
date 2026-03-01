@@ -108,9 +108,9 @@ impl Host for MyCtx {
         sqlx::query("INSERT INTO entities (user_id, namespace, typ, id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
             .bind(self.user_id).bind(&namespace).bind(&typ).bind(&id).execute(&self.db).await?;
 
-        // Dann Trait setzen
-        sqlx::query("INSERT INTO entity_traits (user_id, namespace, entity_type, entity_id, trait_id, value_json) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, namespace, entity_type, entity_id, trait_id) DO UPDATE SET value_json = EXCLUDED.value_json, updated_at = CURRENT_TIMESTAMP")
-            .bind(self.user_id).bind(namespace).bind(typ).bind(id).bind(trait_id).bind(value_json).execute(&self.db).await?;
+        // Dann Trait setzen (inkl. plugin_id)
+        sqlx::query("INSERT INTO entity_traits (user_id, plugin_id, namespace, entity_type, entity_id, trait_id, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, plugin_id, namespace, entity_type, entity_id, trait_id) DO UPDATE SET value_json = EXCLUDED.value_json, updated_at = CURRENT_TIMESTAMP")
+            .bind(self.user_id).bind(&self.plugin_name).bind(namespace).bind(typ).bind(id).bind(trait_id).bind(value_json).execute(&self.db).await?;
         
         Ok(())
     }

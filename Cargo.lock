@@ -2692,6 +2692,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "scry-music-enricher"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "scry-plugin-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+ "wit-bindgen 0.53.1",
+]
+
+[[package]]
 name = "scry-music-plugin"
 version = "0.1.0"
 dependencies = [

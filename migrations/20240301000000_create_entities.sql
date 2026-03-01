@@ -12,13 +12,14 @@ CREATE TABLE IF NOT EXISTS entities (
 
 CREATE TABLE IF NOT EXISTS entity_traits (
     user_id INTEGER NOT NULL,
+    plugin_id TEXT NOT NULL, -- Welches Plugin hat diesen Wert geliefert?
     namespace TEXT NOT NULL,
     entity_type TEXT NOT NULL,
     entity_id TEXT NOT NULL,
     trait_id TEXT NOT NULL,
     value_json TEXT NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY(user_id, namespace, entity_type, entity_id, trait_id),
+    PRIMARY KEY(user_id, plugin_id, namespace, entity_type, entity_id, trait_id),
     FOREIGN KEY(user_id, namespace, entity_type, entity_id) REFERENCES entities(user_id, namespace, typ, id)
 );
 

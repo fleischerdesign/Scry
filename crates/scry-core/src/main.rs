@@ -82,9 +82,14 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:scry.db".to_string());
+    let db_filename = database_url
+        .trim_start_matches("sqlite:")
+        .split('?')
+        .next()
+        .unwrap_or("scry.db");
 
     let pool_options = SqliteConnectOptions::new()
-        .filename(database_url.trim_start_matches("sqlite:"))
+        .filename(db_filename)
         .create_if_missing(true)
         .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
         .synchronous(sqlx::sqlite::SqliteSynchronous::Normal);
