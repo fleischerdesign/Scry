@@ -343,6 +343,26 @@ pub async fn ingest_event(State(state): State<Arc<AppState>>, Extension(auth): E
     Ok(Json(event))
 }
 
+#[utoipa::path(get, path = "/api/v1/discovery/entities/{namespace}/{typ}/{id}/traits", responses((status = 200, body = serde_json::Value)), security(("api_key" = [])))]
+pub async fn get_entity_traits(
+    State(state): State<Arc<AppState>>,
+    Path((namespace, typ, id)): Path<(String, String, String)>,
+    Extension(auth): Extension<AuthContext>
+) -> Result<Json<serde_json::Value>> {
+    let db = state.event_service.db();
+    let rows = sqlx::query_as::<_, (String, String, String)>("SELECT plugin_id, trait_id, value_json FROM entity_traits WHERE user_id = ? AND namespace = ? AND entity_type = ? AND entity_id = ?")
+        .bind(auth.user_id).bind(namespace).bind(typ).bind(id).fetch_all(db).await?;
+    
+    let mut map = serde_json::Map::new();
+    for (plugin_id, trait_id, value_json) in rows {
+        let val: serde_json::Value = serde_json::from_str(&value_json).unwrap_or(serde_json::Value::Null);
+        // Wir gruppieren nach Trait-ID. Wenn es mehrere gibt, gewinnt aktuell das letzte (einfaches Modell)
+        // Später können wir hier die User-Prioritäten anwenden.
+        map.insert(trait_id, val);
+    }
+    Ok(Json(serde_json::Value::Object(map)))
+}
+
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct ListParams { pub category: Option<String>, pub limit: Option<u32>, pub offset: Option<u32> }
 

@@ -26,8 +26,8 @@ impl ScryPlugin for MusicEnricher {
 
     async fn resolve_trait(&self, namespace: &str, typ: &str, id: &str, trait_id: &str) -> Result<Option<String>, String> {
         if namespace == "scry.music" && typ == "artist" && trait_id == "scry.visual/photo" {
-            // Simulierter API-Aufruf zu Spotify/Last.fm
-            let mock_url = format!("https://images.scry.app/artists/{}.png", id.to_lowercase().replace(" ", "-"));
+            // Wir nutzen ui-avatars.com für echtes visuelles Feedback
+            let mock_url = format!("https://ui-avatars.com/api/?name={}&background=random&size=128", urlencoding::encode(id));
             return Ok(Some(json!(mock_url).to_string()));
         }
         Ok(None)

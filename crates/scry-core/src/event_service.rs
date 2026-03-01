@@ -42,7 +42,7 @@ impl EventService {
             });
         }
 
-        sqlx::query("INSERT INTO events (id, user_id, timestamp, category, source, payload, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        sqlx::query("INSERT INTO events (id, user_id, timestamp, category, source, payload, metadata, entities) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
             .bind(processed_event.id.to_string())
             .bind(user_id)
             .bind(processed_event.timestamp.to_rfc3339())
@@ -50,6 +50,7 @@ impl EventService {
             .bind(&processed_event.source)
             .bind(serde_json::to_string(&processed_event.payload).map_err(|e| Error::BadRequest(e.to_string()))?)
             .bind(processed_event.metadata.as_ref().map(|m| serde_json::to_string(m).ok()).flatten())
+            .bind(serde_json::to_string(&processed_event.entities).unwrap_or_else(|_| "[]".to_string()))
             .execute(&self.db)
             .await?;
 
@@ -67,10 +68,10 @@ impl EventService {
 
     pub async fn list_events(&self, user_id: i64, category: Option<String>, limit: u32, offset: u32) -> Result<Vec<Event>> {
         let db_events = if let Some(cat) = category {
-            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata FROM events WHERE user_id = ? AND category = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
+            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities FROM events WHERE user_id = ? AND category = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
                 .bind(user_id).bind(cat).bind(limit).bind(offset)
         } else {
-            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata FROM events WHERE user_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
+            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities FROM events WHERE user_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
                 .bind(user_id).bind(limit).bind(offset)
         }.fetch_all(&self.db).await?;
 
@@ -161,6 +162,7 @@ impl EventService {
                 "timestamp": ts,
                 "category": ev.category,
                 "event": ev.payload,
+                "entities": ev.entities,
                 "context": {}
             });
 
@@ -187,7 +189,8 @@ impl EventService {
         let sql = r#"
             SELECT 
                 CAST(b.payload AS TEXT),
-                CAST(j.payload AS TEXT)
+                CAST(j.payload AS TEXT),
+                b.entities
             FROM events b
             JOIN events j ON j.category = ? AND j.user_id = ?
             WHERE b.category = ? AND b.user_id = ?
@@ -197,16 +200,17 @@ impl EventService {
             LIMIT ?
         "#;
 
-        let rows = sqlx::query_as::<_, (String, Option<String>)>(sql)
+        let rows = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(sql)
             .bind(join_category).bind(user_id)
             .bind(base_category).bind(user_id)
             .bind(limit)
             .fetch_all(&self.db).await?;
 
-        Ok(rows.into_iter().map(|(b, j)| {
+        Ok(rows.into_iter().map(|(b, j, e)| {
             serde_json::json!({
                 "base": serde_json::from_str::<Value>(&b).unwrap_or_default(),
                 "joined": j.and_then(|s| serde_json::from_str::<Value>(&s).ok()).unwrap_or_default(),
+                "entities": e.and_then(|s| serde_json::from_str::<Value>(&s).ok()).unwrap_or_default(),
             })
         }).collect())
     }
