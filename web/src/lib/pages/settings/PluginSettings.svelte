@@ -1,9 +1,8 @@
 <script lang="ts">
     import { api } from '../../api';
     import ConfigField from "../../components/ConfigField.svelte";
+    import { plugins } from "../../state/plugins.svelte";
 
-    let { plugins = [] } = $props();
-    
     // Initialisiere pluginConfigs als reaktives Objekt
     let pluginConfigs = $state<Record<string, any>>({});
     let saving = $state(false);
@@ -13,7 +12,7 @@
     $effect(() => {
         const newConfigs = { ...pluginConfigs };
         let changed = false;
-        plugins.forEach(p => {
+        plugins.items.forEach(p => {
             if (!newConfigs[p.id]) {
                 newConfigs[p.id] = {};
                 changed = true;
@@ -46,7 +45,7 @@
         </div>
     {/if}
 
-    {#each plugins as plugin}
+    {#each plugins.items as plugin}
         <div class="collapse collapse-arrow bg-base-200 rounded-3xl border border-base-300 overflow-hidden">
             <input type="checkbox" /> 
             <div class="collapse-title flex items-center gap-4 py-4">

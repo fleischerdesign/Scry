@@ -1,12 +1,14 @@
 <script lang="ts">
+    import { onMount } from 'svelte';
     import { Chart, registerables } from 'chart.js';
     import Card from "../components/Card.svelte";
     import { api } from '../api';
     import { ui } from '../ui.svelte';
+    import { dashboards } from "../state/dashboards.svelte";
     
     Chart.register(...registerables);
 
-    let { catalog = {}, dashboards = [], onRefresh } = $props();
+    let { onRefresh } = $props();
     
     let explorerCanvas = $state<HTMLCanvasElement>();
     let explorerChart: Chart | undefined;
@@ -15,17 +17,26 @@
     let timeframe = $state<number>(7);
     let explorerData = $state<any[]>([]);
     let loading = $state(false);
+    let catalog = $state<Record<string, any>>({});
 
     // Modal / Pin State
     let selectedDashboardId = $state("");
     let selectedWidth = $state(2);
     let pinning = $state(false);
 
+    async function loadCatalog() {
+        try {
+            catalog = await api.getCatalog();
+        } catch (e) { console.error(e); }
+    }
+
     $effect(() => {
-        if (dashboards.length > 0 && !selectedDashboardId) {
-            selectedDashboardId = dashboards[0].id;
+        if (dashboards.items.length > 0 && !selectedDashboardId) {
+            selectedDashboardId = dashboards.items[0].id;
         }
     });
+
+    onMount(loadCatalog);
 
     async function loadExplorerData() {
         if (!selectedType) return;

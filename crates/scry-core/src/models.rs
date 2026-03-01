@@ -20,6 +20,8 @@ pub struct DbEvent {
     pub payload: String,
     pub metadata: Option<String>,
     pub entities: Option<String>,
+    pub display_title: Option<String>,
+    pub display_subtitle: Option<String>,
 }
 
 impl TryFrom<DbEvent> for Event {
@@ -34,6 +36,8 @@ impl TryFrom<DbEvent> for Event {
             payload: serde_json::from_str(&db_ev.payload)?,
             metadata: db_ev.metadata.and_then(|m| serde_json::from_str(&m).ok()),
             entities: db_ev.entities.and_then(|e| serde_json::from_str(&e).ok()).unwrap_or_default(),
+            display_title: db_ev.display_title,
+            display_subtitle: db_ev.display_subtitle,
         })
     }
 }

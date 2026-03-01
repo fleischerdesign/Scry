@@ -6,7 +6,7 @@ pub use uuid;
 pub use wit_bindgen;
 
 pub mod prelude {
-    pub use crate::{ScryPlugin, ReportMetadata, ReportData, Visualization, Manifest, DataField, EntityRef, scry_plugin};
+    pub use crate::{ScryPlugin, ReportMetadata, ReportData, Visualization, Manifest, DataField, EntityRef, Relationship, WidgetTemplate, WidgetDefinition, scry_plugin};
     pub use crate::Event as SdkEvent;
     pub use serde_json::json;
 }
@@ -26,10 +26,27 @@ pub trait ScryPlugin: Default {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct DataField { pub category: String, pub path: String, pub semantic_type: String, pub description: String }
+pub struct DataField { 
+    pub category: String, 
+    pub path: String, 
+    pub semantic_type: String, 
+    pub description: String,
+    pub format: Option<String>,
+}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TraitCapability { pub entity_namespace: String, pub entity_type: String, pub trait_id: String }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Relationship {
+    pub source_namespace: String,
+    pub source_type: String,
+    pub source_id: String,
+    pub predicate: String,
+    pub target_namespace: String,
+    pub target_type: String,
+    pub target_id: String,
+}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum WidgetTemplate { Metric, Trend, TopList, Status, Spotlight }
@@ -83,7 +100,8 @@ macro_rules! scry_plugin {
                     id: m.id, name: m.name, version: m.version, description: m.description,
                     subscriptions: m.subscriptions, capabilities: m.capabilities,
                     exports: m.exports.into_iter().map(|e| scry::plugin::types::DataField {
-                        category: e.category, path: e.path, semantic_type: e.semantic_type, description: e.description
+                        category: e.category, path: e.path, semantic_type: e.semantic_type, description: e.description,
+                        format: e.format,
                     }).collect(),
                     provided_traits: m.provided_traits.into_iter().map(|t| scry::plugin::types::TraitCapability {
                         entity_namespace: t.entity_namespace, entity_type: t.entity_type, trait_id: t.trait_id
@@ -115,10 +133,12 @@ macro_rules! scry_plugin {
                     timestamp: $crate::chrono::DateTime::parse_from_rfc3339(&ev.timestamp).map_err(|e| e.to_string())?.with_timezone(&$crate::chrono::Utc),
                     category: ev.category, source: ev.source,
                     payload: $crate::serde_json::from_str(&ev.payload).map_err(|e| e.to_string())?,
-                    metadata: ev.metadata.and_then(|m| $crate::serde_json::from_str(&m).ok()),
+                    metadata: ev.metadata.as_ref().and_then(|m| $crate::serde_json::from_str(m).ok()),
                     entities: ev.entities.into_iter().map(|e| $crate::prelude::EntityRef {
                         path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                     }).collect(),
+                    display_title: ev.display_title,
+                    display_subtitle: ev.display_subtitle,
                 };
                 match plugin.on_ingest(sdk_ev).await {
                     Ok(res) => Ok(scry::plugin::types::Event {
@@ -128,6 +148,8 @@ macro_rules! scry_plugin {
                         entities: res.entities.into_iter().map(|e| scry::plugin::types::EntityRef {
                             path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                         }).collect(),
+                        display_title: res.display_title,
+                        display_subtitle: res.display_subtitle,
                     }),
                     Err(e) => Err(e),
                 }
@@ -164,6 +186,8 @@ macro_rules! scry_plugin {
                         entities: result.entities.into_iter().map(|e| scry::plugin::types::EntityRef {
                             path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                         }).collect(),
+                        display_title: result.display_title,
+                        display_subtitle: result.display_subtitle,
                     }
                 }).collect()
             }
@@ -258,6 +282,29 @@ macro_rules! scry_plugin {
             }
             pub async fn get_entity_trait(namespace: &str, typ: &str, id: &str, trait_id: &str) -> Option<String> {
                 super::scry::plugin::host::get_entity_trait(namespace.to_string(), typ.to_string(), id.to_string(), trait_id.to_string()).await
+            }
+            pub async fn set_relationship(rel: $crate::Relationship) {
+                super::scry::plugin::host::set_relationship(super::scry::plugin::types::Relationship {
+                    source_namespace: rel.source_namespace.clone(), 
+                    source_type: rel.source_type.clone(), 
+                    source_id: rel.source_id.clone(),
+                    predicate: rel.predicate.clone(),
+                    target_namespace: rel.target_namespace.clone(), 
+                    target_type: rel.target_type.clone(), 
+                    target_id: rel.target_id.clone(),
+                }).await;
+            }
+            pub async fn get_relationships(namespace: &str, typ: &str, id: &str, direction: &str) -> Vec<$crate::Relationship> {
+                super::scry::plugin::host::get_relationships(namespace.to_string(), typ.to_string(), id.to_string(), direction.to_string()).await
+                    .into_iter().map(|r| $crate::Relationship {
+                        source_namespace: r.source_namespace.clone(), 
+                        source_type: r.source_type.clone(), 
+                        source_id: r.source_id.clone(),
+                        predicate: r.predicate.clone(),
+                        target_namespace: r.target_namespace.clone(), 
+                        target_type: r.target_type.clone(), 
+                        target_id: r.target_id.clone(),
+                    }).collect()
             }
         }
     };

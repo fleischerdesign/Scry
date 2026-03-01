@@ -1,12 +1,15 @@
 <script lang="ts">
     import Stat from "../components/Stat.svelte";
+    import { timeline } from "../state/timeline.svelte";
+    import { plugins } from "../state/plugins.svelte";
+    import { dashboards } from "../state/dashboards.svelte";
     
-    let { dailySummary, catalogCount, timelineCount, onRefresh } = $props();
+    let { dailySummary, onRefresh } = $props();
 </script>
 
 <div class="space-y-12 animate-in fade-in duration-700 w-full pb-20">
     <!-- Daily Perspective Hero (Managed by Plugins) -->
-    {#if dailySummary.length > 0}
+    {#if dailySummary && dailySummary.length > 0}
         <div class="hero bg-base-100 rounded-3xl border border-base-300 shadow-sm overflow-hidden">
             <div class="hero-content text-center py-12 px-8 flex-col w-full">
                 <div class="max-w-3xl">
@@ -31,9 +34,9 @@
 
     <!-- Core Platform Stats -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Stat title="Core Intelligence" value={catalogCount} desc="Semantic plugins active" color="primary" trend="Stable" />
-        <Stat title="Event Density" value={timelineCount} desc="Total life events logged" color="secondary" trend="+5%" />
-        <Stat title="Kernel Status" value="OS_1" desc="Primary instance online" color="accent" />
+        <Stat title="Core Intelligence" value={plugins.items.length} desc="Semantic plugins active" color="primary" trend="Stable" />
+        <Stat title="Event Density" value={timeline.items.length} desc="Total life events logged" color="secondary" trend="+5%" />
+        <Stat title="Interface Nodes" value={dashboards.items.length} desc="Active UI layouts" color="accent" />
     </div>
 
     <!-- Core Insights (In der Zukunft: Automatisch gewählte Graphen) -->

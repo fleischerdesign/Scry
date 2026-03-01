@@ -1,4 +1,4 @@
-use crate::plugins::scry::plugin::host::{Host, QueryParam};
+use crate::plugins::scry::plugin::host::{Host, QueryParam, Relationship};
 use crate::plugins::context::MyCtx;
 use anyhow::Result;
 use sqlx::{Column, Row, ValueRef};
@@ -63,7 +63,9 @@ impl Host for MyCtx {
     }
 
     async fn http_get(&mut self, url: String) -> Result<Result<String, String>> {
-        let res = match self.http_client.get(&url).send().await {
+        let res = match self.http_client.get(&url)
+            .header("User-Agent", "Scry/1.0")
+            .send().await {
             Ok(resp) => resp.text().await.map_err(|e| e.to_string()),
             Err(e) => Err(e.to_string()),
         };
@@ -122,5 +124,38 @@ impl Host for MyCtx {
         .bind(self.user_id).bind(namespace).bind(typ).bind(id).bind(trait_id)
         .fetch_optional(&self.db).await?;
         Ok(row)
+    }
+
+    async fn set_relationship(&mut self, rel: Relationship) -> Result<()> {
+        sqlx::query("INSERT INTO entity_relationships (user_id, plugin_id, source_ns, source_type, source_id, predicate, target_ns, target_type, target_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO UPDATE SET updated_at = CURRENT_TIMESTAMP")
+            .bind(self.user_id)
+            .bind(&self.plugin_name)
+            .bind(rel.source_namespace)
+            .bind(rel.source_type)
+            .bind(rel.source_id)
+            .bind(rel.predicate)
+            .bind(rel.target_namespace)
+            .bind(rel.target_type)
+            .bind(rel.target_id)
+            .execute(&self.db).await?;
+        Ok(())
+    }
+
+    async fn get_relationships(&mut self, namespace: String, typ: String, id: String, direction: String) -> Result<Vec<Relationship>> {
+        let sql = if direction == "in" {
+            "SELECT source_ns, source_type, source_id, predicate, target_ns, target_type, target_id FROM entity_relationships WHERE user_id = ? AND target_ns = ? AND target_type = ? AND target_id = ?"
+        } else {
+            "SELECT source_ns, source_type, source_id, predicate, target_ns, target_type, target_id FROM entity_relationships WHERE user_id = ? AND source_ns = ? AND source_type = ? AND source_id = ?"
+        };
+
+        let rows = sqlx::query_as::<_, (String, String, String, String, String, String, String)>(sql)
+            .bind(self.user_id).bind(namespace).bind(typ).bind(id)
+            .fetch_all(&self.db).await?;
+
+        Ok(rows.into_iter().map(|(sn, st, si, p, tn, tt, ti)| Relationship {
+            source_namespace: sn, source_type: st, source_id: si,
+            predicate: p,
+            target_namespace: tn, target_type: tt, target_id: ti,
+        }).collect())
     }
 }

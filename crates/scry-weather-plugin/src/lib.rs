@@ -25,6 +25,7 @@ impl ScryPlugin for WeatherPlugin {
                     path: "temperature".to_string(),
                     semantic_type: "environment.temperature".to_string(),
                     description: "Aktuelle Temperatur in Celsius".to_string(),
+                    format: None,
                 }
             ],
             provided_traits: vec![],
@@ -91,6 +92,8 @@ impl ScryPlugin for WeatherPlugin {
                     payload: json!({ "temperature": temp, "lat": lat, "lon": lon }),
                     metadata: None,
                     entities: vec![],
+                    display_title: Some(format!("Temperature: {}°C", temp)),
+                    display_subtitle: Some(format!("Location: {:.2}, {:.2}", lat, lon)),
                 }]
             },
             Err(e) => {

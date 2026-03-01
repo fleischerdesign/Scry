@@ -451,16 +451,34 @@ pub async fn get_entity_traits(
 ) -> Result<Json<serde_json::Value>> {
     let db = state.event_service.db();
     let rows = sqlx::query_as::<_, (String, String, String)>("SELECT plugin_id, trait_id, value_json FROM entity_traits WHERE user_id = ? AND namespace = ? AND entity_type = ? AND entity_id = ?")
-        .bind(auth.user_id).bind(namespace).bind(typ).bind(id).fetch_all(db).await?;
+        .bind(auth.user_id).bind(&namespace).bind(&typ).bind(&id).fetch_all(db).await?;
     
     let mut map = serde_json::Map::new();
     for (_plugin_id, trait_id, value_json) in rows {
         let val: serde_json::Value = serde_json::from_str(&value_json).unwrap_or(serde_json::Value::Null);
-        // Wir gruppieren nach Trait-ID. Wenn es mehrere gibt, gewinnt aktuell das letzte (einfaches Modell)
-        // Später können wir hier die User-Prioritäten anwenden.
         map.insert(trait_id, val);
     }
-    Ok(Json(serde_json::Value::Object(map)))
+
+    // Beziehungen laden
+    let rel_rows = sqlx::query_as::<_, (String, String, String, String, String, String, String)>("SELECT source_ns, source_type, source_id, predicate, target_ns, target_type, target_id FROM entity_relationships WHERE user_id = ? AND (source_ns = ? AND source_type = ? AND source_id = ? OR target_ns = ? AND target_type = ? AND target_id = ?)")
+        .bind(auth.user_id)
+        .bind(&namespace).bind(&typ).bind(&id)
+        .bind(&namespace).bind(&typ).bind(&id)
+        .fetch_all(db).await?;
+
+    let relationships: Vec<serde_json::Value> = rel_rows.into_iter().map(|(sn, st, si, p, tn, tt, ti)| {
+        serde_json::json!({
+            "source": { "ns": sn, "typ": st, "id": si },
+            "predicate": p,
+            "target": { "ns": tn, "typ": tt, "id": ti }
+        })
+    }).collect();
+
+    let mut result = serde_json::Map::new();
+    result.insert("traits".to_string(), serde_json::Value::Object(map));
+    result.insert("relationships".to_string(), serde_json::Value::Array(relationships));
+
+    Ok(Json(serde_json::Value::Object(result)))
 }
 
 #[derive(Deserialize, utoipa::IntoParams)]

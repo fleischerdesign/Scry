@@ -28,34 +28,9 @@
         const staticActions = actions.filter(a => a.label.toLowerCase().includes(q) || a.category.toLowerCase().includes(q));
         
         const searchResults = results.map(r => {
-            let displayLabel = r.content;
-            
-            // Wenn es ein Event ist, versuchen wir den JSON-Payload schön zu rendern
-            if (r.type === 'event') {
-                try {
-                    // Wir extrahieren den JSON-Teil (alles nach der Kategorie)
-                    const jsonStr = r.content.substring(r.title.length).trim();
-                    const p = JSON.parse(jsonStr);
-                    
-                    if (r.title === 'music.scrobble') {
-                        displayLabel = `${p.artist || 'Unknown'} - ${p.track || 'Unknown'}`;
-                    } else if (r.title === 'weather.current') {
-                        displayLabel = `Weather: ${p.temperature}°C`;
-                    } else {
-                        displayLabel = p.message || p.id || displayLabel;
-                    }
-                } catch (e) {
-                    // Fallback: Falls Parsing fehlschlägt, nutzen wir den gekürzten Content
-                    if (displayLabel.length > 80) displayLabel = displayLabel.slice(0, 80) + '...';
-                }
-            } else {
-                // Für Entitäten etc. einfach kürzen
-                if (displayLabel.length > 80) displayLabel = displayLabel.slice(0, 80) + '...';
-            }
-
             return {
                 id: r.id,
-                label: displayLabel,
+                label: r.label || r.content, // Das Backend liefert hier jetzt den schönen display_title
                 sublabel: r.title,
                 category: r.type.toUpperCase(),
                 execute: () => router.navigate(r.link)

@@ -1,23 +1,17 @@
 <script lang="ts">
     import { api } from "../api";
     import { onMount } from "svelte";
+    import { router } from "../router.svelte";
 
     let { item, isFirst = false, isLast = false } = $props();
     let traits = $state<Record<string, any>>({});
 
-    function getEventLabel(item: any) {
-        const e = item.event;
-        if (!e) return 'Unknown Data';
-        if (item.category === "music.scrobble") return `${e.artist || 'Unknown'} - ${e.track || 'Unknown'}`;
-        if (item.category === "weather.current") return `${e.temperature}°C (${e.time || 'now'})`;
-        return e.track || e.temperature || e.message || JSON.stringify(e).slice(0, 30);
-    }
-
     const time = $derived(new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
     onMount(async () => {
-        if (item.entities && item.entities.length > 0) {
-            for (const ent of item.entities) {
+        const entities = item.entities || [];
+        if (entities.length > 0) {
+            for (const ent of entities) {
                 try {
                     const fetchedTraits = await api.getEntityTraits(ent.namespace, ent.typ, ent.id);
                     traits = { ...traits, ...fetchedTraits };
@@ -37,8 +31,11 @@
     <div class="timeline-middle">
         <div class="w-3 h-3 rounded-full bg-primary/40 ring-4 ring-primary/10"></div>
     </div>
-    <div class="timeline-end timeline-box border-none bg-base-100 shadow-none py-4 px-2 hover:bg-base-300/30 transition-colors rounded-xl w-full">
-        <div class="flex items-center gap-4">
+    <button 
+        onclick={() => router.navigate(`/event/${item.id}`)}
+        class="timeline-end timeline-box border-none bg-base-100 shadow-none py-4 px-2 hover:bg-base-300/30 transition-colors rounded-xl w-full text-left flex items-center"
+    >
+        <div class="flex items-center gap-4 w-full">
             {#if photoUrl}
                 <div class="avatar">
                     <div class="w-10 h-10 rounded-xl shadow-lg ring ring-primary/10">
@@ -47,31 +44,38 @@
                 </div>
             {/if}
             
-            <div class="flex flex-col gap-1 flex-1">
-                <div class="flex justify-between items-center">
-                    <span class="text-xs font-black tracking-tight">{getEventLabel(item)}</span>
-                    <span class="badge badge-ghost badge-xs font-mono opacity-30 italic lowercase">{item.category?.split('.').pop()}</span>
+            <div class="flex flex-col gap-1 flex-1 overflow-hidden">
+                <div class="flex justify-between items-start">
+                    <div class="flex flex-col flex-1">
+                        <span class="text-xs font-black tracking-tight truncate">
+                            {item.display_title || item.category}
+                        </span>
+                        {#if item.display_subtitle}
+                            <span class="text-[10px] opacity-40 font-mono italic truncate">
+                                {item.display_subtitle}
+                            </span>
+                        {/if}
+                    </div>
+                    <span class="badge badge-ghost badge-xs font-mono opacity-30 italic lowercase shrink-0 ml-2">
+                        {item.category?.split('.').pop()}
+                    </span>
                 </div>
+                
                 <div class="flex flex-wrap gap-1 mt-1">
-                    {#each Object.entries(item.context || {}) as [ctxType, ctxVal]}
-                        <div class="badge badge-outline border-base-300 text-[9px] font-mono h-4 gap-1 opacity-60">
-                            <span class="opacity-40 uppercase font-bold text-[7px]">{ctxType.split('.').pop()}:</span>
-                            <span>{(ctxVal as any).temperature || (ctxVal as any).track || '...'}</span>
-                        </div>
-                    {/each}
-
                     <!-- Metadata / Enrichment Info -->
                     {#if item.metadata}
                         {#each Object.entries(item.metadata) as [metaKey, metaVal]}
-                            <div class="badge badge-ghost badge-sm font-mono gap-1">
-                                <span class="opacity-50 text-[10px]">{metaKey}:</span>
-                                <span>{metaVal}</span>
-                            </div>
+                            {#if !metaKey.startsWith('display.')}
+                                <div class="badge badge-ghost badge-sm font-mono gap-1">
+                                    <span class="opacity-50 text-[10px]">{metaKey}:</span>
+                                    <span>{metaVal}</span>
+                                </div>
+                            {/if}
                         {/each}
                     {/if}
                 </div>
             </div>
         </div>
-    </div>
+    </button>
     {#if !isLast}<hr class="bg-base-300" />{/if}
 </li>

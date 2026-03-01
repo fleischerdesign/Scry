@@ -1,19 +1,22 @@
 <script lang="ts">
 	import "./app.css";
 	import { auth } from "./lib/auth.svelte";
-	import { api } from "./lib/api";
 	import { onMount } from "svelte";
 	import { router } from "./lib/router.svelte";
 	import { ui } from "./lib/ui.svelte";
 	import { fly } from "svelte/transition";
 	
+	// Global States
+	import { timeline } from "./lib/state/timeline.svelte";
+	import { plugins } from "./lib/state/plugins.svelte";
+	import { dashboards } from "./lib/state/dashboards.svelte";
+
 	// Pages
 	import Overview from "./lib/pages/Overview.svelte";
 	import Timeline from "./lib/pages/Timeline.svelte";
 	import Explorer from "./lib/pages/Explorer.svelte";
 	import Dashboard from "./lib/pages/Dashboard.svelte";
 	import Analytics from "./lib/pages/Analytics.svelte";
-	import System from "./lib/pages/System.svelte";
 	import Settings from "./lib/pages/Settings.svelte";
 	import GeneralSettings from "./lib/pages/settings/GeneralSettings.svelte";
 	import PluginSettings from "./lib/pages/settings/PluginSettings.svelte";
@@ -25,7 +28,6 @@
 	import CommandPalette from "./lib/components/CommandPalette.svelte";
 
 	let isPaletteOpen = $state(false);
-	let loading = $state(false);
 	let currentTheme = $state(localStorage.getItem("scry_theme") || "dark");
 
 	$effect(() => {
@@ -33,82 +35,24 @@
 		localStorage.setItem("scry_theme", currentTheme);
 	});
 
-	// Data State
-	let catalog = $state<any>(null);
-	let timeline = $state<any[]>([]);
-	let dailySummary = $state<string[]>([]);
-	let statsData = $state<any>(null);
-	let pluginsData = $state<any[]>([]);
-	let dashboardsData = $state<any[]>([]);
-	let eventSource = $state<EventSource | null>(null);
-
-	function setupSSE() {
-		if (eventSource) eventSource.close();
-		if (!auth.apiKey) return;
-		const url = `http://127.0.0.1:3000/api/v1/streams/live?api_key=${auth.apiKey}`;
-		const sse = new EventSource(url); 
-				sse.onmessage = (e) => {
-					const event = JSON.parse(e.data);
-					const item = { 
-						id: event.id,
-						timestamp: event.timestamp, 
-						category: event.category, 
-						event: event.payload, 
-						metadata: event.metadata,
-						entities: event.entities || [],
-						context: {} 
-					};
-					timeline = [item, ...timeline].slice(0, 100);			const label = event.category === 'music.scrobble' ? `Now Playing: ${event.payload.artist}` : event.category === 'weather.current' ? `Weather Update: ${event.payload.temperature}°C` : `New Event: ${event.category}`;
-			ui.notify(label, undefined, 'info');
-		};
-		eventSource = sse;
-	}
-
-	async function loadDashboard() {
+	async function loadAll() {
 		if (!auth.isAuthenticated) return;
-		loading = true;
-		try {
-			const [catData, timelineData, summaryData, pluginData, dashData] = await Promise.all([
-				api.getCatalog(),
-				api.getTimeline(),
-				api.getSummary(),
-				api.getPlugins(),
-				api.getDashboards()
-			]);
-			catalog = catData;
-			timeline = timelineData;
-			dailySummary = summaryData;
-			pluginsData = pluginData;
-			dashboardsData = dashData;
-			setupSSE();
-			if (router.path === "/analytics") await loadAnalytics();
-		} catch (e) { console.error(e); } finally { loading = false; }
+		await Promise.all([
+			timeline.load(),
+			plugins.load(),
+			dashboards.load()
+		]);
 	}
 
-	async function loadAnalytics() {
-		try {
-			statsData = await api.getAnalytics("stats?base_semantic=music.artist&join_semantic=environment.temperature&limit=100");
-		} catch (e) { console.error(e); }
-	}
-
-	async function handlePoll(pluginId: string) {
-		await api.pollPlugin(pluginId);
-		await loadDashboard();
-	}
-
-	async function handlePaletteAction(type: string, payload: string) {
-		if (type === 'nav') router.navigate(payload);
-		else if (type === 'poll') await handlePoll(payload);
-	}
-
-	onMount(() => { if (auth.isAuthenticated) loadDashboard(); });
-	$effect(() => { if (router.path === "/analytics" && auth.isAuthenticated) loadAnalytics(); });
+	onMount(() => { if (auth.isAuthenticated) loadAll(); });
 </script>
 
-<CommandPalette bind:isOpen={isPaletteOpen} onAction={handlePaletteAction} />
+<CommandPalette bind:isOpen={isPaletteOpen} onAction={(type, payload) => {
+	if (type === 'nav') router.navigate(payload);
+}} />
 
 {#if !auth.isAuthenticated}
-	<Auth onAuthSuccess={loadDashboard} />
+	<Auth onAuthSuccess={loadAll} />
 {:else}
 	<div class="drawer lg:drawer-open">
 		<input id="main-drawer" type="checkbox" class="drawer-toggle" />
@@ -138,17 +82,15 @@
 
 			<main class="p-6 lg:p-10 w-full flex-1">
 				{#if router.path === '/overview'}
-					<Overview {dailySummary} catalogCount={catalog ? Object.keys(catalog).length : 0} timelineCount={timeline.length} onRefresh={loadDashboard} />
+					<Overview onRefresh={loadAll} />
 				{:else if router.path === '/timeline'}
-					<Timeline {timeline} onRefresh={loadDashboard} />
+					<Timeline onRefresh={loadAll} />
 				{:else if router.path === '/explorer'}
-					<Explorer catalog={catalog || {}} dashboards={dashboardsData} onRefresh={loadDashboard} />
+					<Explorer onRefresh={loadAll} />
 				{:else if router.path.startsWith('/dashboard/')}
-					<Dashboard dashboards={dashboardsData} plugins={pluginsData} onRefresh={loadDashboard} />
+					<Dashboard onRefresh={loadAll} />
 				{:else if router.path === '/analytics'}
-					<Analytics statsData={statsData} />
-				{:else if router.path === '/system'}
-					<System plugins={pluginsData} onPoll={handlePoll} />
+					<Analytics />
 				{:else if router.path.startsWith('/settings')}
 					<div class="space-y-6">
 						<div class="flex flex-col gap-4 border-b border-base-300 pb-6">
@@ -166,15 +108,15 @@
 						</div>
 
 						{#if router.path === '/settings'}
-							<Settings plugins={pluginsData} dashboards={dashboardsData} />
+							<Settings />
 						{:else if router.path === '/settings/general'}
 							<GeneralSettings />
 						{:else if router.path === '/settings/plugins'}
-							<PluginSettings plugins={pluginsData} />
+							<PluginSettings />
 						{:else if router.path === '/settings/enrichers'}
-							<EnricherSettings plugins={pluginsData} />
+							<EnricherSettings />
 						{:else if router.path === '/settings/dashboards'}
-							<DashboardSettings dashboards={dashboardsData} onRefresh={loadDashboard} />
+							<DashboardSettings onRefresh={loadAll} />
 						{/if}
 					</div>
 				{:else if router.match('/event/:id')}
@@ -202,7 +144,7 @@
 					<li><button class:active={router.path === '/settings'} onclick={() => router.navigate('/settings')} class="gap-4 font-bold tracking-tight">Settings</button></li>
 					
 					<li class="menu-title opacity-40 text-[10px] uppercase tracking-widest font-black pt-8">Dashboards</li>
-					{#each dashboardsData as dash}
+					{#each dashboards.items as dash}
 						<li><button class:active={router.path === `/dashboard/${dash.slug}`} onclick={() => router.navigate(`/dashboard/${dash.slug}`)} class="gap-4 font-bold tracking-tight text-secondary">
 							<div class="w-1 h-1 rounded-full bg-secondary opacity-40"></div>
 							{dash.name}

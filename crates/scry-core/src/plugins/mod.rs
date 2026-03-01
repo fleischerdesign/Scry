@@ -3,7 +3,7 @@ pub mod host_impl;
 pub mod manager;
 
 #[allow(unused_imports)]
-pub use manager::{PluginManager, LoadedPlugin};
+pub use manager::PluginManager;
 #[allow(unused_imports)]
 pub use context::MyCtx;
 

@@ -3,8 +3,10 @@
     import { api } from '../api';
     import { ui } from '../ui.svelte';
     import { router } from '../router.svelte';
+    import { dashboards } from "../state/dashboards.svelte";
+    import { plugins } from "../state/plugins.svelte";
     
-    let { dashboards = [], plugins = [], onRefresh } = $props();
+    let { onRefresh } = $props();
 
     let isEditing = $state(false);
     let isCreating = $state(false);
@@ -12,15 +14,12 @@
     let newDashName = $state("");
     let deletingId = $state<string | null>(null);
 
-    // Find active dashboard from URL
-    const activeDashboard = $derived.by(() => {
-        const slug = router.path.split('/').pop();
-        return dashboards.find(d => d.slug === slug) || dashboards[0] || null;
-    });
+    // Find active dashboard from URL via global state
+    const activeDashboard = $derived(dashboards.active);
 
-    // Collect all suggested widgets from all plugins
+    // Collect all suggested widgets from global plugin state
     const widgetMarketplace = $derived.by(() => {
-        return plugins.flatMap(p => (p.suggested_widgets || []).map((w: any) => ({
+        return plugins.items.flatMap(p => (p.suggested_widgets || []).map((w: any) => ({
             ...w,
             pluginName: p.name,
             pluginId: p.id

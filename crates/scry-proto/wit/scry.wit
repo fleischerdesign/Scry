@@ -8,6 +8,16 @@ interface types {
         id: string,        // z.B. "The Beatles"
     }
 
+    record relationship {
+        source-namespace: string,
+        source-type: string,
+        source-id: string,
+        predicate: string, // z.B. "scry.music/by_artist"
+        target-namespace: string,
+        target-type: string,
+        target-id: string,
+    }
+
     record event {
         id: string,
         timestamp: string,
@@ -15,7 +25,9 @@ interface types {
         source: string,
         payload: string,
         metadata: option<string>,
-        entities: list<entity-ref>, // Verknüpfte Entitäten im Event
+        entities: list<entity-ref>,
+        display-title: option<string>,
+        display-subtitle: option<string>,
     }
 
     record data-field {
@@ -23,27 +35,28 @@ interface types {
         path: string,
         semantic-type: string,
         description: string,
+        format: option<string>,
     }
 
     record trait-capability {
         entity-namespace: string,
         entity-type: string,
-        trait-id: string, // z.B. "scry.display/image"
+        trait-id: string,
     }
 
     enum widget-template {
-        metric,      // Große Zahl + Einheit
-        trend,       // Liniendiagramm über Zeit
-        top-list,    // Ranking von Einträgen
-        status,      // Badge / Statusanzeige
-        spotlight    // Fokus auf eine Entität
+        metric,
+        trend,
+        top-list,
+        status,
+        spotlight
     }
 
     record widget-definition {
         id: string,
         title: string,
         template: widget-template,
-        config-json: string, // Spezifische Config für das Template (z.B. { "category": "weather.current", "path": "temperature", "unit": "°C" })
+        config-json: string,
     }
 
     record manifest {
@@ -54,10 +67,10 @@ interface types {
         subscriptions: list<string>,
         capabilities: list<string>,
         exports: list<data-field>,
-        provided-traits: list<trait-capability>, // Was kann dieses Plugin anreichern?
+        provided-traits: list<trait-capability>,
         poll-interval: option<u32>,
-        config-schema: option<string>, // JSON Schema für die Konfiguration
-        suggested-widgets: list<widget-definition>, // Vordefinierte Widgets
+        config-schema: option<string>,
+        suggested-widgets: list<widget-definition>,
     }
 
     enum visualization { table, bar-chart, line-chart, pie-chart }
@@ -76,7 +89,7 @@ interface types {
 }
 
 interface host {
-    use types.{event};
+    use types.{event, relationship};
 
     variant query-param {
         s(string),
@@ -92,10 +105,11 @@ interface host {
     get-profile-value: func(key: string) -> option<string>;
     log: func(level: string, message: string);
 
-    // NEU: Ermöglicht Plugins, Traits direkt im Host-Speicher abzulegen (Push-Modell)
     set-entity-trait: func(namespace: string, typ: string, id: string, trait-id: string, value-json: string);
-    // NEU: Ermöglicht Plugins, Traits anderer Entitäten zu lesen
     get-entity-trait: func(namespace: string, typ: string, id: string, trait-id: string) -> option<string>;
+
+    set-relationship: func(rel: relationship);
+    get-relationships: func(namespace: string, typ: string, id: string, direction: string) -> list<relationship>;
 }
 
 world plugin {
@@ -109,10 +123,6 @@ world plugin {
     export get-reports: func() -> list<report-metadata>;
     export run-report: func(report-id: string) -> result<report-data, string>;
     export get-summary: func(start-ts: string, end-ts: string) -> string;
-
-    // Pull-Modell: Host fragt aktiv nach einem Trait
     export resolve-trait: func(namespace: string, typ: string, id: string, trait-id: string) -> result<option<string>, string>;
-
-    // Reaktives Modell: Host informiert Plugin über neue Entität
     export on-entity-discovered: func(namespace: string, typ: string, id: string);
 }

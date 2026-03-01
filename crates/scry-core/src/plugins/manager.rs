@@ -1,183 +1,143 @@
-use crate::plugins::context::MyCtx;
-use crate::plugins::scry::plugin::types::{Event as PluginEvent, Manifest, ReportMetadata, ReportData, EntityRef as PluginEntityRef};
-use anyhow::Result;
-use wasmtime::{Config, Engine, Store};
-use wasmtime::component::{Component, InstancePre, Linker, ResourceTable};
-use wasmtime_wasi::WasiCtxBuilder;
+use std::path::Path;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use reqwest::Client;
+use wasmtime::{Config, Engine, Store};
+use wasmtime::component::{Component, ResourceTable, Linker};
+use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
+use anyhow::Result;
 use scry_proto::Event as ScryEvent;
+use crate::plugins::context::MyCtx;
+use crate::plugins::scry::plugin::types::{Event as PluginEvent, Manifest, ReportMetadata, ReportData, EntityRef as PluginEntityRef};
 
-#[derive(Clone)]
-pub struct LoadedPlugin {
-    pub pre: InstancePre<MyCtx>,
+pub struct PluginInstance {
+    pub name: String,
+    pub component: Component,
     pub manifest: Manifest,
 }
 
 pub struct PluginManager {
     engine: Engine,
-    plugins_dir: PathBuf,
-    storage_dir: PathBuf,
-    linker: Linker<MyCtx>,
-    plugins: Arc<RwLock<HashMap<String, LoadedPlugin>>>,
+    plugins: Arc<RwLock<HashMap<String, PluginInstance>>>,
+    plugin_dir: String,
     db: sqlx::SqlitePool,
-    http_client: Client,
 }
 
 impl PluginManager {
-    pub fn new(plugins_dir: impl Into<PathBuf>, db: sqlx::SqlitePool) -> Result<Self> {
+    pub fn new(plugin_dir: &str, db: sqlx::SqlitePool) -> Result<Self> {
         let mut config = Config::new();
         config.wasm_component_model(true);
         config.wasm_component_model_async(true);
-        config.consume_fuel(true);
-
         let engine = Engine::new(&config)?;
-        let mut linker = Linker::new(&engine);
-        
-        wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
-        crate::plugins::Plugin::add_to_linker::<MyCtx, wasmtime::component::HasSelf<MyCtx>>(&mut linker, |state| state)?;
 
         Ok(Self {
             engine,
-            plugins_dir: plugins_dir.into(),
-            storage_dir: PathBuf::from("./storage"),
-            linker,
             plugins: Arc::new(RwLock::new(HashMap::new())),
+            plugin_dir: plugin_dir.to_string(),
             db,
-            http_client: Client::builder().user_agent("Scry/0.1.0").build()?,
         })
     }
 
-    async fn with_instance<F, Fut, R>(&self, plugin_name: &str, user_id: i64, f: F) -> Result<R>
+    async fn with_instance<F, Fut, T>(&self, name: &str, user_id: i64, f: F) -> Result<T>
     where
         F: FnOnce(crate::plugins::Plugin, Store<MyCtx>) -> Fut,
-        Fut: std::future::Future<Output = Result<(R, Store<MyCtx>)>>,
+        Fut: std::future::Future<Output = Result<(T, Store<MyCtx>)>>,
     {
-        let loaded = {
-            let plugins = self.plugins.read().await;
-            plugins.get(plugin_name).cloned().ok_or_else(|| anyhow::anyhow!("Plugin {} not found", plugin_name))?
+        let plugins = self.plugins.read().await;
+        let plugin = plugins.get(name).ok_or_else(|| anyhow::anyhow!("Plugin not found"))?;
+
+        let mut linker = Linker::new(&self.engine);
+        wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
+        crate::plugins::Plugin::add_to_linker::<MyCtx, wasmtime::component::HasSelf<MyCtx>>(&mut linker, |state| state)?;
+
+        let storage_path = format!("./storage/u{}/p{}", user_id, name);
+        std::fs::create_dir_all(&storage_path)?;
+
+        let table = ResourceTable::new();
+        let wasi = WasiCtxBuilder::new()
+            .inherit_stdout()
+            .inherit_stderr()
+            .preopened_dir(&storage_path, "/", DirPerms::all(), FilePerms::all())?
+            .build();
+
+        let ctx = MyCtx {
+            user_id,
+            plugin_name: name.to_string(),
+            db: self.db.clone(),
+            http_client: reqwest::Client::new(),
+            table,
+            wasi,
         };
 
-        let sandbox_path = self.storage_dir.join(format!("u{}", user_id)).join(format!("p{}", plugin_name));
-        if !sandbox_path.exists() {
-            std::fs::create_dir_all(&sandbox_path)?;
-        }
-
-        let mut wasi_builder = WasiCtxBuilder::new();
-        wasi_builder.inherit_stdout().inherit_stderr();
+        let mut store = Store::new(&self.engine, ctx);
+        let instance = crate::plugins::Plugin::instantiate_async(&mut store, &plugin.component, &linker).await?;
         
-        use wasmtime_wasi::{DirPerms, FilePerms};
-        wasi_builder.preopened_dir(&sandbox_path, "/", DirPerms::all(), FilePerms::all())?;
-
-        let mut store = Store::new(
-            &self.engine,
-            MyCtx {
-                db: self.db.clone(),
-                user_id,
-                plugin_name: plugin_name.to_string(),
-                http_client: self.http_client.clone(),
-                wasi: wasi_builder.build(),
-                table: ResourceTable::new(),
-            },
-        );
-
-        store.set_fuel(1_000_000)?; 
-        store.limiter(|s| s);
-
-        let instance_raw = loaded.pre.instantiate_async(&mut store).await?;
-        let instance = crate::plugins::Plugin::new(&mut store, &instance_raw)?;
-        
-        // Lifecycle: on_init
-        if let Err(e) = instance.call_on_init(&mut store).await? {
-            tracing::warn!(plugin = %plugin_name, user_id = %user_id, "Plugin init failed: {}", e);
-        }
-
         let (res, _store) = f(instance, store).await?;
         Ok(res)
-    }
-
-    pub async fn reload_plugin(&self, path: &std::path::Path) -> Result<()> {
-        if path.extension().and_then(|s| s.to_str()) != Some("wasm") {
-            return Ok(());
-        }
-
-        let Some(name) = path.file_stem().and_then(|s| s.to_str()).map(|s| s.to_string()) else {
-            tracing::warn!("Skipping plugin with invalid filename: {:?}", path);
-            return Ok(());
-        };
-
-        tracing::info!("Hot-reloading plugin: {}", name);
-        let component = Component::from_file(&self.engine, path)?;
-        let pre = self.linker.instantiate_pre(&component)?;
-        
-        let mut store = Store::new(&self.engine, MyCtx {
-            db: self.db.clone(),
-            user_id: 0,
-            plugin_name: name.clone(),
-            http_client: self.http_client.clone(),
-            wasi: WasiCtxBuilder::new().build(),
-            table: ResourceTable::new(),
-        });
-        store.set_fuel(1_000_000)?;
-        store.limiter(|s| s);
-
-        let instance_raw = pre.instantiate_async(&mut store).await?;
-        let instance = crate::plugins::Plugin::new(&mut store, &instance_raw)?;
-        let manifest = instance.call_get_manifest(&mut store).await?;
-        
-        let mut plugins = self.plugins.write().await;
-        plugins.insert(name, LoadedPlugin { pre, manifest });
-        
-        Ok(())
     }
 
     pub async fn reload_plugins(&self) -> Result<()> {
         let mut plugins = self.plugins.write().await;
         plugins.clear();
 
-        if !self.plugins_dir.exists() {
-            std::fs::create_dir_all(&self.plugins_dir)?;
+        if !Path::new(&self.plugin_dir).exists() {
+            std::fs::create_dir_all(&self.plugin_dir)?;
         }
 
-        for entry in std::fs::read_dir(&self.plugins_dir)? {
+        for entry in std::fs::read_dir(&self.plugin_dir)? {
             let entry = entry?;
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("wasm") {
-                let Some(name) = path.file_stem().and_then(|s| s.to_str()).map(|s| s.to_string()) else {
-                    tracing::warn!("Skipping plugin with invalid filename: {:?}", path);
-                    continue;
-                };
-
-                let component = Component::from_file(&self.engine, &path)?;
-                let pre = self.linker.instantiate_pre(&component)?;
-                
-                let mut store = Store::new(&self.engine, MyCtx {
-                    db: self.db.clone(),
-                    user_id: 0,
-                    plugin_name: name.clone(),
-                    http_client: self.http_client.clone(),
-                    wasi: WasiCtxBuilder::new().build(),
-                    table: ResourceTable::new(),
-                });
-                store.set_fuel(1_000_000)?;
-                store.limiter(|s| s);
-
-                let instance_raw = pre.instantiate_async(&mut store).await?;
-                let instance = crate::plugins::Plugin::new(&mut store, &instance_raw)?;
-                let manifest = instance.call_get_manifest(&mut store).await?;
-                
-                plugins.insert(name, LoadedPlugin { pre, manifest });
+                self.load_plugin_internal(&mut plugins, &path).await?;
             }
         }
         Ok(())
     }
 
+    pub async fn reload_plugin(&self, path: &Path) -> Result<()> {
+        let mut plugins = self.plugins.write().await;
+        self.load_plugin_internal(&mut plugins, path).await
+    }
+
+    async fn load_plugin_internal(&self, plugins: &mut HashMap<String, PluginInstance>, path: &Path) -> Result<()> {
+        let name = path.file_stem().unwrap().to_str().unwrap().to_string();
+        let component = Component::from_file(&self.engine, path)?;
+
+        let mut linker = Linker::new(&self.engine);
+        wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
+        crate::plugins::Plugin::add_to_linker::<MyCtx, wasmtime::component::HasSelf<MyCtx>>(&mut linker, |state| state)?;
+
+        let table = ResourceTable::new();
+        let wasi = WasiCtxBuilder::new().build();
+        let ctx = MyCtx {
+            user_id: 0,
+            plugin_name: name.clone(),
+            db: self.db.clone(),
+            http_client: reqwest::Client::new(),
+            table,
+            wasi,
+        };
+
+        let mut store = Store::new(&self.engine, ctx);
+        let instance_raw = crate::plugins::Plugin::instantiate_async(&mut store, &component, &linker).await?;
+        let manifest = instance_raw.call_get_manifest(&mut store).await?;
+        
+        if let Err(e) = instance_raw.call_on_init(&mut store).await? {
+            tracing::error!("Plugin {} on_init failed: {}", name, e);
+        }
+
+        tracing::info!("Loaded plugin: {} v{} ({})", manifest.name, manifest.version, name);
+        plugins.insert(name.clone(), PluginInstance { name, component, manifest });
+        Ok(())
+    }
+
     pub async fn run_ingest_pipeline(&self, user_id: i64, mut event: ScryEvent) -> Result<ScryEvent> {
-        let names: Vec<String> = self.plugins.read().await.keys().cloned().collect();
-        for name in names {
+        let plugin_names: Vec<String> = {
+            let plugins = self.plugins.read().await;
+            plugins.keys().cloned().collect()
+        };
+
+        for name in plugin_names {
             let should_run = {
                 let plugins = self.plugins.read().await;
                 if let Some(plugin) = plugins.get(&name) {
@@ -201,10 +161,12 @@ impl PluginManager {
                         category: event.category.clone(),
                         source: event.source.clone(),
                         payload: serde_json::to_string(&event.payload)?,
-                        metadata: event.metadata.as_ref().map(|m| serde_json::to_string(m).ok()).flatten(),
+                        metadata: event.metadata.as_ref().and_then(|m| serde_json::to_string(m).ok()),
                         entities: event.entities.iter().map(|e| PluginEntityRef {
                             path: e.path.clone(), namespace: e.namespace.clone(), typ: e.typ.clone(), id: e.id.clone()
                         }).collect(),
+                        display_title: event.display_title.clone(),
+                        display_subtitle: event.display_subtitle.clone(),
                     };
                     let processed = instance.call_on_ingest(&mut store, &ev).await?.map_err(|e| anyhow::anyhow!(e))?;
                     
@@ -214,10 +176,12 @@ impl PluginManager {
                         category: processed.category,
                         source: processed.source,
                         payload: serde_json::from_str(&processed.payload)?,
-                        metadata: processed.metadata.and_then(|m| serde_json::from_str(&m).ok()),
+                        metadata: processed.metadata.as_ref().and_then(|m| serde_json::from_str(m).ok()),
                         entities: processed.entities.into_iter().map(|e| scry_proto::EntityRef {
                             path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                         }).collect(),
+                        display_title: processed.display_title,
+                        display_subtitle: processed.display_subtitle,
                     };
                     Ok((mapped, store))
                 }).await?;
@@ -235,10 +199,12 @@ impl PluginManager {
                     id: uuid::Uuid::parse_str(&ev.id)?,
                     timestamp: chrono::DateTime::parse_from_rfc3339(&ev.timestamp)?.with_timezone(&chrono::Utc),
                     category: ev.category, source: ev.source, payload: serde_json::from_str(&ev.payload)?,
-                    metadata: ev.metadata.and_then(|m| serde_json::from_str(&m).ok()),
+                    metadata: ev.metadata.as_ref().and_then(|m| serde_json::from_str(m).ok()),
                     entities: ev.entities.into_iter().map(|e| scry_proto::EntityRef {
                         path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                     }).collect(),
+                    display_title: ev.display_title,
+                    display_subtitle: ev.display_subtitle,
                 })
             }).collect::<Result<Vec<_>>>()?;
             Ok((mapped, store))
@@ -284,22 +250,19 @@ impl PluginManager {
     }
 
     pub async fn notify_entity_discovered(&self, user_id: i64, namespace: String, typ: String, id: String) -> Result<()> {
-        let names: Vec<String> = self.plugins.read().await.keys().cloned().collect();
-        for name in names {
-            let interested = {
-                let plugins = self.plugins.read().await;
-                plugins.get(&name).map(|p| p.manifest.provided_traits.iter().any(|t| t.entity_namespace == namespace && t.entity_type == typ)).unwrap_or(false)
-            };
+        let plugin_names: Vec<String> = {
+            let plugins = self.plugins.read().await;
+            plugins.keys().cloned().collect()
+        };
 
-            if interested {
-                let ns = namespace.clone();
-                let t = typ.clone();
-                let i = id.clone();
-                self.with_instance(&name, user_id, |instance, mut store| async move {
-                    instance.call_on_entity_discovered(&mut store, &ns, &t, &i).await?;
-                    Ok(((), store))
-                }).await?;
-            }
+        for name in plugin_names {
+            let ns = namespace.clone();
+            let t = typ.clone();
+            let i = id.clone();
+            self.with_instance(&name, user_id, |instance, mut store| async move {
+                instance.call_on_entity_discovered(&mut store, &ns, &t, &i).await?;
+                Ok(((), store))
+            }).await?;
         }
         Ok(())
     }

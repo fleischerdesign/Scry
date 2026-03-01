@@ -13,9 +13,9 @@ impl ScryPlugin for MusicPlugin {
             subscriptions: vec!["music.*".to_string()],
             capabilities: vec!["network".to_string(), "state".to_string(), "config".to_string()],
             exports: vec![
-                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.artist".to_string(), semantic_type: "music.artist".to_string(), description: "Name des Künstlers".to_string() },
-                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.track".to_string(), semantic_type: "music.track".to_string(), description: "Name des Songs".to_string() },
-                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.album".to_string(), semantic_type: "music.album".to_string(), description: "Name des Albums".to_string() },
+                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.artist".to_string(), semantic_type: "music.artist".to_string(), description: "Name des Künstlers".to_string(), format: None },
+                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.track".to_string(), semantic_type: "music.track".to_string(), description: "Name des Songs".to_string(), format: None },
+                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.album".to_string(), semantic_type: "music.album".to_string(), description: "Name des Albums".to_string(), format: None },
             ],
             provided_traits: vec![],
             poll_interval: Some(10),
@@ -42,20 +42,38 @@ impl ScryPlugin for MusicPlugin {
                 path: "payload.artist".to_string(),
                 namespace: "scry.music".to_string(),
                 typ: "artist".to_string(),
-                id: artist,
+                id: artist.clone(),
             });
             ev.entities.push(scry_plugin_sdk::EntityRef {
                 path: "payload.track".to_string(),
                 namespace: "scry.music".to_string(),
                 typ: "track".to_string(),
-                id: track,
+                id: track.clone(),
             });
             ev.entities.push(scry_plugin_sdk::EntityRef {
                 path: "payload.album".to_string(),
                 namespace: "scry.music".to_string(),
                 typ: "album".to_string(),
-                id: album,
+                id: album.clone(),
             });
+
+            ev.display_title = Some(format!("{} - {}", artist, track));
+            ev.display_subtitle = Some(format!("Album: {}", album));
+
+            // Beziehungen im Knowledge Graph hinterlegen
+            let track_rel = scry_plugin_sdk::Relationship {
+                source_namespace: "scry.music".to_string(), source_type: "track".to_string(), source_id: track.clone(),
+                predicate: "scry.music/belongs_to_album".to_string(),
+                target_namespace: "scry.music".to_string(), target_type: "album".to_string(), target_id: album.clone(),
+            };
+            let artist_rel = scry_plugin_sdk::Relationship {
+                source_namespace: "scry.music".to_string(), source_type: "track".to_string(), source_id: track.clone(),
+                predicate: "scry.music/by_artist".to_string(),
+                target_namespace: "scry.music".to_string(), target_type: "artist".to_string(), target_id: artist.clone(),
+            };
+            
+            let _ = host::set_relationship(track_rel).await;
+            let _ = host::set_relationship(artist_rel).await;
 
             let mut metadata = ev.metadata.unwrap_or(json!({}));
             if let Some(obj) = metadata.as_object_mut() {
@@ -113,6 +131,8 @@ impl ScryPlugin for MusicPlugin {
                 }),
                 metadata: None,
                 entities: vec![],
+                display_title: Some(format!("The Granular Poller - Zen: {}", zen)),
+                display_subtitle: Some("Album: Scheduler Edition".to_string()),
             }
         ]
     }
