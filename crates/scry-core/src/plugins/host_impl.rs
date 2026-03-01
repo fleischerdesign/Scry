@@ -85,13 +85,21 @@ impl Host for MyCtx {
     }
 
     async fn get_config(&mut self, key: String) -> Result<Option<String>> {
-        let row = sqlx::query_as::<_, (String,)>("SELECT value_json FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ?")
-            .bind(self.user_id).bind(&self.plugin_name).bind(key).fetch_optional(&self.db).await?;
-        Ok(row.map(|r| r.0))
+        tracing::debug!(plugin = %self.plugin_name, key = %key, "Host: get_config called");
+        let res = sqlx::query_as::<_, (String,)>("SELECT value FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ?")
+            .bind(self.user_id).bind(&self.plugin_name).bind(&key).fetch_optional(&self.db).await;
+        
+        match res {
+            Ok(row) => Ok(row.map(|r| r.0)),
+            Err(e) => {
+                tracing::error!(plugin = %self.plugin_name, key = %key, "Host: get_config DB error: {}", e);
+                Ok(None) // Return None instead of Err to prevent WASM trap
+            }
+        }
     }
 
     async fn get_profile_value(&mut self, key: String) -> Result<Option<String>> {
-        let row = sqlx::query_as::<_, (String,)>("SELECT value FROM user_profiles WHERE user_id = ? AND key = ?")
+        let row = sqlx::query_as::<_, (String,)>("SELECT value FROM user_profile WHERE user_id = ? AND key = ?")
             .bind(self.user_id).bind(key).fetch_optional(&self.db).await?;
         Ok(row.map(|r| r.0))
     }

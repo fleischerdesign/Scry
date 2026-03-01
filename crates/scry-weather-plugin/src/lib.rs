@@ -55,7 +55,7 @@ impl ScryPlugin for WeatherPlugin {
     }
 
     async fn on_poll(&self) -> Vec<SdkEvent> {
-        host::log_info("Weather: Polling...").await;
+        host::log_info("Weather: Polling current conditions...").await;
 
         // 1. Versuche Koordinaten aus der lokalen Config zu laden
         let mut lat = host::get_config("latitude").await.and_then(|v| v.parse::<f64>().ok());
@@ -65,7 +65,6 @@ impl ScryPlugin for WeatherPlugin {
         if lat.is_none() || lon.is_none() {
             if let Some(loc_json) = host::get_entity_trait("scry.core", "user", "self", "scry.geo/location").await {
                 if let Ok(loc) = serde_json::from_str::<GeoLocation>(&loc_json) {
-                    host::log_info(&format!("Weather: Using dynamic user location: {}, {}", loc.latitude, loc.longitude)).await;
                     lat = Some(loc.latitude);
                     lon = Some(loc.longitude);
                 }

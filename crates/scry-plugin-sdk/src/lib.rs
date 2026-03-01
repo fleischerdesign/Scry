@@ -212,13 +212,16 @@ macro_rules! scry_plugin {
 
         mod host {
             use $crate::serde_json::json;
-            use super::scry::plugin::host::QueryParam;
+            
+            // Explicit imports to avoid ambiguity
+            use super::scry::plugin::host as wit_host;
+            use super::scry::plugin::types as wit_types;
 
-            pub async fn query(sql: &str, params: Vec<QueryParam>) -> Vec<$crate::serde_json::Value> {
-                match super::scry::plugin::host::query(sql.to_string(), params).await {
+            pub async fn query(sql: &str, params: Vec<wit_host::QueryParam>) -> Vec<$crate::serde_json::Value> {
+                match wit_host::query(sql.to_string(), params).await {
                     Ok(res) => $crate::serde_json::from_str(&res).unwrap_or_default(),
                     Err(e) => {
-                        super::scry::plugin::host::log("error".to_string(), format!("SDK: Query failed: {}", e)).await;
+                        wit_host::log("error".to_string(), format!("SDK: Query failed: {}", e)).await;
                         vec![]
                     }
                 }
@@ -227,8 +230,8 @@ macro_rules! scry_plugin {
             pub async fn count_grouped(category: &str, payload_key: &str, limit: u32) -> Vec<$crate::serde_json::Value> {
                 let sql = format!("SELECT payload ->> '{}' as key, COUNT(*) as count FROM events WHERE category = ? GROUP BY key ORDER BY count DESC LIMIT ?", payload_key);
                 query(&sql, vec![
-                    QueryParam::S(category.to_string()),
-                    QueryParam::I(limit as i64),
+                    wit_host::QueryParam::S(category.to_string()),
+                    wit_host::QueryParam::I(limit as i64),
                 ]).await
             }
 
@@ -236,9 +239,9 @@ macro_rules! scry_plugin {
                 let format = match interval { "1h" => "%Y-%m-%dT%H:00:00Z", _ => "%Y-%m-%d" };
                 let sql = "SELECT strftime(?, timestamp) as label, COUNT(*) as count FROM events WHERE category = ? AND timestamp > date('now', ?) GROUP BY label ORDER BY label ASC";
                 query(sql, vec![
-                    QueryParam::S(format.to_string()),
-                    QueryParam::S(category.to_string()),
-                    QueryParam::S(format!("-{} days", days)),
+                    wit_host::QueryParam::S(format.to_string()),
+                    wit_host::QueryParam::S(category.to_string()),
+                    wit_host::QueryParam::S(format!("-{} days", days)),
                 ]).await
             }
 
@@ -256,35 +259,35 @@ macro_rules! scry_plugin {
                     LIMIT ?
                 "#;
                 query(sql, vec![
-                    QueryParam::S(join_category.to_string()),
-                    QueryParam::S(base_category.to_string()),
-                    QueryParam::I(limit as i64),
+                    wit_host::QueryParam::S(join_category.to_string()),
+                    wit_host::QueryParam::S(base_category.to_string()),
+                    wit_host::QueryParam::I(limit as i64),
                 ]).await
             }
-            pub async fn log_info(msg: &str) { super::scry::plugin::host::log("info".to_string(), msg.to_string()).await; }
-            pub async fn log_warn(msg: &str) { super::scry::plugin::host::log("warn".to_string(), msg.to_string()).await; }
-            pub async fn log_error(msg: &str) { super::scry::plugin::host::log("error".to_string(), msg.to_string()).await; }
-            pub async fn get_state(key: &str) -> Option<String> { super::scry::plugin::host::get_state(key.to_string()).await }
-            pub async fn set_state(key: &str, val: &str) { super::scry::plugin::host::set_state(key.to_string(), val.to_string()).await }
-            pub async fn get_config(key: &str) -> Option<String> { super::scry::plugin::host::get_config(key.to_string()).await }
-            pub async fn get_profile_value(key: &str) -> Option<String> { super::scry::plugin::host::get_profile_value(key.to_string()).await }
+            pub async fn log_info(msg: &str) { wit_host::log("info".to_string(), msg.to_string()).await; }
+            pub async fn log_warn(msg: &str) { wit_host::log("warn".to_string(), msg.to_string()).await; }
+            pub async fn log_error(msg: &str) { wit_host::log("error".to_string(), msg.to_string()).await; }
+            pub async fn get_state(key: &str) -> Option<String> { wit_host::get_state(key.to_string()).await }
+            pub async fn set_state(key: &str, val: &str) { wit_host::set_state(key.to_string(), val.to_string()).await }
+            pub async fn get_config(key: &str) -> Option<String> { wit_host::get_config(key.to_string()).await }
+            pub async fn get_profile_value(key: &str) -> Option<String> { wit_host::get_profile_value(key.to_string()).await }
             pub async fn http_get(url: &str) -> ::std::result::Result<String, String> { 
-                match super::scry::plugin::host::http_get(url.to_string()).await {
+                match wit_host::http_get(url.to_string()).await {
                     Ok(res) => Ok(res),
                     Err(e) => {
-                        super::scry::plugin::host::log("error".to_string(), format!("SDK: HTTP GET failed: {}", e)).await;
+                        wit_host::log("error".to_string(), format!("SDK: HTTP GET failed: {}", e)).await;
                         Err(e)
                     }
                 }
             }
             pub async fn set_entity_trait(namespace: &str, typ: &str, id: &str, trait_id: &str, value_json: &str) {
-                super::scry::plugin::host::set_entity_trait(namespace.to_string(), typ.to_string(), id.to_string(), trait_id.to_string(), value_json.to_string()).await;
+                wit_host::set_entity_trait(namespace.to_string(), typ.to_string(), id.to_string(), trait_id.to_string(), value_json.to_string()).await;
             }
             pub async fn get_entity_trait(namespace: &str, typ: &str, id: &str, trait_id: &str) -> Option<String> {
-                super::scry::plugin::host::get_entity_trait(namespace.to_string(), typ.to_string(), id.to_string(), trait_id.to_string()).await
+                wit_host::get_entity_trait(namespace.to_string(), typ.to_string(), id.to_string(), trait_id.to_string()).await
             }
             pub async fn set_relationship(rel: $crate::Relationship) {
-                super::scry::plugin::host::set_relationship(super::scry::plugin::types::Relationship {
+                wit_host::set_relationship(wit_types::Relationship {
                     source_namespace: rel.source_namespace.clone(), 
                     source_type: rel.source_type.clone(), 
                     source_id: rel.source_id.clone(),
@@ -295,7 +298,7 @@ macro_rules! scry_plugin {
                 }).await;
             }
             pub async fn get_relationships(namespace: &str, typ: &str, id: &str, direction: &str) -> Vec<$crate::Relationship> {
-                super::scry::plugin::host::get_relationships(namespace.to_string(), typ.to_string(), id.to_string(), direction.to_string()).await
+                wit_host::get_relationships(namespace.to_string(), typ.to_string(), id.to_string(), direction.to_string()).await
                     .into_iter().map(|r| $crate::Relationship {
                         source_namespace: r.source_namespace.clone(), 
                         source_type: r.source_type.clone(), 
