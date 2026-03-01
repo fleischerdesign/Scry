@@ -26,13 +26,27 @@ impl ScryPlugin for MusicPlugin {
     async fn on_ingest(&self, mut ev: scry_plugin_sdk::Event) -> Result<scry_plugin_sdk::Event, String> {
         if ev.category == "music.scrobble" {
             let artist = ev.payload.get("artist").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+            let track = ev.payload.get("track").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+            let album = ev.payload.get("album").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
             
-            // Tagge den Artist als semantische Entität
+            // Tagge Artist, Track und Album als semantische Entitäten
             ev.entities.push(scry_plugin_sdk::EntityRef {
                 path: "payload.artist".to_string(),
                 namespace: "scry.music".to_string(),
                 typ: "artist".to_string(),
                 id: artist,
+            });
+            ev.entities.push(scry_plugin_sdk::EntityRef {
+                path: "payload.track".to_string(),
+                namespace: "scry.music".to_string(),
+                typ: "track".to_string(),
+                id: track,
+            });
+            ev.entities.push(scry_plugin_sdk::EntityRef {
+                path: "payload.album".to_string(),
+                namespace: "scry.music".to_string(),
+                typ: "album".to_string(),
+                id: album,
             });
 
             let mut metadata = ev.metadata.unwrap_or(json!({}));
