@@ -41,6 +41,7 @@ interface types {
         exports: list<data-field>,
         provided-traits: list<trait-capability>, // Was kann dieses Plugin anreichern?
         poll-interval: option<u32>,
+        config-schema: option<string>, // NEU: JSON Schema für die Konfiguration
     }
 
     enum visualization { table, bar-chart, line-chart, pie-chart }
@@ -72,11 +73,13 @@ interface host {
     set-state: func(key: string, value: string);
     get-state: func(key: string) -> option<string>;
     get-config: func(key: string) -> option<string>;
-    get-profile: func(key: string) -> option<string>;
+    get-profile-value: func(key: string) -> option<string>;
     log: func(level: string, message: string);
 
     // NEU: Ermöglicht Plugins, Traits direkt im Host-Speicher abzulegen (Push-Modell)
     set-entity-trait: func(namespace: string, typ: string, id: string, trait-id: string, value-json: string);
+    // NEU: Ermöglicht Plugins, Traits anderer Entitäten zu lesen
+    get-entity-trait: func(namespace: string, typ: string, id: string, trait-id: string) -> option<string>;
 }
 
 world plugin {

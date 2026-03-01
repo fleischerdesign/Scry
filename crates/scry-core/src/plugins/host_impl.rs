@@ -83,13 +83,13 @@ impl Host for MyCtx {
     }
 
     async fn get_config(&mut self, key: String) -> Result<Option<String>> {
-        let row = sqlx::query_as::<_, (String,)>("SELECT value FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ?")
+        let row = sqlx::query_as::<_, (String,)>("SELECT value_json FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ?")
             .bind(self.user_id).bind(&self.plugin_name).bind(key).fetch_optional(&self.db).await?;
         Ok(row.map(|r| r.0))
     }
 
-    async fn get_profile(&mut self, key: String) -> Result<Option<String>> {
-        let row = sqlx::query_as::<_, (String,)>("SELECT value FROM user_profile WHERE user_id = ? AND key = ?")
+    async fn get_profile_value(&mut self, key: String) -> Result<Option<String>> {
+        let row = sqlx::query_as::<_, (String,)>("SELECT value FROM user_profiles WHERE user_id = ? AND key = ?")
             .bind(self.user_id).bind(key).fetch_optional(&self.db).await?;
         Ok(row.map(|r| r.0))
     }
@@ -113,5 +113,14 @@ impl Host for MyCtx {
             .bind(self.user_id).bind(&self.plugin_name).bind(namespace).bind(typ).bind(id).bind(trait_id).bind(value_json).execute(&self.db).await?;
         
         Ok(())
+    }
+
+    async fn get_entity_trait(&mut self, namespace: String, typ: String, id: String, trait_id: String) -> Result<Option<String>> {
+        let row = sqlx::query_scalar::<_, String>(
+            "SELECT value_json FROM entity_traits WHERE user_id = ? AND namespace = ? AND entity_type = ? AND entity_id = ? AND trait_id = ? ORDER BY updated_at DESC LIMIT 1"
+        )
+        .bind(self.user_id).bind(namespace).bind(typ).bind(id).bind(trait_id)
+        .fetch_optional(&self.db).await?;
+        Ok(row)
     }
 }

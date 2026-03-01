@@ -1,93 +1,89 @@
 use scry_plugin_sdk::prelude::*;
+use serde::{Deserialize, Serialize};
 
 #[derive(Default)]
 struct WeatherPlugin;
+
+#[derive(Debug, Deserialize)]
+struct GeoLocation {
+    latitude: f64,
+    longitude: f64,
+}
 
 impl ScryPlugin for WeatherPlugin {
     fn get_manifest(&self) -> scry_plugin_sdk::Manifest {
         scry_plugin_sdk::Manifest {
             id: "scry-weather-plugin".to_string(),
-            name: "Wetter Station".to_string(),
-            version: "0.3.0".to_string(),
-            description: "Lädt aktuelle Wetterdaten.".to_string(),
+            name: "Weather Node".to_string(),
+            version: "0.2.0".to_string(),
+            description: "Abfrage von Wetterdaten basierend auf dem aktuellen Standort des Users.".to_string(),
             subscriptions: vec![],
-            capabilities: vec!["network".to_string(), "config".to_string()],
+            capabilities: vec!["network".to_string(), "state".to_string(), "config".to_string()],
             exports: vec![
-                scry_plugin_sdk::DataField { category: "weather.current".to_string(), path: "payload.temperature".to_string(), semantic_type: "environment.temperature".to_string(), description: "Aktuelle Temperatur".to_string() },
-                scry_plugin_sdk::DataField { category: "weather.current".to_string(), path: "payload.condition".to_string(), semantic_type: "environment.condition".to_string(), description: "Wetterlage".to_string() },
+                scry_plugin_sdk::DataField {
+                    category: "weather.current".to_string(),
+                    path: "temperature".to_string(),
+                    semantic_type: "environment.temperature".to_string(),
+                    description: "Aktuelle Temperatur in Celsius".to_string(),
+                }
             ],
             provided_traits: vec![],
-            poll_interval: Some(300),
+            poll_interval: Some(600), // Alle 10 Minuten
+            config_schema: Some(json!({
+                "type": "object",
+                "properties": {
+                    "latitude": { "type": "number", "description": "Manuelle Latitude (optional)" },
+                    "longitude": { "type": "number", "description": "Manuelle Longitude (optional)" }
+                }
+            }).to_string()),
         }
     }
 
-    async fn on_ingest(&self, ev: scry_plugin_sdk::Event) -> Result<scry_plugin_sdk::Event, String> { Ok(ev) }
+    async fn on_poll(&self) -> Vec<SdkEvent> {
+        host::log_info("Weather: Polling...").await;
 
-    async fn get_reports(&self) -> Vec<scry_plugin_sdk::ReportMetadata> {
-        vec![
-            scry_plugin_sdk::ReportMetadata {
-                id: "temp-history".to_string(),
-                name: "Temperaturverlauf".to_string(),
-                description: "Außentemperatur der letzten 7 Tage".to_string(),
-                viz: scry_plugin_sdk::Visualization::LineChart,
+        // 1. Versuche Koordinaten aus der lokalen Config zu laden
+        let mut lat = host::get_config("latitude").await.and_then(|v| v.parse::<f64>().ok());
+        let mut lon = host::get_config("longitude").await.and_then(|v| v.parse::<f64>().ok());
+
+        // 2. Fallback: Versuche den aktuellen Standort-Trait vom User 'self' zu lesen
+        if lat.is_none() || lon.is_none() {
+            if let Some(loc_json) = host::get_entity_trait("scry.core", "user", "self", "scry.geo/location").await {
+                if let Ok(loc) = serde_json::from_str::<GeoLocation>(&loc_json) {
+                    host::log_info(&format!("Weather: Using dynamic user location: {}, {}", loc.latitude, loc.longitude)).await;
+                    lat = Some(loc.latitude);
+                    lon = Some(loc.longitude);
+                }
             }
-        ]
-    }
-
-    async fn run_report(&self, report_id: &str) -> Result<scry_plugin_sdk::ReportData, String> {
-        if report_id == "temp-history" {
-            let stats = host::count_over_time("weather.current", "1d", 7).await;
-            Ok(scry_plugin_sdk::ReportData {
-                columns: vec!["Datum".to_string(), "Messungen".to_string()],
-                data_json: serde_json::to_string(&stats).unwrap(),
-            })
-        } else {
-            Err("Report nicht gefunden".to_string())
-        }
-    }
-
-    async fn on_poll(&self) -> Vec<scry_plugin_sdk::Event> {
-        // Nutze globales Profil für die Stadt, falls vorhanden (Log-Demo)
-        if let Some(city) = host::get_profile("location.city").await {
-            host::log_info(&format!("Polling weather for global city: {}", city)).await;
         }
 
-        let lat = host::get_config("latitude").await.unwrap_or_else(|| "52.52".to_string());
-        let lon = host::get_config("longitude").await.unwrap_or_else(|| "13.41".to_string());
+        // 3. Letzter Fallback: Fixe Koordinaten (z.B. Berlin), falls gar nichts gefunden wurde
+        let lat = lat.unwrap_or(52.52);
+        let lon = lon.unwrap_or(13.41);
+
+        // API Abfrage (Open-Meteo)
         let url = format!("https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current_weather=true", lat, lon);
         
         match host::http_get(&url).await {
-            Ok(text) => {
-                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text)
-                    && let Some(current) = json.get("current_weather") {
-                        return vec![
-                            scry_plugin_sdk::Event {
-                                id: uuid::Uuid::new_v4(),
-                                timestamp: chrono::Utc::now(),
-                                category: "weather.current".to_string(),
-                                source: "open-meteo-plugin".to_string(),
-                                payload: current.clone(),
-                                metadata: None,
-                                entities: vec![],
-                            }
-                        ];
-                    }
-                vec![]
+            Ok(resp_json) => {
+                let v: serde_json::Value = serde_json::from_str(&resp_json).unwrap_or_default();
+                let temp = v["current_weather"]["temperature"].as_f64().unwrap_or(0.0);
+                
+                vec![SdkEvent {
+                    id: uuid::Uuid::new_v4(),
+                    timestamp: chrono::Utc::now(),
+                    category: "weather.current".to_string(),
+                    source: "open-meteo".to_string(),
+                    payload: json!({ "temperature": temp, "lat": lat, "lon": lon }),
+                    metadata: None,
+                    entities: vec![],
+                }]
             },
-            Err(_) => vec![]
-        }
-    }
-
-    async fn get_summary(&self, _start: &str, _end: &str) -> String {
-        // Hier könnten wir eigentlich einen Join oder AVG über den Zeitraum machen,
-        // für den Prototyp nehmen wir das aktuellste Event.
-        let events = host::join_nearest("weather.current", "weather.current", 1).await;
-        if let Some(first) = events.first()
-            && let Some(base) = first.get("base") {
-                let temp = base.get("temperature").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                return format!("The weather was around {:.1} degrees.", temp);
+            Err(e) => {
+                host::log_error(&format!("Weather: API call failed: {}", e)).await;
+                vec![]
             }
-        "Weather data unavailable.".to_string()
+        }
     }
 }
 

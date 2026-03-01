@@ -38,6 +38,7 @@ pub struct Manifest {
     pub exports: Vec<DataField>,
     pub provided_traits: Vec<TraitCapability>,
     pub poll_interval: Option<u32>,
+    pub config_schema: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -76,6 +77,7 @@ macro_rules! scry_plugin {
                         entity_namespace: t.entity_namespace, entity_type: t.entity_type, trait_id: t.trait_id
                     }).collect(),
                     poll_interval: m.poll_interval,
+                    config_schema: m.config_schema,
                 }
             }
 
@@ -219,7 +221,7 @@ macro_rules! scry_plugin {
             pub async fn get_state(key: &str) -> Option<String> { super::scry::plugin::host::get_state(key.to_string()).await }
             pub async fn set_state(key: &str, val: &str) { super::scry::plugin::host::set_state(key.to_string(), val.to_string()).await }
             pub async fn get_config(key: &str) -> Option<String> { super::scry::plugin::host::get_config(key.to_string()).await }
-            pub async fn get_profile(key: &str) -> Option<String> { super::scry::plugin::host::get_profile(key.to_string()).await }
+            pub async fn get_profile_value(key: &str) -> Option<String> { super::scry::plugin::host::get_profile_value(key.to_string()).await }
             pub async fn http_get(url: &str) -> ::std::result::Result<String, String> { 
                 match super::scry::plugin::host::http_get(url.to_string()).await {
                     Ok(res) => Ok(res),
@@ -231,6 +233,9 @@ macro_rules! scry_plugin {
             }
             pub async fn set_entity_trait(namespace: &str, typ: &str, id: &str, trait_id: &str, value_json: &str) {
                 super::scry::plugin::host::set_entity_trait(namespace.to_string(), typ.to_string(), id.to_string(), trait_id.to_string(), value_json.to_string()).await;
+            }
+            pub async fn get_entity_trait(namespace: &str, typ: &str, id: &str, trait_id: &str) -> Option<String> {
+                super::scry::plugin::host::get_entity_trait(namespace.to_string(), typ.to_string(), id.to_string(), trait_id.to_string()).await
             }
         }
     };

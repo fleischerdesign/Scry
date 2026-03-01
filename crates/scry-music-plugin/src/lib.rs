@@ -19,6 +19,7 @@ impl ScryPlugin for MusicPlugin {
             ],
             provided_traits: vec![],
             poll_interval: Some(10),
+            config_schema: None,
         }
     }
 
