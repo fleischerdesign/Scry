@@ -34,8 +34,18 @@ impl EventService {
         meta["user_id"] = serde_json::json!(user_id);
         processed_event.metadata = Some(meta);
 
-        // Entitäten benachrichtigen (Background)
+        // Entitäten persistieren (Global Knowledge Graph) und benachrichtigen
         for ent in &processed_event.entities {
+            // 1. In globale Entitäten-Tabelle eintragen (für Suche und Traits)
+            sqlx::query("INSERT INTO entities (user_id, namespace, typ, id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
+                .bind(user_id)
+                .bind(&ent.namespace)
+                .bind(&ent.typ)
+                .bind(&ent.id)
+                .execute(&self.db)
+                .await?;
+
+            // 2. Enricher benachrichtigen (Background)
             let pm = self.plugin_manager.clone();
             let ns = ent.namespace.clone();
             let typ = ent.typ.clone();
