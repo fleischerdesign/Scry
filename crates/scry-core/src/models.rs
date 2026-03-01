@@ -61,6 +61,7 @@ pub struct PluginStatus {
     pub capabilities: Vec<String>,
     pub subscriptions: Vec<String>,
     pub reports: Vec<ApiReportMetadata>,
+    pub config_schema: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]

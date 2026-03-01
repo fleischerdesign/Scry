@@ -325,7 +325,8 @@ pub async fn get_system_plugins(State(state): State<Arc<AppState>>, Extension(au
             subscriptions: m.subscriptions,
             reports: p_reports.into_iter().map(|r| ApiReportMetadata {
                 id: r.id, name: r.name, description: r.description, viz: format!("{:?}", r.viz),
-            }).collect()
+            }).collect(),
+            config_schema: m.config_schema,
         });
     }
     Ok(Json(statuses))
