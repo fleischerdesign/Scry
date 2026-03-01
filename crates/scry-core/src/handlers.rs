@@ -184,10 +184,13 @@ pub async fn search_events(State(state): State<Arc<AppState>>, Query(params): Qu
     .bind(auth.user_id).bind(search_term).bind(params.limit.unwrap_or(20)).fetch_all(db).await?;
 
     let results: Vec<serde_json::Value> = rows.into_iter().map(|(id, typ, content, subtext, link)| {
+        // Wir versuchen den display_title aus dem content zu extrahieren (der am Anfang steht)
+        // Einfacher: Wir geben Title und Content getrennt zurück
         serde_json::json!({
             "id": id,
             "type": typ,
-            "title": subtext,
+            "title": if typ == "event" { subtext.clone() } else { id.clone() },
+            "label": content.split('{').next().unwrap_or(&content).trim(), // Extrahiert den Text vor dem JSON
             "content": content,
             "link": link
         })
@@ -328,7 +331,7 @@ pub async fn get_event_by_id(
     Extension(auth): Extension<AuthContext>
 ) -> Result<Json<serde_json::Value>> {
     let db = state.event_service.db();
-    let row = sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities FROM events WHERE user_id = ? AND id = ?")
+    let row = sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle FROM events WHERE user_id = ? AND id = ?")
         .bind(auth.user_id).bind(id).fetch_one(db).await?;
     
     let ev = Event::try_from(row).map_err(|e| Error::Plugin(e))?;
@@ -343,7 +346,7 @@ pub async fn get_events_by_entity(
 ) -> Result<Json<serde_json::Value>> {
     let db = state.event_service.db();
     let rows = sqlx::query_as::<_, DbEvent>(
-        "SELECT id, timestamp, category, source, payload, metadata, entities FROM events 
+        "SELECT id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle FROM events 
          WHERE user_id = ? AND EXISTS (
             SELECT 1 FROM json_each(entities) WHERE json_extract(value, '$.namespace') = ? AND json_extract(value, '$.typ') = ? AND json_extract(value, '$.id') = ?
          ) ORDER BY timestamp DESC LIMIT 100"
