@@ -16,6 +16,7 @@ impl ScryPlugin for MusicPlugin {
                 scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.artist".to_string(), semantic_type: "music.artist".to_string(), description: "Name des Künstlers".to_string(), format: None },
                 scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.track".to_string(), semantic_type: "music.track".to_string(), description: "Name des Songs".to_string(), format: None },
                 scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.album".to_string(), semantic_type: "music.album".to_string(), description: "Name des Albums".to_string(), format: None },
+                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.energy_level".to_string(), semantic_type: "music.energy_level".to_string(), description: "Simulierter Energie-Level des Songs".to_string(), format: None },
             ],
             provided_traits: vec![],
             poll_interval: Some(10),
@@ -118,6 +119,8 @@ impl ScryPlugin for MusicPlugin {
             Err(_) => "Keep it clean.".to_string(),
         };
 
+        let energy_level = (new_count % 10) as f64 * 10.0; // Simuliert Variationen von 0 bis 90
+
         vec![
             scry_plugin_sdk::Event {
                 id: uuid::Uuid::new_v4(),
@@ -127,7 +130,8 @@ impl ScryPlugin for MusicPlugin {
                 payload: json!({
                     "artist": "The Granular Poller",
                     "track": format!("Zen: {}", zen),
-                    "album": "Scheduler Edition"
+                    "album": "Scheduler Edition",
+                    "energy_level": energy_level
                 }),
                 metadata: None,
                 entities: vec![],
