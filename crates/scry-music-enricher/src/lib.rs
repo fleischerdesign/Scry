@@ -22,6 +22,7 @@ impl ScryPlugin for MusicEnricher {
             ],
             poll_interval: None,
             config_schema: None,
+            suggested_widgets: vec![],
         }
     }
 

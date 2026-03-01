@@ -31,6 +31,21 @@ interface types {
         trait-id: string, // z.B. "scry.display/image"
     }
 
+    enum widget-template {
+        metric,      // Große Zahl + Einheit
+        trend,       // Liniendiagramm über Zeit
+        top-list,    // Ranking von Einträgen
+        status,      // Badge / Statusanzeige
+        spotlight    // Fokus auf eine Entität
+    }
+
+    record widget-definition {
+        id: string,
+        title: string,
+        template: widget-template,
+        config-json: string, // Spezifische Config für das Template (z.B. { "category": "weather.current", "path": "temperature", "unit": "°C" })
+    }
+
     record manifest {
         id: string,
         name: string,
@@ -41,7 +56,8 @@ interface types {
         exports: list<data-field>,
         provided-traits: list<trait-capability>, // Was kann dieses Plugin anreichern?
         poll-interval: option<u32>,
-        config-schema: option<string>, // NEU: JSON Schema für die Konfiguration
+        config-schema: option<string>, // JSON Schema für die Konfiguration
+        suggested-widgets: list<widget-definition>, // Vordefinierte Widgets
     }
 
     enum visualization { table, bar-chart, line-chart, pie-chart }

@@ -36,6 +36,20 @@ impl ScryPlugin for WeatherPlugin {
                     "longitude": { "type": "number", "description": "Manuelle Longitude (optional)" }
                 }
             }).to_string()),
+            suggested_widgets: vec![
+                scry_plugin_sdk::WidgetDefinition {
+                    id: "weather-temp-now".to_string(),
+                    title: "Temperature Now".to_string(),
+                    template: scry_plugin_sdk::WidgetTemplate::Metric,
+                    config_json: json!({ "category": "weather.current", "path": "temperature", "unit": "°C" }).to_string(),
+                },
+                scry_plugin_sdk::WidgetDefinition {
+                    id: "weather-temp-trend".to_string(),
+                    title: "Weather Trend".to_string(),
+                    template: scry_plugin_sdk::WidgetTemplate::Trend,
+                    config_json: json!({ "semantic_type": "environment.temperature", "days": 7 }).to_string(),
+                }
+            ],
         }
     }
 

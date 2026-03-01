@@ -15,6 +15,12 @@
 	import Analytics from "./lib/pages/Analytics.svelte";
 	import System from "./lib/pages/System.svelte";
 	import Settings from "./lib/pages/Settings.svelte";
+	import GeneralSettings from "./lib/pages/settings/GeneralSettings.svelte";
+	import PluginSettings from "./lib/pages/settings/PluginSettings.svelte";
+	import EnricherSettings from "./lib/pages/settings/EnricherSettings.svelte";
+	import DashboardSettings from "./lib/pages/settings/DashboardSettings.svelte";
+	import EventDetail from "./lib/pages/EventDetail.svelte";
+	import EntityDetail from "./lib/pages/EntityDetail.svelte";
 	import Auth from "./lib/components/Auth.svelte";
 	import CommandPalette from "./lib/components/CommandPalette.svelte";
 
@@ -138,13 +144,43 @@
 				{:else if router.path === '/explorer'}
 					<Explorer catalog={catalog || {}} dashboards={dashboardsData} onRefresh={loadDashboard} />
 				{:else if router.path.startsWith('/dashboard/')}
-					<Dashboard dashboards={dashboardsData} onRefresh={loadDashboard} />
+					<Dashboard dashboards={dashboardsData} plugins={pluginsData} onRefresh={loadDashboard} />
 				{:else if router.path === '/analytics'}
 					<Analytics statsData={statsData} />
 				{:else if router.path === '/system'}
 					<System plugins={pluginsData} onPoll={handlePoll} />
-				{:else if router.path === '/settings'}
-					<Settings plugins={pluginsData} dashboards={dashboardsData} onRefresh={loadDashboard} />
+				{:else if router.path.startsWith('/settings')}
+					<div class="space-y-6">
+						<div class="flex flex-col gap-4 border-b border-base-300 pb-6">
+							<div class="text-xs breadcrumbs font-mono opacity-40 uppercase tracking-widest">
+								<ul>
+									<li><button onclick={() => router.navigate('/settings')}>Settings</button></li>
+									{#if router.path !== '/settings'}
+										<li>{router.path.split('/').pop()}</li>
+									{/if}
+								</ul>
+							</div>
+							<h2 class="text-3xl font-black font-mono tracking-tighter italic text-secondary uppercase">
+								{router.path === '/settings' ? 'CONTROL_CENTER' : router.path.split('/').pop()?.toUpperCase()}_
+							</h2>
+						</div>
+
+						{#if router.path === '/settings'}
+							<Settings plugins={pluginsData} dashboards={dashboardsData} />
+						{:else if router.path === '/settings/general'}
+							<GeneralSettings />
+						{:else if router.path === '/settings/plugins'}
+							<PluginSettings plugins={pluginsData} />
+						{:else if router.path === '/settings/enrichers'}
+							<EnricherSettings plugins={pluginsData} />
+						{:else if router.path === '/settings/dashboards'}
+							<DashboardSettings dashboards={dashboardsData} onRefresh={loadDashboard} />
+						{/if}
+					</div>
+				{:else if router.match('/event/:id')}
+					<EventDetail />
+				{:else if router.match('/entity/:ns/:type/:id')}
+					<EntityDetail />
 				{/if}
 			</main>
 		</div>

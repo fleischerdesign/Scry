@@ -20,6 +20,14 @@ impl ScryPlugin for MusicPlugin {
             provided_traits: vec![],
             poll_interval: Some(10),
             config_schema: None,
+            suggested_widgets: vec![
+                scry_plugin_sdk::WidgetDefinition {
+                    id: "music-top-artists".to_string(),
+                    title: "Top Artists (30D)".to_string(),
+                    template: scry_plugin_sdk::WidgetTemplate::TopList,
+                    config_json: json!({ "semantic_type": "music.artist", "days": 30 }).to_string(),
+                }
+            ],
         }
     }
 

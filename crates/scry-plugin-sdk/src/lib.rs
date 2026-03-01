@@ -32,6 +32,17 @@ pub struct DataField { pub category: String, pub path: String, pub semantic_type
 pub struct TraitCapability { pub entity_namespace: String, pub entity_type: String, pub trait_id: String }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum WidgetTemplate { Metric, Trend, TopList, Status, Spotlight }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WidgetDefinition {
+    pub id: String,
+    pub title: String,
+    pub template: WidgetTemplate,
+    pub config_json: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Manifest {
     pub id: String, pub name: String, pub version: String, pub description: String,
     pub subscriptions: Vec<String>, pub capabilities: Vec<String>,
@@ -39,6 +50,7 @@ pub struct Manifest {
     pub provided_traits: Vec<TraitCapability>,
     pub poll_interval: Option<u32>,
     pub config_schema: Option<String>,
+    pub suggested_widgets: Vec<WidgetDefinition>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -78,6 +90,16 @@ macro_rules! scry_plugin {
                     }).collect(),
                     poll_interval: m.poll_interval,
                     config_schema: m.config_schema,
+                    suggested_widgets: m.suggested_widgets.into_iter().map(|w| scry::plugin::types::WidgetDefinition {
+                        id: w.id, title: w.title, config_json: w.config_json,
+                        template: match w.template {
+                            $crate::WidgetTemplate::Metric => scry::plugin::types::WidgetTemplate::Metric,
+                            $crate::WidgetTemplate::Trend => scry::plugin::types::WidgetTemplate::Trend,
+                            $crate::WidgetTemplate::TopList => scry::plugin::types::WidgetTemplate::TopList,
+                            $crate::WidgetTemplate::Status => scry::plugin::types::WidgetTemplate::Status,
+                            $crate::WidgetTemplate::Spotlight => scry::plugin::types::WidgetTemplate::Spotlight,
+                        }
+                    }).collect(),
                 }
             }
 

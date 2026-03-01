@@ -168,10 +168,32 @@ pub async fn get_catalog(State(state): State<Arc<AppState>>, Extension(_auth): E
     Json(catalog)
 }
 
-#[utoipa::path(get, path = "/api/v1/discovery/search", params(SearchParams), responses((status = 200, body = [Event])), security(("api_key" = [])))]
-pub async fn search_events(State(state): State<Arc<AppState>>, Query(params): Query<SearchParams>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<Event>>> {
-    let events = state.event_service.search_semantic(auth.user_id, &params.q, params.limit.unwrap_or(50), params.offset.unwrap_or(0)).await?;
-    Ok(Json(events))
+#[utoipa::path(get, path = "/api/v1/discovery/search", params(SearchParams), responses((status = 200, body = serde_json::Value)), security(("api_key" = [])))]
+pub async fn search_events(State(state): State<Arc<AppState>>, Query(params): Query<SearchParams>, Extension(auth): Extension<AuthContext>) -> Result<Json<serde_json::Value>> {
+    let q = params.q.trim();
+    if q.is_empty() { return Ok(Json(serde_json::Value::Array(vec![]))); }
+
+    let db = state.event_service.db();
+    let search_term = format!("{}*", q);
+    
+    let rows = sqlx::query_as::<_, (String, String, String, String, String)>(
+        "SELECT item_id, type, content, subtext, link FROM universal_search 
+         WHERE user_id = ? AND universal_search MATCH ? 
+         ORDER BY rank LIMIT ?"
+    )
+    .bind(auth.user_id).bind(search_term).bind(params.limit.unwrap_or(20)).fetch_all(db).await?;
+
+    let results: Vec<serde_json::Value> = rows.into_iter().map(|(id, typ, content, subtext, link)| {
+        serde_json::json!({
+            "id": id,
+            "type": typ,
+            "title": subtext,
+            "content": content,
+            "link": link
+        })
+    }).collect();
+
+    Ok(Json(serde_json::Value::Array(results)))
 }
 
 #[utoipa::path(get, path = "/api/v1/data/{path}", responses((status = 200, body = [Event])), security(("api_key" = [])))]
@@ -299,6 +321,43 @@ pub async fn get_system_status() -> impl IntoResponse {
     Json(json!({ "status": "online", "multi_tenant": true }))
 }
 
+#[utoipa::path(get, path = "/api/v1/data/id/{id}", responses((status = 200, body = serde_json::Value)), security(("api_key" = [])))]
+pub async fn get_event_by_id(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Extension(auth): Extension<AuthContext>
+) -> Result<Json<serde_json::Value>> {
+    let db = state.event_service.db();
+    let row = sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities FROM events WHERE user_id = ? AND id = ?")
+        .bind(auth.user_id).bind(id).fetch_one(db).await?;
+    
+    let ev = Event::try_from(row).map_err(|e| Error::Plugin(e))?;
+    Ok(Json(serde_json::to_value(ev).unwrap()))
+}
+
+#[utoipa::path(get, path = "/api/v1/data/entity/{namespace}/{typ}/{id}", responses((status = 200, body = Vec<serde_json::Value>)), security(("api_key" = [])))]
+pub async fn get_events_by_entity(
+    State(state): State<Arc<AppState>>,
+    Path((namespace, typ, id)): Path<(String, String, String)>,
+    Extension(auth): Extension<AuthContext>
+) -> Result<Json<serde_json::Value>> {
+    let db = state.event_service.db();
+    let rows = sqlx::query_as::<_, DbEvent>(
+        "SELECT id, timestamp, category, source, payload, metadata, entities FROM events 
+         WHERE user_id = ? AND EXISTS (
+            SELECT 1 FROM json_each(entities) WHERE json_extract(value, '$.namespace') = ? AND json_extract(value, '$.typ') = ? AND json_extract(value, '$.id') = ?
+         ) ORDER BY timestamp DESC LIMIT 100"
+    )
+    .bind(auth.user_id).bind(namespace).bind(typ).bind(id).fetch_all(db).await?;
+    
+    let events: Vec<serde_json::Value> = rows.into_iter()
+        .filter_map(|r| Event::try_from(r).ok())
+        .map(|e| serde_json::to_value(e).unwrap())
+        .collect();
+
+    Ok(Json(serde_json::Value::Array(events)))
+}
+
 #[utoipa::path(get, path = "/health", responses((status = 200, description = "Health Check")))]
 pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     match state.event_service.db().acquire().await {
@@ -327,6 +386,16 @@ pub async fn get_system_plugins(State(state): State<Arc<AppState>>, Extension(au
                 id: r.id, name: r.name, description: r.description, viz: format!("{:?}", r.viz),
             }).collect(),
             config_schema: m.config_schema,
+            suggested_widgets: m.suggested_widgets.into_iter().map(|w| ApiWidgetDefinition {
+                id: w.id, title: w.title, config_json: w.config_json,
+                template: match w.template {
+                    crate::plugins::scry::plugin::types::WidgetTemplate::Metric => ApiWidgetTemplate::Metric,
+                    crate::plugins::scry::plugin::types::WidgetTemplate::Trend => ApiWidgetTemplate::Trend,
+                    crate::plugins::scry::plugin::types::WidgetTemplate::TopList => ApiWidgetTemplate::TopList,
+                    crate::plugins::scry::plugin::types::WidgetTemplate::Status => ApiWidgetTemplate::Status,
+                    crate::plugins::scry::plugin::types::WidgetTemplate::Spotlight => ApiWidgetTemplate::Spotlight,
+                }
+            }).collect(),
         });
     }
     Ok(Json(statuses))
@@ -355,7 +424,7 @@ pub async fn get_entity_traits(
         .bind(auth.user_id).bind(namespace).bind(typ).bind(id).fetch_all(db).await?;
     
     let mut map = serde_json::Map::new();
-    for (plugin_id, trait_id, value_json) in rows {
+    for (_plugin_id, trait_id, value_json) in rows {
         let val: serde_json::Value = serde_json::from_str(&value_json).unwrap_or(serde_json::Value::Null);
         // Wir gruppieren nach Trait-ID. Wenn es mehrere gibt, gewinnt aktuell das letzte (einfaches Modell)
         // Später können wir hier die User-Prioritäten anwenden.

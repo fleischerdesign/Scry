@@ -53,6 +53,17 @@ pub struct ApiReportData {
 }
 
 #[derive(Serialize, ToSchema)]
+pub enum ApiWidgetTemplate { Metric, Trend, TopList, Status, Spotlight }
+
+#[derive(Serialize, ToSchema)]
+pub struct ApiWidgetDefinition {
+    pub id: String,
+    pub title: String,
+    pub template: ApiWidgetTemplate,
+    pub config_json: String,
+}
+
+#[derive(Serialize, ToSchema)]
 pub struct PluginStatus {
     pub id: String,
     pub name: String,
@@ -62,6 +73,7 @@ pub struct PluginStatus {
     pub subscriptions: Vec<String>,
     pub reports: Vec<ApiReportMetadata>,
     pub config_schema: Option<String>,
+    pub suggested_widgets: Vec<ApiWidgetDefinition>,
 }
 
 #[derive(Serialize, ToSchema)]
