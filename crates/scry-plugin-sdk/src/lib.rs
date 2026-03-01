@@ -1,12 +1,12 @@
 // Scry Plugin SDK - The official toolkit for building Scry plugins.
-pub use scry_proto::Event;
+pub use scry_proto::{Event, EntityRef};
 pub use serde_json;
 pub use chrono;
 pub use uuid;
 pub use wit_bindgen;
 
 pub mod prelude {
-    pub use crate::{ScryPlugin, ReportMetadata, ReportData, Visualization, Manifest, DataField, scry_plugin};
+    pub use crate::{ScryPlugin, ReportMetadata, ReportData, Visualization, Manifest, DataField, EntityRef, scry_plugin};
     pub use crate::Event as SdkEvent;
     pub use serde_json::json;
 }
@@ -19,16 +19,24 @@ pub trait ScryPlugin: Default {
     async fn run_report(&self, _id: &str) -> Result<ReportData, String> { Err("Not implemented".to_string()) }
     async fn on_poll(&self) -> Vec<Event> { vec![] }
     async fn get_summary(&self, _start: &str, _end: &str) -> String { String::new() }
+
+    // Semantic Trait Hooks
+    async fn resolve_trait(&self, _namespace: &str, _typ: &str, _id: &str, _trait_id: &str) -> Result<Option<String>, String> { Ok(None) }
+    async fn on_entity_discovered(&self, _namespace: &str, _typ: &str, _id: &str) {}
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DataField { pub category: String, pub path: String, pub semantic_type: String, pub description: String }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TraitCapability { pub entity_namespace: String, pub entity_type: String, pub trait_id: String }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Manifest {
     pub id: String, pub name: String, pub version: String, pub description: String,
     pub subscriptions: Vec<String>, pub capabilities: Vec<String>,
     pub exports: Vec<DataField>,
+    pub provided_traits: Vec<TraitCapability>,
     pub poll_interval: Option<u32>,
 }
 
@@ -64,6 +72,9 @@ macro_rules! scry_plugin {
                     exports: m.exports.into_iter().map(|e| scry::plugin::types::DataField {
                         category: e.category, path: e.path, semantic_type: e.semantic_type, description: e.description
                     }).collect(),
+                    provided_traits: m.provided_traits.into_iter().map(|t| scry::plugin::types::TraitCapability {
+                        entity_namespace: t.entity_namespace, entity_type: t.entity_type, trait_id: t.trait_id
+                    }).collect(),
                     poll_interval: m.poll_interval,
                 }
             }
@@ -81,12 +92,18 @@ macro_rules! scry_plugin {
                     category: ev.category, source: ev.source,
                     payload: $crate::serde_json::from_str(&ev.payload).map_err(|e| e.to_string())?,
                     metadata: ev.metadata.and_then(|m| $crate::serde_json::from_str(&m).ok()),
+                    entities: ev.entities.into_iter().map(|e| $crate::prelude::EntityRef {
+                        path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
+                    }).collect(),
                 };
                 match plugin.on_ingest(sdk_ev).await {
                     Ok(res) => Ok(scry::plugin::types::Event {
                         id: res.id.to_string(), timestamp: res.timestamp.to_rfc3339(),
                         category: res.category, source: res.source,
                         payload: res.payload.to_string(), metadata: res.metadata.as_ref().map(|m| m.to_string()),
+                        entities: res.entities.into_iter().map(|e| scry::plugin::types::EntityRef {
+                            path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
+                        }).collect(),
                     }),
                     Err(e) => Err(e),
                 }
@@ -120,6 +137,9 @@ macro_rules! scry_plugin {
                         id: result.id.to_string(), timestamp: result.timestamp.to_rfc3339(),
                         category: result.category, source: result.source,
                         payload: result.payload.to_string(), metadata: result.metadata.as_ref().map(|m| m.to_string()),
+                        entities: result.entities.into_iter().map(|e| scry::plugin::types::EntityRef {
+                            path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
+                        }).collect(),
                     }
                 }).collect()
             }
@@ -127,6 +147,16 @@ macro_rules! scry_plugin {
             async fn get_summary(start: String, end: String) -> String {
                 let plugin = <$plugin_type>::default();
                 plugin.get_summary(&start, &end).await
+            }
+
+            async fn resolve_trait(namespace: String, typ: String, id: String, trait_id: String) -> Result<Option<String>, String> {
+                let plugin = <$plugin_type>::default();
+                plugin.resolve_trait(&namespace, &typ, &id, &trait_id).await
+            }
+
+            async fn on_entity_discovered(namespace: String, typ: String, id: String) {
+                let plugin = <$plugin_type>::default();
+                plugin.on_entity_discovered(&namespace, &typ, &id).await
             }
         }
 
@@ -198,6 +228,9 @@ macro_rules! scry_plugin {
                         Err(e)
                     }
                 }
+            }
+            pub async fn set_entity_trait(namespace: &str, typ: &str, id: &str, trait_id: &str, value_json: &str) {
+                super::scry::plugin::host::set_entity_trait(namespace.to_string(), typ.to_string(), id.to_string(), trait_id.to_string(), value_json.to_string()).await;
             }
         }
     };

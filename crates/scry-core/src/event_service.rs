@@ -29,6 +29,19 @@ impl EventService {
         let processed_event: Event = self.plugin_manager.run_ingest_pipeline(user_id, event).await
             .map_err(|e| Error::Plugin(e))?;
         
+        // Entitäten benachrichtigen (Background)
+        for ent in &processed_event.entities {
+            let pm = self.plugin_manager.clone();
+            let ns = ent.namespace.clone();
+            let typ = ent.typ.clone();
+            let id = ent.id.clone();
+            tokio::spawn(async move {
+                if let Err(e) = pm.notify_entity_discovered(user_id, ns, typ, id).await {
+                    tracing::warn!("Entity discovery notification failed: {}", e);
+                }
+            });
+        }
+
         sqlx::query("INSERT INTO events (id, user_id, timestamp, category, source, payload, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)")
             .bind(processed_event.id.to_string())
             .bind(user_id)

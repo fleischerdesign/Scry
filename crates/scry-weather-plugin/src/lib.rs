@@ -16,6 +16,7 @@ impl ScryPlugin for WeatherPlugin {
                 scry_plugin_sdk::DataField { category: "weather.current".to_string(), path: "payload.temperature".to_string(), semantic_type: "environment.temperature".to_string(), description: "Aktuelle Temperatur".to_string() },
                 scry_plugin_sdk::DataField { category: "weather.current".to_string(), path: "payload.condition".to_string(), semantic_type: "environment.condition".to_string(), description: "Wetterlage".to_string() },
             ],
+            provided_traits: vec![],
             poll_interval: Some(300),
         }
     }
@@ -67,6 +68,7 @@ impl ScryPlugin for WeatherPlugin {
                                 source: "open-meteo-plugin".to_string(),
                                 payload: current.clone(),
                                 metadata: None,
+                                entities: vec![],
                             }
                         ];
                     }

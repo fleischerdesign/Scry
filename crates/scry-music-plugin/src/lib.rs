@@ -17,15 +17,26 @@ impl ScryPlugin for MusicPlugin {
                 scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.track".to_string(), semantic_type: "music.track".to_string(), description: "Name des Songs".to_string() },
                 scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.album".to_string(), semantic_type: "music.album".to_string(), description: "Name des Albums".to_string() },
             ],
+            provided_traits: vec![],
             poll_interval: Some(10),
         }
     }
 
     async fn on_ingest(&self, mut ev: scry_plugin_sdk::Event) -> Result<scry_plugin_sdk::Event, String> {
         if ev.category == "music.scrobble" {
+            let artist = ev.payload.get("artist").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+            
+            // Tagge den Artist als semantische Entität
+            ev.entities.push(scry_plugin_sdk::EntityRef {
+                path: "payload.artist".to_string(),
+                namespace: "scry.music".to_string(),
+                typ: "artist".to_string(),
+                id: artist,
+            });
+
             let mut metadata = ev.metadata.unwrap_or(json!({}));
             if let Some(obj) = metadata.as_object_mut() {
-                obj.insert("enriched_by".to_string(), json!("scry-semantic-v1"));
+                obj.insert("enriched_by".to_string(), json!("scry-semantic-v2"));
             }
             ev.metadata = Some(metadata);
             ev.source = format!("{}+bus", ev.source);
@@ -78,6 +89,7 @@ impl ScryPlugin for MusicPlugin {
                     "album": "Scheduler Edition"
                 }),
                 metadata: None,
+                entities: vec![],
             }
         ]
     }

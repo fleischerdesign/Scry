@@ -32,6 +32,7 @@ impl TryFrom<DbEvent> for Event {
             source: db_ev.source,
             payload: serde_json::from_str(&db_ev.payload)?,
             metadata: db_ev.metadata.and_then(|m| serde_json::from_str(&m).ok()),
+            entities: Vec::new(),
         })
     }
 }

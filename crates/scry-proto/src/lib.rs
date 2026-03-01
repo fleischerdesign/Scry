@@ -2,6 +2,15 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg_attr(feature = "backend", derive(utoipa::ToSchema))]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EntityRef {
+    pub path: String,
+    pub namespace: String,
+    pub typ: String,
+    pub id: String,
+}
+
 #[cfg_attr(feature = "backend", derive(utoipa::ToSchema, sqlx::FromRow))]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Event {
@@ -11,6 +20,8 @@ pub struct Event {
     pub source: String,
     pub payload: serde_json::Value,
     pub metadata: Option<serde_json::Value>,
+    #[serde(default)]
+    pub entities: Vec<EntityRef>,
 }
 
 impl Event {
@@ -22,6 +33,7 @@ impl Event {
             source,
             payload,
             metadata: None,
+            entities: Vec::new(),
         }
     }
 }

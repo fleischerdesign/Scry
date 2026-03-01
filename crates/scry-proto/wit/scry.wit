@@ -1,6 +1,13 @@
 package scry:plugin;
 
 interface types {
+    record entity-ref {
+        path: string,      // z.B. "payload.artist"
+        namespace: string, // z.B. "scry.music"
+        typ: string,       // z.B. "artist"
+        id: string,        // z.B. "The Beatles"
+    }
+
     record event {
         id: string,
         timestamp: string,
@@ -8,6 +15,7 @@ interface types {
         source: string,
         payload: string,
         metadata: option<string>,
+        entities: list<entity-ref>, // Verknüpfte Entitäten im Event
     }
 
     record data-field {
@@ -15,6 +23,12 @@ interface types {
         path: string,
         semantic-type: string,
         description: string,
+    }
+
+    record trait-capability {
+        entity-namespace: string,
+        entity-type: string,
+        trait-id: string, // z.B. "scry.display/image"
     }
 
     record manifest {
@@ -25,6 +39,7 @@ interface types {
         subscriptions: list<string>,
         capabilities: list<string>,
         exports: list<data-field>,
+        provided-traits: list<trait-capability>, // Was kann dieses Plugin anreichern?
         poll-interval: option<u32>,
     }
 
@@ -59,11 +74,14 @@ interface host {
     get-config: func(key: string) -> option<string>;
     get-profile: func(key: string) -> option<string>;
     log: func(level: string, message: string);
+
+    // NEU: Ermöglicht Plugins, Traits direkt im Host-Speicher abzulegen (Push-Modell)
+    set-entity-trait: func(namespace: string, typ: string, id: string, trait-id: string, value-json: string);
 }
 
 world plugin {
     import host;
-    use types.{event, report-metadata, report-data, manifest};
+    use types.{event, report-metadata, report-data, manifest, entity-ref};
 
     export get-manifest: func() -> manifest;
     export on-init: func() -> result<_, string>;
@@ -72,4 +90,10 @@ world plugin {
     export get-reports: func() -> list<report-metadata>;
     export run-report: func(report-id: string) -> result<report-data, string>;
     export get-summary: func(start-ts: string, end-ts: string) -> string;
+
+    // Pull-Modell: Host fragt aktiv nach einem Trait
+    export resolve-trait: func(namespace: string, typ: string, id: string, trait-id: string) -> result<option<string>, string>;
+
+    // Reaktives Modell: Host informiert Plugin über neue Entität
+    export on-entity-discovered: func(namespace: string, typ: string, id: string);
 }

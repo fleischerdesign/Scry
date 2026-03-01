@@ -1,5 +1,5 @@
 use crate::plugins::context::MyCtx;
-use crate::plugins::scry::plugin::types::{Event as PluginEvent, Manifest, ReportMetadata, ReportData};
+use crate::plugins::scry::plugin::types::{Event as PluginEvent, Manifest, ReportMetadata, ReportData, EntityRef as PluginEntityRef};
 use anyhow::Result;
 use wasmtime::{Config, Engine, Store};
 use wasmtime::component::{Component, InstancePre, Linker, ResourceTable};
@@ -87,38 +87,15 @@ impl PluginManager {
         store.set_fuel(1_000_000)?; 
         store.limiter(|s| s);
 
-        let start_time = std::time::Instant::now();
-
         let instance_raw = loaded.pre.instantiate_async(&mut store).await?;
         let instance = crate::plugins::Plugin::new(&mut store, &instance_raw)?;
         
-        // Initialisierung (Lifecycle)
+        // Lifecycle: on_init
         if let Err(e) = instance.call_on_init(&mut store).await? {
-            tracing::error!(plugin = %plugin_name, user_id = %user_id, "Plugin initialization failed: {}", e);
-            return Err(anyhow::anyhow!("Plugin init failed: {}", e));
+            tracing::warn!(plugin = %plugin_name, user_id = %user_id, "Plugin init failed: {}", e);
         }
 
         let (res, _store) = f(instance, store).await?;
-
-        let duration = start_time.elapsed();
-        
-        tracing::info!(
-            target: "scry::plugin_metrics",
-            plugin = %plugin_name,
-            user_id = %user_id,
-            duration_ms = %duration.as_millis(),
-            "Plugin execution completed"
-        );
-
-        if duration.as_millis() > 500 {
-            tracing::warn!(
-                plugin = %plugin_name,
-                user_id = %user_id,
-                duration_ms = %duration.as_millis(),
-                "Slow plugin detected!"
-            );
-        }
-
         Ok(res)
     }
 
@@ -225,8 +202,12 @@ impl PluginManager {
                         source: event.source.clone(),
                         payload: serde_json::to_string(&event.payload)?,
                         metadata: event.metadata.as_ref().map(|m| serde_json::to_string(m).ok()).flatten(),
+                        entities: event.entities.iter().map(|e| PluginEntityRef {
+                            path: e.path.clone(), namespace: e.namespace.clone(), typ: e.typ.clone(), id: e.id.clone()
+                        }).collect(),
                     };
                     let processed = instance.call_on_ingest(&mut store, &ev).await?.map_err(|e| anyhow::anyhow!(e))?;
+                    
                     let mapped = ScryEvent {
                         id: uuid::Uuid::parse_str(&processed.id)?,
                         timestamp: chrono::DateTime::parse_from_rfc3339(&processed.timestamp)?.with_timezone(&chrono::Utc),
@@ -234,6 +215,9 @@ impl PluginManager {
                         source: processed.source,
                         payload: serde_json::from_str(&processed.payload)?,
                         metadata: processed.metadata.and_then(|m| serde_json::from_str(&m).ok()),
+                        entities: processed.entities.into_iter().map(|e| scry_proto::EntityRef {
+                            path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
+                        }).collect(),
                     };
                     Ok((mapped, store))
                 }).await?;
@@ -252,6 +236,9 @@ impl PluginManager {
                     timestamp: chrono::DateTime::parse_from_rfc3339(&ev.timestamp)?.with_timezone(&chrono::Utc),
                     category: ev.category, source: ev.source, payload: serde_json::from_str(&ev.payload)?,
                     metadata: ev.metadata.and_then(|m| serde_json::from_str(&m).ok()),
+                    entities: ev.entities.into_iter().map(|e| scry_proto::EntityRef {
+                        path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
+                    }).collect(),
                 })
             }).collect::<Result<Vec<_>>>()?;
             Ok((mapped, store))
@@ -287,5 +274,33 @@ impl PluginManager {
             let res = instance.call_get_summary(&mut store, &start, &end).await?;
             Ok((res, store))
         }).await
+    }
+
+    pub async fn resolve_plugin_trait(&self, user_id: i64, plugin_name: &str, namespace: String, typ: String, id: String, trait_id: String) -> Result<Option<String>> {
+        self.with_instance(plugin_name, user_id, |instance, mut store| async move {
+            let res = instance.call_resolve_trait(&mut store, &namespace, &typ, &id, &trait_id).await?.map_err(|e| anyhow::anyhow!(e))?;
+            Ok((res, store))
+        }).await
+    }
+
+    pub async fn notify_entity_discovered(&self, user_id: i64, namespace: String, typ: String, id: String) -> Result<()> {
+        let names: Vec<String> = self.plugins.read().await.keys().cloned().collect();
+        for name in names {
+            let interested = {
+                let plugins = self.plugins.read().await;
+                plugins.get(&name).map(|p| p.manifest.provided_traits.iter().any(|t| t.entity_namespace == namespace && t.entity_type == typ)).unwrap_or(false)
+            };
+
+            if interested {
+                let ns = namespace.clone();
+                let t = typ.clone();
+                let i = id.clone();
+                self.with_instance(&name, user_id, |instance, mut store| async move {
+                    instance.call_on_entity_discovered(&mut store, &ns, &t, &i).await?;
+                    Ok(((), store))
+                }).await?;
+            }
+        }
+        Ok(())
     }
 }
