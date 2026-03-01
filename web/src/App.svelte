@@ -137,7 +137,7 @@
 				{:else if router.path === '/system'}
 					<System plugins={pluginsData} onPoll={handlePoll} />
 				{:else if router.path === '/settings'}
-					<Settings plugins={pluginsData} />
+					<Settings plugins={pluginsData} dashboards={dashboardsData} onRefresh={loadDashboard} />
 				{/if}
 			</main>
 		</div>
@@ -156,6 +156,7 @@
 					<li><button class:active={router.path === '/timeline'} onclick={() => router.navigate('/timeline')} class="gap-4 font-bold tracking-tight">Timeline</button></li>
 					<li><button class:active={router.path === '/explorer'} onclick={() => router.navigate('/explorer')} class="gap-4 font-bold tracking-tight">Explorer</button></li>
 					<li><button class:active={router.path === '/analytics'} onclick={() => router.navigate('/analytics')} class="gap-4 font-bold tracking-tight">Insights</button></li>
+					<li><button class:active={router.path === '/settings'} onclick={() => router.navigate('/settings')} class="gap-4 font-bold tracking-tight">Settings</button></li>
 					
 					<li class="menu-title opacity-40 text-[10px] uppercase tracking-widest font-black pt-8">Dashboards</li>
 					{#each dashboardsData as dash}
@@ -164,10 +165,6 @@
 							{dash.name}
 						</button></li>
 					{/each}
-
-					<li class="menu-title opacity-40 text-[10px] uppercase tracking-widest font-black pt-8">System</li>
-					<li><button class:active={router.path === '/system'} onclick={() => router.navigate('/system')} class="gap-4 font-bold tracking-tight">Nodes</button></li>
-					<li><button class:active={router.path === '/settings'} onclick={() => router.navigate('/settings')} class="gap-4 font-bold tracking-tight text-xs opacity-50">Settings</button></li>
 				</ul>
 
 				<div class="mt-auto pt-4">
