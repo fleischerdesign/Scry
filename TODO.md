@@ -14,15 +14,16 @@
 - [x] **High-level SDK**: Fully automate WASM/WIT via `scry_plugin!` macro. ✅
 - [x] **Generic Query API**: Flexible JSON-based query DSL. ✅
 - [x] **Granular Polling**: Scheduler respects individual plugin intervals. ✅
-- [ ] **Semantic Discovery API**: Host provides a catalog of available data capabilities (e.g., "Who provides temperature?").
-- [ ] **Plugin Hot-Reload**: Done! ✅ (Stable and reactive).
-- [ ] **Sandboxed File Storage**: Private, persistent directory for plugins.
+- [x] **Semantic Discovery API**: Host provides a catalog of available data capabilities. ✅
+- [x] **Plugin Hot-Reload**: Done! ✅ (Stable and reactive).
+- [x] **Sandboxed File Storage**: Private, persistent directory for plugins. ✅
 
 ## 📊 Phase 3: Visualization & Interactivity
 - [ ] **Web Dashboard**: Built-in UI using standard widgets rendered from plugin data.
-- [ ] **Dynamic Forms API**: Plugins define UI schemas for data entry.
-- [ ] **Real-time Feed**: WebSockets for live monitoring.
-- [ ] **Universal Search**: Global search API across all event categories.
+- [x] **Dynamic Forms API**: Plugins define UI schemas for data entry. ✅
+- [ ] **Real-time Feed**: WebSockets for live monitoring. (SSE implemented ✅).
+- [x] **Universal Search**: Global search API across all event categories. ✅
+- [x] **Deep Linking**: Direct access to Event and Entity details. ✅
 
 ## 🧠 Phase 4: Intelligence & Automation
 - [x] **Temporal Join Engine**: Correlate different data streams via `JoinNearest`. ✅
