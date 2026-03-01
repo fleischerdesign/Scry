@@ -371,6 +371,33 @@ pub async fn get_system_plugins(State(state): State<Arc<AppState>>, Extension(au
     let manifests = state.event_service.plugin_manager().get_plugin_manifests().await;
     let mut statuses = Vec::new();
 
+    // 1. Add Virtual Core Plugin for system widgets
+    statuses.push(PluginStatus {
+        id: "core".to_string(),
+        name: "Scry System".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        description: "Core system services and metrics.".to_string(),
+        capabilities: vec!["system".to_string()],
+        subscriptions: vec![],
+        reports: vec![],
+        config_schema: None,
+        suggested_widgets: vec![
+            ApiWidgetDefinition {
+                id: "system-status".to_string(),
+                title: "System Node Status".to_string(),
+                template: ApiWidgetTemplate::Status,
+                config_json: json!({ "scope": "all" }).to_string(),
+            },
+            ApiWidgetDefinition {
+                id: "knowledge-growth".to_string(),
+                title: "Knowledge Growth".to_string(),
+                template: ApiWidgetTemplate::Trend,
+                config_json: json!({ "semantic_type": "system.entities", "days": 7 }).to_string(),
+            }
+        ],
+    });
+
+    // 2. Add real plugins
     for (id, m) in manifests {
         let reports: Vec<(String, Vec<crate::plugins::scry::plugin::types::ReportMetadata>)> = state.event_service.plugin_manager().list_plugin_reports(auth.user_id).await?;
         let p_reports = reports.into_iter().find(|(p_id, _)| p_id == &id).map(|(_, r)| r).unwrap_or_default();

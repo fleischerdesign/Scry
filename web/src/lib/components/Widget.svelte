@@ -12,6 +12,7 @@
     let loading = $state(true);
     let data = $state<any[]>([]);
     let latestValue = $state<any>(null);
+    let pluginsStatus = $state<any[]>([]);
 
     async function loadWidgetData() {
         loading = true;
@@ -19,7 +20,15 @@
             const config = typeof widget.config === 'string' ? JSON.parse(widget.config) : widget.config;
             const { semantic_type, category, path, days = 7 } = config;
 
-            if (widget.type === 'Trend' || widget.type === 'semantic_series') {
+            if (widget.type === 'Status') {
+                pluginsStatus = await api.getPlugins();
+            } else if (semantic_type === 'system.entities') {
+                // Hier simulieren wir aktuell den Wachstumsgraphen (Zukunft: Core API dafür bauen)
+                data = Array.from({length: days}, (_, i) => ({
+                    label: new Date(Date.now() - (days - 1 - i) * 86400000).toLocaleDateString(),
+                    count: Math.floor(Math.random() * 50) + 10
+                }));
+            } else if (widget.type === 'Trend' || widget.type === 'semantic_series') {
                 data = await api.getSemanticSeries(semantic_type, days);
             } else if (widget.type === 'TopList' || widget.type === 'semantic_top') {
                 data = await api.getSemanticTop(semantic_type, 10, days);
@@ -88,6 +97,18 @@
                     {#if (widget.config?.unit)}
                         <span class="text-xs font-mono opacity-30 mt-1 uppercase tracking-widest">{widget.config.unit}</span>
                     {/if}
+                </div>
+            {:else if widget.type === 'Status'}
+                <div class="space-y-2 overflow-y-auto max-h-full px-2">
+                    {#each pluginsStatus as p}
+                        <div class="flex justify-between items-center bg-base-200 p-2 rounded-xl border border-base-300/50">
+                            <div class="flex flex-col overflow-hidden">
+                                <span class="text-[10px] font-bold uppercase truncate">{p.name}</span>
+                                <span class="text-[8px] font-mono opacity-40">{p.id}</span>
+                            </div>
+                            <div class="badge badge-success badge-xs"></div>
+                        </div>
+                    {/each}
                 </div>
             {:else if (widget.type === 'TopList' || widget.type === 'semantic_top') && data.length > 0}
                 <div class="space-y-2 overflow-y-auto max-h-full px-2">
