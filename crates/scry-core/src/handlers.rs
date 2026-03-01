@@ -76,6 +76,11 @@ pub async fn register_user(State(state): State<Arc<AppState>>, Json(req): Json<R
         .bind(&req.username).bind(password_hash).execute(db).await?;
     
     let user_id = res.last_insert_rowid();
+    
+    // Ensure the 'self' user entity exists in the graph
+    sqlx::query("INSERT INTO entities (user_id, namespace, typ, id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
+        .bind(user_id).bind("scry.core").bind("user").bind("self").execute(db).await?;
+
     let api_key = Uuid::new_v4().to_string();
     sqlx::query("INSERT INTO api_keys (key, user_id, label, scopes) VALUES (?, ?, ?, ?)")
         .bind(&api_key).bind(user_id).bind("Default Key").bind("all").execute(db).await?;
@@ -98,6 +103,10 @@ pub async fn login_user(State(state): State<Arc<AppState>>, Json(req): Json<Logi
     if Argon2::default().verify_password(req.password.as_bytes(), &parsed_hash).is_err() {
         return Err(Error::Auth("Invalid password".to_string()));
     }
+
+    // Ensure the 'self' user entity exists in the graph (migration for old users)
+    sqlx::query("INSERT INTO entities (user_id, namespace, typ, id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
+        .bind(user.0).bind("scry.core").bind("user").bind("self").execute(db).await?;
 
     let api_key = sqlx::query_scalar::<_, String>("SELECT key FROM api_keys WHERE user_id = ? LIMIT 1").bind(user.0).fetch_one(db).await?;
     Ok(Json(AuthResponse { api_key, user: User { id: user.0, username: user.1 } }))
@@ -130,8 +139,18 @@ pub async fn update_profile(State(state): State<Arc<AppState>>, Extension(auth):
     let db = state.event_service.db();
     for (k, v) in req {
         let v_str = v.as_str().unwrap_or("").to_string();
+        
+        // 1. Update legacy table
         sqlx::query("INSERT INTO user_profile (user_id, key, value) VALUES (?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = EXCLUDED.value")
-            .bind(auth.user_id).bind(k).bind(v_str).execute(db).await?;
+            .bind(auth.user_id).bind(&k).bind(&v_str).execute(db).await?;
+
+        // 2. Update semantic graph (Trait)
+        // We use 'scry.identity' as the trait namespace for profile values
+        let trait_id = format!("scry.identity/{}", k);
+        let value_json = serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string());
+        
+        sqlx::query("INSERT INTO entity_traits (user_id, namespace, entity_type, entity_id, plugin_id, trait_id, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, namespace, entity_type, entity_id, plugin_id, trait_id) DO UPDATE SET value_json = EXCLUDED.value_json")
+            .bind(auth.user_id).bind("scry.core").bind("user").bind("self").bind("core").bind(trait_id).bind(value_json).execute(db).await?;
     }
     Ok(StatusCode::OK)
 }

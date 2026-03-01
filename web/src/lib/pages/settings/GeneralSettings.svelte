@@ -56,8 +56,19 @@
                     </label>
                     <input 
                         type="text" id="profile-name"
-                        bind:value={profile['identity.name']} 
+                        bind:value={profile['name']} 
                         placeholder="Your Name" 
+                        class="input input-bordered font-mono text-sm" 
+                    />
+                </div>
+                <div class="form-control w-full">
+                    <label class="label" for="profile-avatar">
+                        <span class="label-text text-[10px] font-bold uppercase opacity-50">Avatar URL</span>
+                    </label>
+                    <input 
+                        type="text" id="profile-avatar"
+                        bind:value={profile['avatar']} 
+                        placeholder="https://..." 
                         class="input input-bordered font-mono text-sm" 
                     />
                 </div>
@@ -67,7 +78,7 @@
                     </label>
                     <input 
                         type="text" id="profile-city"
-                        bind:value={profile['location.city']} 
+                        bind:value={profile['city']} 
                         placeholder="Berlin, London..." 
                         class="input input-bordered font-mono text-sm" 
                     />

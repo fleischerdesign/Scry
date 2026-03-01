@@ -26,9 +26,11 @@
 	import EntityDetail from "./lib/pages/EntityDetail.svelte";
 	import Auth from "./lib/components/Auth.svelte";
 	import CommandPalette from "./lib/components/CommandPalette.svelte";
+	import { api } from "./lib/api";
 
 	let isPaletteOpen = $state(false);
 	let currentTheme = $state(localStorage.getItem("scry_theme") || "dark");
+	let userAvatar = $state<string | null>(null);
 
 	$effect(() => {
 		document.documentElement.setAttribute("data-theme", currentTheme);
@@ -42,6 +44,16 @@
 			plugins.load(),
 			dashboards.load()
 		]);
+		
+		// Load user avatar trait if it exists
+		try {
+			const res = await api.getEntityTraits("scry.core", "user", "self");
+			if (res.traits?.['scry.identity/avatar']) {
+				userAvatar = res.traits['scry.identity/avatar'];
+			}
+		} catch (e) {
+			console.warn("Could not load self traits", e);
+		}
 	}
 
 	onMount(() => { if (auth.isAuthenticated) loadAll(); });
@@ -153,9 +165,32 @@
 				</ul>
 
 				<div class="mt-auto pt-4">
-					<div class="bg-base-200 rounded-2xl p-4 flex items-center justify-between">
-						<div class="flex flex-col"><span class="text-xs font-bold">@{auth.user?.username}</span><span class="text-[9px] opacity-40 uppercase tracking-widest">Authorized Node</span></div>
-						<button class="btn btn-ghost btn-circle btn-sm text-error/60" onclick={() => auth.logout()}><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
+					<div class="bg-base-200 rounded-2xl p-3 flex items-center justify-between group">
+						<button 
+							class="flex items-center gap-3 flex-1 text-left hover:bg-base-300 p-1 rounded-xl transition-colors"
+							onclick={() => router.navigate('/entity/scry.core/user/self')}
+						>
+							{#if userAvatar}
+								<div class="avatar">
+									<div class="w-8 h-8 rounded-lg">
+										<img src={userAvatar} alt="Profile" />
+									</div>
+								</div>
+							{:else}
+								<div class="w-8 h-8 bg-primary/20 text-primary rounded-lg flex items-center justify-center font-bold text-xs">
+									{auth.user?.username?.charAt(0).toUpperCase()}
+								</div>
+							{/if}
+							<div class="flex flex-col min-w-0">
+								<span class="text-xs font-bold truncate">@{auth.user?.username}</span>
+								<span class="text-[8px] opacity-40 uppercase tracking-widest truncate group-hover:text-primary transition-colors italic">View Identity_</span>
+							</div>
+						</button>
+						<button class="btn btn-ghost btn-circle btn-sm text-error/60" onclick={() => auth.logout()}>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+							</svg>
+						</button>
 					</div>
 				</div>
 			</aside>
