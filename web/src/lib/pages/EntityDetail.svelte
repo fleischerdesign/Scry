@@ -31,11 +31,12 @@
 
     onMount(loadData);
 
-    const photoUrl = $derived(traits["scry.visual/photo"]);
+    const photoUrl = $derived(traits["scry.identity/avatar"] || traits["scry.visual/photo"]);
+    const displayName = $derived(traits["scry.identity/name"] || id);
 </script>
 
 <div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-4xl pb-20">
-    <!-- Header ... (bleibt gleich) -->
+    <!-- Header -->
     <div class="flex items-start gap-6 border-b border-base-300 pb-8">
         <button class="btn btn-ghost btn-sm btn-square mt-2" onclick={() => window.history.back()}>
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
@@ -44,18 +45,18 @@
         {#if photoUrl}
             <div class="avatar">
                 <div class="w-24 h-24 rounded-3xl shadow-2xl ring ring-primary/20">
-                    <img src={photoUrl} alt={id} />
+                    <img src={photoUrl} alt={displayName} />
                 </div>
             </div>
         {:else}
             <div class="w-24 h-24 rounded-3xl bg-base-300 flex items-center justify-center text-3xl font-black opacity-20">
-                {id.charAt(0)}
+                {displayName.charAt(0).toUpperCase()}
             </div>
         {/if}
 
         <div class="flex-1">
             <div class="badge badge-primary badge-outline font-mono text-[9px] uppercase tracking-widest mb-2">{ns} / {type}</div>
-            <h2 class="text-4xl font-black tracking-tighter italic uppercase text-base-content">{id}</h2>
+            <h2 class="text-4xl font-black tracking-tighter italic uppercase text-base-content">{displayName}</h2>
             <div class="flex gap-4 mt-4 text-[10px] font-mono opacity-40 uppercase tracking-widest">
                 <span>{events.length} Events Logged</span>
                 <span>•</span>
