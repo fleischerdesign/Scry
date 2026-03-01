@@ -1,8 +1,11 @@
 mod plugins;
 mod event_service;
+mod analytics_service;
 mod models;
 mod handlers;
 mod error;
+
+use analytics_service::AnalyticsService;
 
 use axum::{
     extract::State,
@@ -125,12 +128,14 @@ async fn main() -> anyhow::Result<()> {
     watcher.watch(std::path::Path::new("./plugins"), RecursiveMode::NonRecursive)?;
 
     let cancel_token = CancellationToken::new();
-    let mut event_service = EventService::new(db, plugin_manager);
+    let mut event_service = EventService::new(db.clone(), plugin_manager.clone());
+    let analytics_service = AnalyticsService::new(db.clone(), plugin_manager.clone());
     let (event_sender, _rx) = tokio::sync::broadcast::channel(1024);
     event_service.set_event_sender(event_sender.clone());
     
     let shared_state = Arc::new(AppState { 
         event_service, 
+        analytics_service,
         event_sender,
         cancel_token: cancel_token.clone()
     });
@@ -194,6 +199,8 @@ async fn main() -> anyhow::Result<()> {
                 .route("/summary", get(get_daily_summary))
                 .route("/live", get(stream_live_events)))
             .nest("/analytics", Router::new()
+                .route("/discover", post(trigger_discovery))
+                .route("/discoveries", get(get_discoveries))
                 .route("/correlations", get(correlate_events))
                 .route("/stats", get(get_semantic_stats))
                 .route("/semantic/top", get(get_semantic_top))

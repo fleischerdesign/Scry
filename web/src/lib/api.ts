@@ -49,8 +49,8 @@ class ScryAPI {
 	}
 
 	// Analytics
-	getAnalytics(subpath: string): Promise<any> {
-		return this.request(`/analytics/${subpath}`);
+	getAnalytics(subpath: string, options: RequestInit = {}): Promise<any> {
+		return this.request(`/analytics/${subpath}`, options);
 	}
 	getSemanticTop(type: string, limit = 10, days?: number): Promise<any[]> {
 		const daysParam = days !== undefined ? `&days=${days}` : "";

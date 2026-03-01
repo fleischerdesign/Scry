@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS entity_relationships (
     target_ns TEXT NOT NULL,
     target_type TEXT NOT NULL,
     target_id TEXT NOT NULL,
+    metadata TEXT, -- NEU: Für Stärke der Korrelation, Zeitfenster etc.
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(user_id, plugin_id, source_ns, source_type, source_id, predicate, target_ns, target_type, target_id)
 );

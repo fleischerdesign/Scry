@@ -225,6 +225,18 @@ pub async fn get_data_by_type(State(state): State<Arc<AppState>>, Path(path): Pa
     Ok(Json(events))
 }
 
+#[utoipa::path(post, path = "/api/v1/analytics/discover", responses((status = 200)), security(("api_key" = [])))]
+pub async fn trigger_discovery(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<Json<serde_json::Value>> {
+    let count = state.analytics_service.run_correlation_discovery(auth.user_id).await?;
+    Ok(Json(json!({ "status": "success", "new_discoveries": count })))
+}
+
+#[utoipa::path(get, path = "/api/v1/analytics/discoveries", responses((status = 200, body = [serde_json::Value])), security(("api_key" = [])))]
+pub async fn get_discoveries(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<serde_json::Value>>> {
+    let discoveries = state.analytics_service.get_discoveries(auth.user_id).await?;
+    Ok(Json(discoveries))
+}
+
 #[utoipa::path(get, path = "/api/v1/streams/timeline", params(ListParams), responses((status = 200, body = [serde_json::Value])), security(("api_key" = [])))]
 pub async fn get_timeline(State(state): State<Arc<AppState>>, Query(params): Query<ListParams>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<serde_json::Value>>> {
     let cat = params.category.as_deref().unwrap_or("music.scrobble");
