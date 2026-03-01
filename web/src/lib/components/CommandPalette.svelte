@@ -133,25 +133,25 @@
     <!-- Content -->
     <div class="max-h-[60vh] overflow-y-auto">
       {#if filteredItems.length > 0}
-        <ul class="menu p-2">
+        <ul class="menu w-full p-0">
             {#each filteredItems as item, i}
-            <li>
+            <li class="w-full">
                 <button 
-                class="flex justify-between items-center py-3 px-4 rounded-2xl {selectedIndex === i ? 'active bg-primary/10 text-primary' : ''}"
+                class="flex justify-between items-center py-4 px-6 rounded-none border-b border-base-200/50 w-full {selectedIndex === i ? 'active bg-primary/10 text-primary' : ''}"
                 onclick={() => { item.execute(); isOpen = false; query = ""; }}
                 onmouseenter={() => selectedIndex = i}
                 >
-                <div class="flex flex-col items-start overflow-hidden">
+                <div class="flex flex-col items-start overflow-hidden flex-1">
                     <div class="flex items-center gap-2">
                         <span class="text-[9px] px-1.5 py-0.5 rounded-md bg-base-300 font-black uppercase tracking-widest text-base-content/50">{item.category}</span>
                         {#if (item as any).sublabel}
                             <span class="text-[10px] opacity-40 font-mono italic">{(item as any).sublabel}</span>
                         {/if}
                     </div>
-                    <span class="font-bold tracking-tight mt-1 truncate w-full">{item.label}</span>
+                    <span class="font-bold tracking-tight mt-1 truncate w-full text-left">{item.label}</span>
                 </div>
                 {#if selectedIndex === i}
-                    <div class="flex items-center gap-2 opacity-40">
+                    <div class="flex items-center gap-2 opacity-40 shrink-0 ml-4">
                         <span class="text-[10px] font-mono">NAVIGATE</span>
                         <span class="text-[10px] px-1.5 py-0.5 rounded bg-base-300">↵</span>
                     </div>
