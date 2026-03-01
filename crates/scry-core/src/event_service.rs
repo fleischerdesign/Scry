@@ -26,9 +26,14 @@ impl EventService {
     pub fn plugin_manager(&self) -> &PluginManager { &self.plugin_manager }
 
     pub async fn ingest_event(&self, user_id: i64, event: Event) -> Result<Event> {
-        let processed_event: Event = self.plugin_manager.run_ingest_pipeline(user_id, event).await
+        let mut processed_event: Event = self.plugin_manager.run_ingest_pipeline(user_id, event).await
             .map_err(|e| Error::Plugin(e))?;
         
+        // Metadaten vervollständigen (für DB und Broadcast)
+        let mut meta = processed_event.metadata.unwrap_or_else(|| serde_json::json!({}));
+        meta["user_id"] = serde_json::json!(user_id);
+        processed_event.metadata = Some(meta);
+
         // Entitäten benachrichtigen (Background)
         for ent in &processed_event.entities {
             let pm = self.plugin_manager.clone();
@@ -49,18 +54,14 @@ impl EventService {
             .bind(&processed_event.category)
             .bind(&processed_event.source)
             .bind(serde_json::to_string(&processed_event.payload).map_err(|e| Error::BadRequest(e.to_string()))?)
-            .bind(processed_event.metadata.as_ref().map(|m| serde_json::to_string(m).ok()).flatten())
+            .bind(serde_json::to_string(processed_event.metadata.as_ref().unwrap()).unwrap())
             .bind(serde_json::to_string(&processed_event.entities).unwrap_or_else(|_| "[]".to_string()))
             .execute(&self.db)
             .await?;
 
-        // BROADCAST: Hier zentral für alle Quellen!
+        // BROADCAST
         if let Some(ref sender) = self.event_sender {
-            let mut broadcast_event = processed_event.clone();
-            let mut meta = broadcast_event.metadata.unwrap_or_else(|| serde_json::json!({}));
-            meta["user_id"] = serde_json::json!(user_id);
-            broadcast_event.metadata = Some(meta);
-            let _ = sender.send(broadcast_event);
+            let _ = sender.send(processed_event.clone());
         }
 
         Ok(processed_event)
@@ -162,6 +163,7 @@ impl EventService {
                 "timestamp": ts,
                 "category": ev.category,
                 "event": ev.payload,
+                "metadata": ev.metadata,
                 "entities": ev.entities,
                 "context": {}
             });

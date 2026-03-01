@@ -46,6 +46,7 @@ use tokio_util::sync::CancellationToken;
         handlers::get_dashboards, handlers::add_widget,
         handlers::create_dashboard, handlers::delete_widget,
         handlers::ingest_event,
+        handlers::get_entity_traits,
         handlers::run_plugin_report,
         handlers::health_check
     ),
@@ -180,7 +181,8 @@ async fn main() -> anyhow::Result<()> {
         .merge(Router::new()
             .nest("/discovery", Router::new()
                 .route("/catalog", get(get_catalog))
-                .route("/search", get(search_events)))
+                .route("/search", get(search_events))
+                .route("/entities/:namespace/:typ/:id/traits", get(get_entity_traits)))
             .nest("/data", Router::new()
                 .route("/*path", get(get_data_by_type)))
             .nest("/streams", Router::new()

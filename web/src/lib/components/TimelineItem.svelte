@@ -59,6 +59,16 @@
                             <span>{(ctxVal as any).temperature || (ctxVal as any).track || '...'}</span>
                         </div>
                     {/each}
+
+                    <!-- Metadata / Enrichment Info -->
+                    {#if item.metadata}
+                        {#each Object.entries(item.metadata) as [metaKey, metaVal]}
+                            <div class="badge badge-ghost badge-sm font-mono gap-1">
+                                <span class="opacity-50 text-[10px]">{metaKey}:</span>
+                                <span>{metaVal}</span>
+                            </div>
+                        {/each}
+                    {/if}
                 </div>
             </div>
         </div>
