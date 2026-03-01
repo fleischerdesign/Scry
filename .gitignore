@@ -9,6 +9,7 @@
 /.direnv/
 
 # Scry Data & Logs
+/storage/
 scry.db*
 *.db-shm
 *.db-wal
