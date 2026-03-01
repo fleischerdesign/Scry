@@ -41,11 +41,18 @@
 		if (!auth.apiKey) return;
 		const url = `http://127.0.0.1:3000/api/v1/streams/live?api_key=${auth.apiKey}`;
 		const sse = new EventSource(url); 
-		sse.onmessage = (e) => {
-			const event = JSON.parse(e.data);
-			const item = { timestamp: event.timestamp, category: event.category, event: event.payload, context: event.metadata };
-			timeline = [item, ...timeline].slice(0, 100);
-			const label = event.category === 'music.scrobble' ? `Now Playing: ${event.payload.artist}` : event.category === 'weather.current' ? `Weather Update: ${event.payload.temperature}°C` : `New Event: ${event.category}`;
+				sse.onmessage = (e) => {
+					const event = JSON.parse(e.data);
+					const item = { 
+						id: event.id,
+						timestamp: event.timestamp, 
+						category: event.category, 
+						event: event.payload, 
+						metadata: event.metadata,
+						entities: event.entities || [],
+						context: {} 
+					};
+					timeline = [item, ...timeline].slice(0, 100);			const label = event.category === 'music.scrobble' ? `Now Playing: ${event.payload.artist}` : event.category === 'weather.current' ? `Weather Update: ${event.payload.temperature}°C` : `New Event: ${event.category}`;
 			ui.notify(label, undefined, 'info');
 		};
 		eventSource = sse;

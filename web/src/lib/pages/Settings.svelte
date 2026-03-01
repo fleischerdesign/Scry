@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { api } from '../api';
     import Card from "../components/Card.svelte";
+    import ConfigField from "../components/ConfigField.svelte";
 
     let { plugins = [], dashboards = [], onRefresh } = $props();
     
@@ -222,19 +223,19 @@
                                 <div class="space-y-4">
                                     <h4 class="text-[10px] font-black uppercase tracking-widest opacity-40">Configuration</h4>
                                     
-                                    {#if plugin.id === 'scry-weather-plugin' && pluginConfigs[plugin.id]}
-                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div class="form-control">
-                                                <label class="label" for="{plugin.id}-lat"><span class="label-text text-[10px] font-bold opacity-50">LATITUDE</span></label>
-                                                <input type="text" id="{plugin.id}-lat" bind:value={pluginConfigs[plugin.id]['latitude']} placeholder="52.52" class="input input-bordered input-sm font-mono" />
-                                            </div>
-                                            <div class="form-control">
-                                                <label class="label" for="{plugin.id}-lon"><span class="label-text text-[10px] font-bold opacity-50">LONGITUDE</span></label>
-                                                <input type="text" id="{plugin.id}-lon" bind:value={pluginConfigs[plugin.id]['longitude']} placeholder="13.41" class="input input-bordered input-sm font-mono" />
-                                            </div>
+                                    {#if plugin.config_schema}
+                                        {@const schema = JSON.parse(plugin.config_schema)}
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {#each Object.entries(schema.properties || {}) as [key, prop]}
+                                                <ConfigField 
+                                                    {key} 
+                                                    schema={prop} 
+                                                    bind:value={pluginConfigs[plugin.id][key]} 
+                                                />
+                                            {/each}
                                         </div>
                                     {:else}
-                                        <p class="text-[10px] italic opacity-30">No UI configuration template defined. Configurable via API.</p>
+                                        <p class="text-[10px] italic opacity-30">No configuration schema defined by this node.</p>
                                     {/if}
                                     
                                     <button class="btn btn-secondary btn-xs font-mono" onclick={() => savePluginConfig(plugin.id)} disabled={saving}>
