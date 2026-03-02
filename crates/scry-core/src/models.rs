@@ -70,13 +70,22 @@ pub struct ApiWidgetDefinition {
 }
 
 #[derive(Serialize, ToSchema)]
+pub struct ApiTraitCapability {
+    pub entity_namespace: String,
+    pub entity_type: String,
+    pub trait_id: String,
+}
+
+#[derive(Serialize, ToSchema)]
 pub struct PluginStatus {
     pub id: String,
     pub name: String,
     pub version: String,
     pub description: String,
+    pub roles: Vec<String>,
     pub capabilities: Vec<String>,
     pub subscriptions: Vec<String>,
+    pub provided_traits: Vec<ApiTraitCapability>,
     pub reports: Vec<ApiReportMetadata>,
     pub config_schema: Option<String>,
     pub suggested_widgets: Vec<ApiWidgetDefinition>,

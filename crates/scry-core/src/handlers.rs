@@ -411,8 +411,10 @@ pub async fn get_system_plugins(State(state): State<Arc<AppState>>, Extension(au
         name: "Scry System".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         description: "Core system services and metrics.".to_string(),
+        roles: vec!["system".to_string()],
         capabilities: vec!["system".to_string()],
         subscriptions: vec![],
+        provided_traits: vec![],
         reports: vec![],
         config_schema: None,
         suggested_widgets: vec![
@@ -433,16 +435,34 @@ pub async fn get_system_plugins(State(state): State<Arc<AppState>>, Extension(au
 
     // 2. Add real plugins
     for (id, m) in manifests {
-        let reports: Vec<(String, Vec<crate::plugins::scry::plugin::types::ReportMetadata>)> = state.event_service.plugin_manager().list_plugin_reports(auth.user_id).await?;
-        let p_reports = reports.into_iter().find(|(p_id, _)| p_id == &id).map(|(_, r)| r).unwrap_or_default();
+        let reports_list: Vec<(String, Vec<crate::plugins::scry::plugin::types::ReportMetadata>)> = state.event_service.plugin_manager().list_plugin_reports(auth.user_id).await?;
+        let p_reports = reports_list.into_iter().find(|(p_id, _)| p_id == &id).map(|(_, r)| r).unwrap_or_default();
         
+        // Auto-classify roles based on manifest structure
+        let mut roles = Vec::new();
+        if !m.provided_traits.is_empty() || !m.exports.is_empty() {
+            roles.push("enricher".to_string());
+        }
+        if !m.subscriptions.is_empty() || m.poll_interval.is_some() {
+            roles.push("source".to_string());
+        }
+        if !p_reports.is_empty() {
+            roles.push("analyzer".to_string());
+        }
+
         statuses.push(PluginStatus {
             id: id.clone(),
             name: m.name,
             version: m.version,
             description: m.description,
+            roles,
             capabilities: m.capabilities,
             subscriptions: m.subscriptions,
+            provided_traits: m.provided_traits.into_iter().map(|t| ApiTraitCapability {
+                entity_namespace: t.entity_namespace,
+                entity_type: t.entity_type,
+                trait_id: t.trait_id,
+            }).collect(),
             reports: p_reports.into_iter().map(|r| ApiReportMetadata {
                 id: r.id, name: r.name, description: r.description, viz: format!("{:?}", r.viz),
             }).collect(),

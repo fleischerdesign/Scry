@@ -27,7 +27,7 @@ class PluginState {
     }
 
     get enrichers() {
-        return this.items.filter(p => p.provided_traits && p.provided_traits.length > 0);
+        return this.items.filter(p => p.roles && p.roles.includes("enricher"));
     }
 }
 
