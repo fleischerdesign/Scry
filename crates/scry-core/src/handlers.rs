@@ -334,7 +334,7 @@ pub async fn get_semantic_top(State(state): State<Arc<AppState>>, Query(params):
 
 #[utoipa::path(get, path = "/api/v1/analytics/semantic/series", params(SemanticParams), responses((status = 200, body = [serde_json::Value])), security(("api_key" = [])))]
 pub async fn get_semantic_series(State(state): State<Arc<AppState>>, Query(params): Query<SemanticParams>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<serde_json::Value>>> {
-    let series = state.event_service.get_semantic_series(auth.user_id, &params.semantic_type, params.days.unwrap_or(7)).await?;
+    let series = state.event_service.get_semantic_series(auth.user_id, &params.semantic_type, params.days.unwrap_or(7), params.interval).await?;
     Ok(Json(series))
 }
 
@@ -552,7 +552,12 @@ pub struct SummaryParams { pub date: Option<String> }
 pub struct CorrelateParams { pub base_category: Option<String>, pub join_category: Option<String>, pub base_semantic: Option<String>, pub join_semantic: Option<String>, pub limit: Option<u32> }
 
 #[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
-pub struct SemanticParams { pub semantic_type: String, pub limit: Option<u32>, pub days: Option<u32> }
+pub struct SemanticParams { 
+    pub semantic_type: String, 
+    pub limit: Option<u32>, 
+    pub days: Option<u32>,
+    pub interval: Option<String>,
+}
 
 #[cfg(test)]
 mod tests {

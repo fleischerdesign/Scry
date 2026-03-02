@@ -56,8 +56,9 @@ class ScryAPI {
 		const daysParam = days !== undefined ? `&days=${days}` : "";
 		return this.request(`/analytics/semantic/top?semantic_type=${type}&limit=${limit}${daysParam}`);
 	}
-	getSemanticSeries(type: string, days = 7): Promise<any[]> {
-		return this.request(`/analytics/semantic/series?semantic_type=${type}&days=${days}`);
+	getSemanticSeries(type: string, days = 7, interval?: string): Promise<any[]> {
+		const intervalParam = interval ? `&interval=${interval}` : "";
+		return this.request(`/analytics/semantic/series?semantic_type=${type}&days=${days}${intervalParam}`);
 	}
 
 	// System & Dashboards

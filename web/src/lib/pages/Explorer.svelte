@@ -54,7 +54,12 @@
 				selectedType.includes("count") ||
 				selectedType.includes("level")
 			) {
-				explorerData = await api.getSemanticSeries(selectedType, timeframe);
+				const interval = timeframe === 1 ? "1h" : undefined;
+				explorerData = await api.getSemanticSeries(
+					selectedType,
+					timeframe,
+					interval,
+				);
 			} else {
 				explorerData = await api.getSemanticTop(selectedType, 10, timeframe);
 			}
@@ -144,12 +149,12 @@
 <div class="space-y-10 animate-in fade-in duration-500 w-full">
 	<div class="flex items-center justify-between">
 		<div class="join border border-base-300">
-			{#each [1, 7, 30, 90] as d}
+			{#each [1, 7, 30, 90, 365] as d}
 				<button
 					class="btn btn-xs join-item font-mono {timeframe === d
 						? 'btn-active'
 						: 'btn-ghost opacity-50'}"
-					onclick={() => (timeframe = d)}>{d}D</button
+					onclick={() => (timeframe = d)}>{d === 365 ? '1Y' : d + 'D'}</button
 				>
 			{/each}
 		</div>

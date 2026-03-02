@@ -276,12 +276,17 @@ impl EventService {
         }).collect())
     }
 
-    pub async fn get_semantic_series(&self, _user_id: i64, semantic_type: &str, days: u32) -> Result<Vec<Value>> {
+    pub async fn get_semantic_series(&self, _user_id: i64, semantic_type: &str, days: u32, interval: Option<String>) -> Result<Vec<Value>> {
         let (category, path) = self.resolve_semantic_info(semantic_type).await?;
         
+        let format_str = match interval.as_deref() {
+            Some("1h") => "%Y-%m-%dT%H:00:00Z",
+            _ => "%Y-%m-%d",
+        };
+
         let sql = format!(
-            "SELECT strftime('%Y-%m-%d', timestamp) as label, AVG(CAST(payload ->> '{}' as REAL)) as value FROM events WHERE category = ? AND timestamp > date('now', ?) GROUP BY label ORDER BY label ASC",
-            path
+            "SELECT strftime('{}', timestamp) as label, AVG(CAST(payload ->> '{}' as REAL)) as value FROM events WHERE category = ? AND timestamp > date('now', ?) GROUP BY label ORDER BY label ASC",
+            format_str, path
         );
 
         let rows = sqlx::query_as::<_, (String, f64)>(&sql)
