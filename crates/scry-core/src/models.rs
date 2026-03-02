@@ -77,6 +77,14 @@ pub struct ApiTraitCapability {
 }
 
 #[derive(Serialize, ToSchema)]
+pub struct ApiDataField {
+    pub category: String,
+    pub path: String,
+    pub semantic_type: String,
+    pub description: String,
+}
+
+#[derive(Serialize, ToSchema)]
 pub struct PluginStatus {
     pub id: String,
     pub name: String,
@@ -85,6 +93,7 @@ pub struct PluginStatus {
     pub roles: Vec<String>,
     pub capabilities: Vec<String>,
     pub subscriptions: Vec<String>,
+    pub exports: Vec<ApiDataField>,
     pub provided_traits: Vec<ApiTraitCapability>,
     pub reports: Vec<ApiReportMetadata>,
     pub config_schema: Option<String>,

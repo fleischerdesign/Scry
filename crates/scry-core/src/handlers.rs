@@ -414,6 +414,7 @@ pub async fn get_system_plugins(State(state): State<Arc<AppState>>, Extension(au
         roles: vec!["system".to_string()],
         capabilities: vec!["system".to_string()],
         subscriptions: vec![],
+        exports: vec![],
         provided_traits: vec![],
         reports: vec![],
         config_schema: None,
@@ -458,6 +459,12 @@ pub async fn get_system_plugins(State(state): State<Arc<AppState>>, Extension(au
             roles,
             capabilities: m.capabilities,
             subscriptions: m.subscriptions,
+            exports: m.exports.into_iter().map(|e| ApiDataField {
+                category: e.category,
+                path: e.path,
+                semantic_type: e.semantic_type,
+                description: e.description,
+            }).collect(),
             provided_traits: m.provided_traits.into_iter().map(|t| ApiTraitCapability {
                 entity_namespace: t.entity_namespace,
                 entity_type: t.entity_type,

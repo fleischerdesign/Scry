@@ -63,23 +63,58 @@
 				</div>
 			</div>
 
-			<div class="space-y-2">
-				<h4 class="text-[9px] font-black uppercase tracking-widest opacity-30">
-					Provided Traits
-				</h4>
-				<div class="flex flex-wrap gap-2">
-					{#each enricher.provided_traits as trait}
-						<div
-							class="badge badge-ghost badge-sm gap-2 font-mono border border-base-300"
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+				{#if enricher.provided_traits && enricher.provided_traits.length > 0}
+					<div class="space-y-2">
+						<h4
+							class="text-[9px] font-black uppercase tracking-widest opacity-30"
 						>
-							<span class="opacity-40"
-								>{trait.entity_namespace}/{trait.entity_type}</span
-							>
-							<span class="text-primary">→</span>
-							<span class="font-bold">{trait.trait_id.split("/").pop()}</span>
+							Active Knowledge Traits
+						</h4>
+						<div class="flex flex-wrap gap-2">
+							{#each enricher.provided_traits as trait}
+								<div
+									class="badge badge-ghost badge-sm gap-2 font-mono border border-base-300"
+								>
+									<span class="opacity-40"
+										>{trait.entity_namespace}/{trait.entity_type}</span
+									>
+									<span class="text-primary">→</span>
+									<span class="font-bold"
+										>{trait.trait_id.split("/").pop()}</span
+									>
+								</div>
+							{/each}
 						</div>
-					{/each}
-				</div>
+					</div>
+				{/if}
+
+				{#if enricher.exports && enricher.exports.length > 0}
+					<div class="space-y-2">
+						<h4
+							class="text-[9px] font-black uppercase tracking-widest opacity-30"
+						>
+							Inline Event Enrichment
+						</h4>
+						<div class="flex flex-wrap gap-2">
+							{#each enricher.exports as exp}
+								<div
+									class="badge badge-secondary/10 text-secondary badge-sm gap-2 font-mono border border-secondary/20"
+								>
+									<span class="opacity-60">{exp.category}</span>
+									<span class="opacity-30">::</span>
+									<span class="font-bold">{exp.semantic_type}</span>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				{#if (!enricher.provided_traits || enricher.provided_traits.length === 0) && (!enricher.exports || enricher.exports.length === 0)}
+					<p class="text-[10px] italic opacity-30">
+						Semantic processor without explicit trait declarations.
+					</p>
+				{/if}
 			</div>
 		</div>
 	{/each}
