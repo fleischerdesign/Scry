@@ -47,8 +47,8 @@
 		// Load user avatar trait if it exists
 		try {
 			const res = await api.getEntityTraits("scry.core", "user", "self");
-			if (res.traits?.["scry.identity/avatar"]) {
-				userAvatar = res.traits["scry.identity/avatar"];
+			if (res.traits?.["scry.core/avatar"]) {
+				userAvatar = res.traits["scry.core/avatar"];
 			}
 		} catch (e) {
 			console.warn("Could not load self traits", e);

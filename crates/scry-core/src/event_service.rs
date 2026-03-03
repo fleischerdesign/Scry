@@ -29,6 +29,81 @@ impl EventService {
         let mut processed_event: Event = self.plugin_manager.run_ingest_pipeline(user_id, event).await
             .map_err(|e| Error::Plugin(e))?;
         
+        // --- Dynamic Context Resolution ---
+        // Resolve semantic hints (aliases or full URIs) into real EntityRefs
+        let hints = processed_event.context.clone();
+        
+        // Use the processor ID from metadata if available, otherwise fallback to source (base ID)
+        let processor_id = processed_event.metadata.as_ref()
+            .and_then(|m| m.get("processor"))
+            .and_then(|p| p.as_str())
+            .unwrap_or_else(|| processed_event.source.split('+').next().unwrap_or(&processed_event.source));
+
+        for hint in hints {
+            let entity_ref = if hint.starts_with("alias:") {
+                let alias_key = hint.clone();
+                
+                // 1. Try to load from plugin configuration
+                let config_val = sqlx::query_scalar::<_, String>(
+                    "SELECT value FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ?"
+                )
+                .bind(user_id).bind(processor_id).bind(&alias_key).fetch_optional(&self.db).await?;
+
+                if let Some(target_uri) = config_val {
+                    // Resolve the URI found in config (ns/typ/id)
+                    let parts: Vec<&str> = target_uri.split('/').collect();
+                    if parts.len() == 3 {
+                        Some(scry_proto::EntityRef {
+                            path: hint.clone(),
+                            namespace: parts[0].to_string(),
+                            typ: parts[1].to_string(),
+                            id: parts[2].to_string(),
+                        })
+                    } else { None }
+                } else {
+                    // 2. Default Fallbacks & Dynamic Discovery
+                    let alias_name = hint.strip_prefix("alias:").unwrap();
+                    let default_target = match alias_name {
+                        "self" | "owner" | "subject" | "listener" => Some("scry.core/user/self"),
+                        _ => None
+                    };
+
+                    if let Some(target) = default_target {
+                        // Store default in config so it becomes visible in UI
+                        let _ = sqlx::query("INSERT INTO plugin_config (user_id, plugin_id, key, value) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
+                            .bind(user_id).bind(processor_id).bind(&alias_key).bind(target).execute(&self.db).await;
+                        
+                        Some(scry_proto::EntityRef {
+                            path: hint.clone(),
+                            namespace: "scry.core".to_string(),
+                            typ: "user".to_string(),
+                            id: "self".to_string(),
+                        })
+                    } else { None }
+                }
+            } else {
+                // Expected format: namespace/type/id
+                let parts: Vec<&str> = hint.split('/').collect();
+                if parts.len() == 3 {
+                    Some(scry_proto::EntityRef {
+                        path: hint.clone(),
+                        namespace: parts[0].to_string(),
+                        typ: parts[1].to_string(),
+                        id: parts[2].to_string(),
+                    })
+                } else {
+                    None
+                }
+            };
+
+            if let Some(r) = entity_ref {
+                // Avoid duplicates
+                if !processed_event.entities.iter().any(|e| e.namespace == r.namespace && e.typ == r.typ && e.id == r.id) {
+                    processed_event.entities.push(r);
+                }
+            }
+        }
+
         // Metadaten vervollständigen (für DB und Broadcast)
         let mut meta = processed_event.metadata.unwrap_or_else(|| serde_json::json!({}));
         meta["user_id"] = serde_json::json!(user_id);
@@ -153,19 +228,19 @@ impl EventService {
         Ok(paged_events)
     }
 
-    pub async fn get_enriched_timeline(&self, user_id: i64, base_category: &str, limit: u32, offset: u32) -> Result<Vec<Value>> {
+    pub async fn get_enriched_timeline(&self, user_id: i64, base_category: Option<String>, limit: u32, offset: u32) -> Result<Vec<Value>> {
         let manifests: HashMap<String, crate::plugins::scry::plugin::types::Manifest> = self.plugin_manager.get_plugin_manifests().await;
         let mut context_categories = std::collections::HashMap::new();
 
         for m in manifests.values() {
             for export in &m.exports {
-                if export.category != base_category {
+                if base_category.as_ref() != Some(&export.category) {
                     context_categories.insert(export.semantic_type.clone(), export.category.clone());
                 }
             }
         }
 
-        let base_events = self.list_events(user_id, Some(base_category.to_string()), limit, offset).await?;
+        let base_events = self.list_events(user_id, base_category, limit, offset).await?;
         let mut enriched_timeline = Vec::new();
 
         for ev in base_events {
@@ -183,6 +258,9 @@ impl EventService {
             });
 
             for (semantic_type, cat) in &context_categories {
+                // Don't enrich an event with its own category context
+                if &ev.category == cat { continue; }
+
                 let context_payload = sqlx::query_scalar::<_, String>(
                     "SELECT payload FROM events WHERE user_id = ? AND category = ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT 1"
                 )

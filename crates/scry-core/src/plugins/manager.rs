@@ -165,6 +165,7 @@ impl PluginManager {
                         entities: event.entities.iter().map(|e| PluginEntityRef {
                             path: e.path.clone(), namespace: e.namespace.clone(), typ: e.typ.clone(), id: e.id.clone()
                         }).collect(),
+                        context: event.context.clone(),
                         display_title: event.display_title.clone(),
                         display_subtitle: event.display_subtitle.clone(),
                     };
@@ -180,6 +181,7 @@ impl PluginManager {
                         entities: processed.entities.into_iter().map(|e| scry_proto::EntityRef {
                             path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                         }).collect(),
+                        context: processed.context,
                         display_title: processed.display_title,
                         display_subtitle: processed.display_subtitle,
                     };
@@ -195,18 +197,26 @@ impl PluginManager {
         self.with_instance(name, user_id, |instance, mut store| async move {
             let res = instance.call_on_poll(&mut store).await?;
             let mapped = res.into_iter().map(|ev| {
-                Ok(ScryEvent {
-                    id: uuid::Uuid::parse_str(&ev.id)?,
-                    timestamp: chrono::DateTime::parse_from_rfc3339(&ev.timestamp)?.with_timezone(&chrono::Utc),
-                    category: ev.category, source: ev.source, payload: serde_json::from_str(&ev.payload)?,
-                    metadata: ev.metadata.as_ref().and_then(|m| serde_json::from_str(m).ok()),
-                    entities: ev.entities.into_iter().map(|e| scry_proto::EntityRef {
-                        path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
-                    }).collect(),
-                    display_title: ev.display_title,
-                    display_subtitle: ev.display_subtitle,
-                })
-            }).collect::<Result<Vec<_>>>()?;
+                                                Ok(ScryEvent {
+                                                    id: uuid::Uuid::parse_str(&ev.id)?,
+                                                    timestamp: chrono::DateTime::parse_from_rfc3339(&ev.timestamp)?.with_timezone(&chrono::Utc),
+                                                    category: ev.category,
+                                                    source: ev.source,
+                                                    payload: serde_json::from_str(&ev.payload)?,
+                                                    metadata: {
+                                                        let mut m = ev.metadata.as_ref().and_then(|m| serde_json::from_str(m).ok()).unwrap_or_else(|| serde_json::json!({}));
+                                                        if let Some(obj) = m.as_object_mut() {
+                                                            obj.insert("processor".to_string(), serde_json::json!(name));
+                                                        }
+                                                        Some(m)
+                                                    },
+                                                    entities: ev.entities.into_iter().map(|e| scry_proto::EntityRef {
+                                                        path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
+                                                    }).collect(),
+                                                    context: ev.context,
+                                                    display_title: ev.display_title,
+                                                    display_subtitle: ev.display_subtitle,
+                                                })            }).collect::<Result<Vec<_>>>()?;
             Ok((mapped, store))
         }).await
     }

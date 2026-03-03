@@ -45,7 +45,7 @@ use tokio_util::sync::CancellationToken;
         handlers::get_semantic_series,
         handlers::correlate_events,
         handlers::get_system_status, handlers::get_system_plugins, handlers::poll_plugin_manually,
-        handlers::update_plugin_config, handlers::get_profile, handlers::update_profile,
+        handlers::update_plugin_config, handlers::get_plugin_config, handlers::get_profile, handlers::update_profile,
         handlers::get_dashboards, handlers::add_widget,
         handlers::create_dashboard, handlers::delete_widget,
         handlers::ingest_event,
@@ -216,7 +216,7 @@ async fn main() -> anyhow::Result<()> {
                 .route("/status", get(get_system_status))
                 .route("/plugins", get(get_system_plugins))
                 .route("/plugins/:id/poll", post(poll_plugin_manually))
-                .route("/plugins/:id/config", post(update_plugin_config))
+                .route("/plugins/:id/config", get(get_plugin_config).post(update_plugin_config))
                 .route("/dashboards", get(get_dashboards).post(create_dashboard))
                 .route("/dashboards/:id/widgets", post(add_widget))
                 .route("/dashboards/:id/widgets/:widget_id", delete(delete_widget))

@@ -135,6 +135,7 @@ impl ScryPlugin for MusicPlugin {
                 }),
                 metadata: None,
                 entities: vec![],
+                context: vec!["alias:self".to_string()],
                 display_title: Some(format!("The Granular Poller - Zen: {}", zen)),
                 display_subtitle: Some("Album: Scheduler Edition".to_string()),
             }

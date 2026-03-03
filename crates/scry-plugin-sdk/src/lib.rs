@@ -137,6 +137,7 @@ macro_rules! scry_plugin {
                     entities: ev.entities.into_iter().map(|e| $crate::prelude::EntityRef {
                         path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                     }).collect(),
+                    context: ev.context,
                     display_title: ev.display_title,
                     display_subtitle: ev.display_subtitle,
                 };
@@ -148,6 +149,7 @@ macro_rules! scry_plugin {
                         entities: res.entities.into_iter().map(|e| scry::plugin::types::EntityRef {
                             path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                         }).collect(),
+                        context: res.context,
                         display_title: res.display_title,
                         display_subtitle: res.display_subtitle,
                     }),
@@ -186,6 +188,7 @@ macro_rules! scry_plugin {
                         entities: result.entities.into_iter().map(|e| scry::plugin::types::EntityRef {
                             path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                         }).collect(),
+                        context: result.context,
                         display_title: result.display_title,
                         display_subtitle: result.display_subtitle,
                     }

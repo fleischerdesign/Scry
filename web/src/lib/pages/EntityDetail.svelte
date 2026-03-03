@@ -31,11 +31,11 @@
 
     onMount(loadData);
 
-    const photoUrl = $derived(traits["scry.identity/avatar"] || traits["scry.visual/photo"]);
-    const displayName = $derived(traits["scry.identity/name"] || id);
+    const photoUrl = $derived(traits["scry.core/avatar"] || traits["scry.visual/photo"] || traits["scry.identity/avatar"]);
+    const displayName = $derived((traits["scry.core/name"] || traits["scry.identity/name"] || id).toUpperCase());
 
     $effect(() => {
-        router.title = displayName.toUpperCase();
+        router.title = displayName;
     });
 </script>
 

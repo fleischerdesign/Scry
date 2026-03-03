@@ -128,9 +128,27 @@ pub async fn run_plugin_report(
 #[utoipa::path(get, path = "/api/v1/system/profile", responses((status = 200, body = serde_json::Value)), security(("api_key" = [])))]
 pub async fn get_profile(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<Json<serde_json::Value>> {
     let db = state.event_service.db();
-    let rows = sqlx::query_as::<_, (String, String)>("SELECT key, value FROM user_profile WHERE user_id = ?").bind(auth.user_id).fetch_all(db).await?;
+
+    // 1. Self-Healing: Ensure 'self' user entity exists
+    sqlx::query("INSERT INTO entities (user_id, namespace, typ, id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
+        .bind(auth.user_id).bind("scry.core").bind("user").bind("self").execute(db).await?;
+
+    // 2. Load legacy profile rows
+    let rows = sqlx::query_as::<_, (String, String)>("SELECT key, value FROM user_profile WHERE user_id = ?")
+        .bind(auth.user_id).fetch_all(db).await?;
+    
     let mut map = serde_json::Map::new();
-    for (k, v) in rows { map.insert(k, json!(v)); }
+    for (k, v) in rows {
+        map.insert(k.clone(), json!(v));
+        
+        // 3. Auto-Sync to Knowledge Graph if not already there
+        let trait_id = format!("scry.core/{}", k);
+        let value_json = json!(v).to_string();
+        
+        sqlx::query("INSERT INTO entity_traits (user_id, namespace, entity_type, entity_id, plugin_id, trait_id, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING")
+            .bind(auth.user_id).bind("scry.core").bind("user").bind("self").bind("core").bind(trait_id).bind(value_json).execute(db).await?;
+    }
+    
     Ok(Json(serde_json::Value::Object(map)))
 }
 
@@ -145,14 +163,27 @@ pub async fn update_profile(State(state): State<Arc<AppState>>, Extension(auth):
             .bind(auth.user_id).bind(&k).bind(&v_str).execute(db).await?;
 
         // 2. Update semantic graph (Trait)
-        // We use 'scry.identity' as the trait namespace for profile values
-        let trait_id = format!("scry.identity/{}", k);
+        // We use 'scry.core' as the trait namespace for profile values
+        let trait_id = format!("scry.core/{}", k);
         let value_json = serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string());
         
         sqlx::query("INSERT INTO entity_traits (user_id, namespace, entity_type, entity_id, plugin_id, trait_id, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, namespace, entity_type, entity_id, plugin_id, trait_id) DO UPDATE SET value_json = EXCLUDED.value_json")
             .bind(auth.user_id).bind("scry.core").bind("user").bind("self").bind("core").bind(trait_id).bind(value_json).execute(db).await?;
     }
     Ok(StatusCode::OK)
+}
+
+#[utoipa::path(get, path = "/api/v1/system/plugins/{id}/config", responses((status = 200, body = serde_json::Value)), security(("api_key" = [])))]
+pub async fn get_plugin_config(State(state): State<Arc<AppState>>, Path(id): Path<String>, Extension(auth): Extension<AuthContext>) -> Result<Json<serde_json::Value>> {
+    let db = state.event_service.db();
+    let rows = sqlx::query_as::<_, (String, String)>("SELECT key, value FROM plugin_config WHERE user_id = ? AND plugin_id = ?")
+        .bind(auth.user_id).bind(&id).fetch_all(db).await?;
+    
+    let mut map = serde_json::Map::new();
+    for (k, v) in rows {
+        map.insert(k, json!(v));
+    }
+    Ok(Json(serde_json::Value::Object(map)))
 }
 
 #[utoipa::path(post, path = "/api/v1/system/plugins/{id}/config", responses((status = 200)), security(("api_key" = [])))]
@@ -239,8 +270,7 @@ pub async fn get_discoveries(State(state): State<Arc<AppState>>, Extension(auth)
 
 #[utoipa::path(get, path = "/api/v1/streams/timeline", params(ListParams), responses((status = 200, body = [serde_json::Value])), security(("api_key" = [])))]
 pub async fn get_timeline(State(state): State<Arc<AppState>>, Query(params): Query<ListParams>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<serde_json::Value>>> {
-    let cat = params.category.as_deref().unwrap_or("music.scrobble");
-    let timeline = state.event_service.get_enriched_timeline(auth.user_id, cat, params.limit.unwrap_or(20), params.offset.unwrap_or(0)).await?;
+    let timeline = state.event_service.get_enriched_timeline(auth.user_id, params.category, params.limit.unwrap_or(20), params.offset.unwrap_or(0)).await?;
     Ok(Json(timeline))
 }
 

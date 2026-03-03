@@ -91,6 +91,7 @@ impl ScryPlugin for WeatherPlugin {
                     payload: json!({ "temperature": temp, "lat": lat, "lon": lon }),
                     metadata: None,
                     entities: vec![],
+                    context: vec!["alias:self".to_string()],
                     display_title: Some(format!("Temperature: {}°C", temp)),
                     display_subtitle: Some(format!("Location: {:.2}, {:.2}", lat, lon)),
                 }]

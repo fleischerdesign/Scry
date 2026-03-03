@@ -52,7 +52,10 @@ class ScryAPI {
 	}
 
 	// Streams
-	getTimeline(limit = 20): Promise<any[]> { return this.request(`/streams/timeline?limit=${limit}`); }
+	getTimeline(limit = 20, category?: string): Promise<any[]> { 
+		const catParam = category ? `&category=${category}` : "";
+		return this.request(`/streams/timeline?limit=${limit}${catParam}`); 
+	}
 	getSummary(date?: string): Promise<string[]> { 
 		return this.request(`/streams/summary${date ? `?date=${date}` : ""}`); 
 	}

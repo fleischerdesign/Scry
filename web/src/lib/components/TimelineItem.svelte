@@ -62,13 +62,30 @@
                 </div>
                 
                 <div class="flex flex-wrap gap-1 mt-1">
-                    <!-- Metadata / Enrichment Info -->
-                    {#if item.metadata}
-                        {#each Object.entries(item.metadata) as [metaKey, metaVal]}
-                            {#if !metaKey.startsWith('display.')}
-                                <div class="badge badge-ghost badge-sm font-mono gap-1">
-                                    <span class="opacity-50 text-[10px]">{metaKey}:</span>
-                                    <span>{metaVal}</span>
+                    <!-- Context Hints (Aliases) -->
+                    {#if item.context && item.context.length > 0}
+                        {#each item.context as hint}
+                            <div class="badge badge-primary/10 text-primary border-primary/20 badge-xs gap-1 font-black italic tracking-tighter">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-2 w-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                                {hint.replace('alias:', '').toUpperCase()}
+                            </div>
+                        {/each}
+                    {/if}
+
+                    <!-- Linked Entities -->
+                    {#if item.entities && item.entities.length > 0}
+                        {#each item.entities as ent}
+                            <!-- Wir überspringen 'self' in der Entity-Liste, da es schon im Context steht -->
+                            {#if ent.id !== 'self'}
+                                <div 
+                                    role="button"
+                                    tabindex="0"
+                                    onclick={(e) => { e.stopPropagation(); router.navigate(`/entity/${ent.namespace}/${ent.typ}/${ent.id}`); }}
+                                    onkeydown={(e) => e.key === 'Enter' && router.navigate(`/entity/${ent.namespace}/${ent.typ}/${ent.id}`)}
+                                    class="badge badge-secondary/10 text-secondary border-secondary/20 badge-xs gap-1 font-mono hover:bg-secondary/20 transition-colors cursor-pointer"
+                                >
+                                    <span class="opacity-40">{ent.typ}:</span>
+                                    <span class="font-bold">{ent.id}</span>
                                 </div>
                             {/if}
                         {/each}
