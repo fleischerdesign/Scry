@@ -33,6 +33,10 @@
 
     const photoUrl = $derived(traits["scry.identity/avatar"] || traits["scry.visual/photo"]);
     const displayName = $derived(traits["scry.identity/name"] || id);
+
+    $effect(() => {
+        router.title = displayName.toUpperCase();
+    });
 </script>
 
 <div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-4xl pb-20">
