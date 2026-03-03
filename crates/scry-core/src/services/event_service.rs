@@ -5,7 +5,7 @@ use scry_proto::Event;
 use crate::domain::*;
 use crate::error::{Error, Result};
 use crate::repository::{EventRepository, ConfigRepository, EntityRepository, AnalyticsRepository};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 #[derive(Clone)]
 pub struct EventService {
@@ -54,17 +54,17 @@ impl EventService {
 
         // 2. Entity Traits (Static metadata from the knowledge graph)
         for entity in &event.entities {
+            // Use the centralized DRY method to potentially populate display_image if not already set
+            if event.display_image.is_none() {
+                let (_, image) = entity_repo.get_display_info(&entity.namespace, &entity.typ, &entity.id).await;
+                event.display_image = image;
+            }
+
             if let Ok(traits) = entity_repo.get_traits(&entity.namespace, &entity.typ, &entity.id).await {
                 if !traits.is_empty() {
                     let mut entity_info = serde_json::Map::new();
                     for (_plugin_id, k, v) in traits {
                         let json_v = serde_json::from_str::<Value>(&v).unwrap_or(Value::String(v));
-                        
-                        // Auto-populate display_image if not already set, using standardized schema
-                        if event.display_image.is_none() && (k == scry_plugin_sdk::schema::traits::PHOTO || k == scry_plugin_sdk::schema::traits::AVATAR) {
-                            event.display_image = json_v.as_str().map(|s| s.to_string());
-                        }
-                        
                         entity_info.insert(k, json_v);
                     }
                     // Key the traits by the entity's semantic path (e.g., "payload.artist")
@@ -287,7 +287,27 @@ impl EventService {
     pub async fn get_semantic_top(&self, user_id: i64, semantic_type: &str, limit: u32, days: Option<u32>) -> Result<Vec<Value>> {
         let (category, path) = self.resolve_semantic_info(semantic_type).await?;
         let repo = AnalyticsRepository::new(&self.db, user_id);
-        repo.get_semantic_top(&category, &path, limit, days).await
+        let entity_repo = EntityRepository::new(&self.db, user_id);
+        let raw_top = repo.get_semantic_top(&category, &path, limit, days).await?;
+
+        let mut enriched_top = Vec::new();
+        let parts: Vec<&str> = semantic_type.split('/').collect();
+
+        for item in raw_top {
+            let id = item["key"].as_str().unwrap_or_default();
+            let mut enriched = item.clone();
+            
+            // Try to resolve name and image if the semantic type is an entity (ns/type)
+            if parts.len() == 2 {
+                let (title, image) = entity_repo.get_display_info(parts[0], parts[1], id).await;
+                enriched["display_title"] = json!(title);
+                if let Some(img) = image { enriched["display_image"] = json!(img); }
+            }
+            
+            enriched_top.push(enriched);
+        }
+
+        Ok(enriched_top)
     }
 
     pub async fn get_semantic_series(&self, user_id: i64, semantic_type: &str, days: u32, interval: Option<String>) -> Result<Vec<Value>> {

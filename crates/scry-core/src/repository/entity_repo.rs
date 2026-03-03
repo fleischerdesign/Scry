@@ -117,6 +117,18 @@ impl<'a> EntityRepository<'a> {
         Ok(val.map(|v| v.trim_matches('"').to_string()))
     }
 
+    pub async fn get_display_info(&self, namespace: &str, typ: &str, id: &str) -> (String, Option<String>) {
+        let title = self.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::NAME).await.ok().flatten()
+            .unwrap_or_else(|| id.to_string());
+        
+        let mut image = self.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::PHOTO).await.ok().flatten();
+        if image.is_none() {
+            image = self.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::AVATAR).await.ok().flatten();
+        }
+
+        (title, image)
+    }
+
     pub async fn get_relationships(&self, namespace: &str, typ: &str, id: &str) -> Result<Vec<(String, String, String, String, String, String, String)>> {
         let rel_rows = sqlx::query_as::<_, (String, String, String, String, String, String, String)>("SELECT source_ns, source_type, source_id, predicate, target_ns, target_type, target_id FROM entity_relationships WHERE user_id = ? AND (source_ns = ? AND source_type = ? AND source_id = ? OR target_ns = ? AND target_type = ? AND target_id = ?)")
             .bind(self.user_id)

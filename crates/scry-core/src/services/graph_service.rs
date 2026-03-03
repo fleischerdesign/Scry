@@ -115,14 +115,8 @@ impl GraphService {
 
         let mut result = serde_json::Map::new();
         
-        // Resolve display fields for the primary entity itself
-        let display_title = repo.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::NAME).await.ok().flatten()
-            .unwrap_or_else(|| id.to_string());
-        
-        let mut display_image = repo.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::PHOTO).await.ok().flatten();
-        if display_image.is_none() {
-            display_image = repo.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::AVATAR).await.ok().flatten();
-        }
+        // Resolve display fields using the centralized DRY repository method
+        let (display_title, display_image) = repo.get_display_info(namespace, typ, id).await;
 
         result.insert("display_title".to_string(), serde_json::Value::String(display_title));
         if let Some(img) = display_image {
