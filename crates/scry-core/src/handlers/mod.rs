@@ -5,18 +5,16 @@ pub mod plugins;
 pub mod analytics;
 pub mod entities;
 pub mod system;
+pub mod middleware;
 
 use axum::{
-    extract::State,
-    http::{Request, StatusCode},
-    middleware::{self, Next},
-    response::Response,
+    middleware::{from_fn, from_fn_with_state},
     routing::{get, post, delete},
     Router,
 };
 use std::sync::Arc;
 use crate::state::AppState;
-use crate::domain::AuthContext;
+use self::middleware::{identity_resolver, rate_limit_middleware, auth_middleware};
 
 pub fn app_router(state: Arc<AppState>) -> Router {
     let auth_routes = Router::new()
@@ -59,42 +57,13 @@ pub fn app_router(state: Arc<AppState>) -> Router {
                 .route("/dashboards/:id/widgets/:widget_id", delete(dashboards::delete_widget))
                 .route("/profile", get(auth::get_profile).post(auth::update_profile)))
             .route("/ingest", post(events::ingest_event))
-            .layer(middleware::from_fn_with_state(state.clone(), auth_middleware)));
+            .layer(from_fn_with_state(state.clone(), auth_middleware)))
+        // Pipeline: 1. Identity Resolver -> 2. Rate Limiting (protects DB) -> 3. Authentication (uses DB)
+        .layer(from_fn_with_state(state.clone(), rate_limit_middleware))
+        .layer(from_fn(identity_resolver));
 
     Router::new()
         .route("/health", get(system::health_check))
         .nest("/api/v1", api_v1)
         .with_state(state)
-}
-
-async fn auth_middleware(State(state): State<Arc<AppState>>, mut req: Request<axum::body::Body>, next: Next) -> Result<Response, StatusCode> {
-    if req.method() == axum::http::Method::OPTIONS {
-        return Ok(next.run(req).await);
-    }
-
-    let auth_header = req.headers().get("X-API-Key").and_then(|h| h.to_str().ok());
-    let query_key = req.uri().query()
-        .and_then(|q| serde_urlencoded::from_str::<std::collections::HashMap<String, String>>(q).ok())
-        .and_then(|m| m.get("api_key").cloned());
-
-    let key_to_check = auth_header.map(|s| s.to_string()).or(query_key);
-    
-    if let Some(key) = key_to_check {
-        let auth = state.auth_service.verify_api_key(&key).await.map_err(|e| {
-            tracing::error!("Auth Service Error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-        
-        if let Some((user_id, scopes)) = auth {
-            let ctx = AuthContext {
-                user_id,
-                scopes,
-            };
-            req.extensions_mut().insert(ctx);
-            return Ok(next.run(req).await);
-        } else {
-            tracing::warn!("Invalid API Key provided: {}", key);
-        }
-    }
-    Err(StatusCode::UNAUTHORIZED)
 }

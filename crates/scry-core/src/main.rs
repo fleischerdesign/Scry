@@ -123,6 +123,18 @@ async fn main() -> anyhow::Result<()> {
     let mut event_service = EventService::new(db.clone(), plugin_manager.clone());
     let (event_sender, _rx) = tokio::sync::broadcast::channel(1024);
     event_service.set_event_sender(event_sender.clone());
+
+    let rate_limiter = Arc::new(crate::handlers::middleware::rate_limit::RateLimitState::new());
+    
+    // Background task for rate limiter cleanup
+    let rl_for_cleanup = rate_limiter.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            rl_for_cleanup.cleanup();
+        }
+    });
     
     let shared_state = Arc::new(AppState { 
         event_service: event_service.clone(), 
@@ -132,6 +144,7 @@ async fn main() -> anyhow::Result<()> {
         graph_service: GraphService::new(db.clone(), plugin_manager.clone()),
         plugin_service: PluginService::new(db.clone(), plugin_manager.clone(), event_service),
         system_service: SystemService::new(db.clone()),
+        rate_limiter,
         event_sender,
         cancel_token: cancel_token.clone()
     });
@@ -177,7 +190,9 @@ async fn main() -> anyhow::Result<()> {
         final_cancel_token.cancel();
     };
 
-    axum::serve(listener, app).with_graceful_shutdown(shutdown).await?;
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+        .with_graceful_shutdown(shutdown)
+        .await?;
     tracing::info!("Scry shutdown complete.");
     Ok(())
 }

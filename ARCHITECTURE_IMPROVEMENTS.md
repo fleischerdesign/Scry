@@ -65,8 +65,8 @@ Zentralisierung von UI-Werten (Farben, Abstände) in CSS-Variablen in `app.css`.
 ---
 
 ## 11. Security: Multi-Tenant Rate Limiting
-**Status: ⏳ Offen (Hohe Priorität)**
-Integration einer Middleware (z.B. `tower-governor`) zur Begrenzung von Anfragen pro API-Key.
+**Status: ✅ Umgesetzt**
+Integration einer manuellen Middleware (governor + dashmap) zur Begrenzung von Anfragen pro Identität (API-Key oder IP).
 
 ---
 
