@@ -27,6 +27,7 @@ interface types {
         metadata: option<string>,
         entities: list<entity-ref>,
         context: list<string>,
+        context-info: option<string>,
         display-title: option<string>,
         display-subtitle: option<string>,
     }
@@ -37,6 +38,7 @@ interface types {
         semantic-type: string,
         description: string,
         format: option<string>,
+        icon: option<string>,
     }
 
     record trait-capability {

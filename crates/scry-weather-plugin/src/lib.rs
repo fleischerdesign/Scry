@@ -26,6 +26,7 @@ impl ScryPlugin for WeatherPlugin {
                     semantic_type: "environment.temperature".to_string(),
                     description: "Aktuelle Temperatur in Celsius".to_string(),
                     format: None,
+                    icon: Some("lucide:thermometer".to_string()),
                 }
             ],
             provided_traits: vec![],
@@ -83,17 +84,23 @@ impl ScryPlugin for WeatherPlugin {
                 let v: serde_json::Value = serde_json::from_str(&resp_json).unwrap_or_default();
                 let temp = v["current_weather"]["temperature"].as_f64().unwrap_or(0.0);
                 
+                // Wir versuchen einen Städtenamen aus den Koordinaten zu raten oder nehmen 'Current Location'
+                let city = host::get_entity_trait("scry.core", "user", "self", "scry.core/city").await
+                    .and_then(|v| serde_json::from_str::<String>(&v).ok())
+                    .unwrap_or_else(|| "Current Location".to_string());
+
                 vec![SdkEvent {
                     id: uuid::Uuid::new_v4(),
                     timestamp: chrono::Utc::now(),
                     category: "weather.current".to_string(),
                     source: "open-meteo".to_string(),
-                    payload: json!({ "temperature": temp, "lat": lat, "lon": lon }),
+                    payload: json!({ "temperature": temp, "lat": lat, "lon": lon, "city": city }),
                     metadata: None,
                     entities: vec![],
                     context: vec!["alias:self".to_string()],
+                    context_info: None,
                     display_title: Some(format!("Temperature: {}°C", temp)),
-                    display_subtitle: Some(format!("Location: {:.2}, {:.2}", lat, lon)),
+                    display_subtitle: Some(format!("Weather in {}", city)),
                 }]
             },
             Err(e) => {
@@ -101,6 +108,21 @@ impl ScryPlugin for WeatherPlugin {
                 vec![]
             }
         }
+    }
+
+    async fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
+        if ev.category == "weather.current" {
+            if let Some(city) = ev.payload.get("city").and_then(|v| v.as_str()) {
+                // Tagge den Ort als Entität im Knowledge Graph
+                ev.entities.push(scry_plugin_sdk::EntityRef {
+                    path: "payload.city".to_string(),
+                    namespace: "scry.weather".to_string(),
+                    typ: "location".to_string(),
+                    id: city.to_string(),
+                });
+            }
+        }
+        Ok(ev)
     }
 }
 

@@ -24,6 +24,8 @@ pub struct Event {
     pub entities: Vec<EntityRef>,
     #[serde(default)]
     pub context: Vec<String>,
+    #[serde(default)]
+    pub context_info: Option<serde_json::Value>,
     pub display_title: Option<String>,
     pub display_subtitle: Option<String>,
 }
@@ -39,6 +41,7 @@ impl Event {
             metadata: None,
             entities: Vec::new(),
             context: Vec::new(),
+            context_info: None,
             display_title: None,
             display_subtitle: None,
         }

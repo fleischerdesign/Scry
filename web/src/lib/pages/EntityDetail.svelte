@@ -29,6 +29,16 @@
         }
     }
 
+    const groupedRelationships = $derived.by(() => {
+        const groups: Record<string, any[]> = {};
+        relationships.forEach(rel => {
+            const p = rel.predicate.split('/').pop() || rel.predicate;
+            if (!groups[p]) groups[p] = [];
+            groups[p].push(rel);
+        });
+        return groups;
+    });
+
     onMount(loadData);
 
     const photoUrl = $derived(traits["scry.core/avatar"] || traits["scry.visual/photo"] || traits["scry.identity/avatar"]);
@@ -48,8 +58,8 @@
 
         {#if photoUrl}
             <div class="avatar">
-                <div class="w-24 h-24 rounded-3xl shadow-2xl ring ring-primary/20">
-                    <img src={photoUrl} alt={displayName} />
+                <div class="w-24 h-24 rounded-3xl shadow-2xl ring ring-primary/20 overflow-hidden bg-base-300">
+                    <img src={photoUrl} alt={displayName} class="object-cover w-full h-full" />
                 </div>
             </div>
         {:else}
@@ -79,22 +89,32 @@
             <div class="space-y-8">
                 <!-- Relationships -->
                 {#if relationships.length > 0}
-                    <div class="space-y-4">
-                        <h3 class="text-xs font-black uppercase tracking-[0.3em] opacity-30 px-2">Knowledge Graph Connections</h3>
-                        <div class="grid grid-cols-1 gap-2">
-                            {#each relationships as rel}
-                                {@const isSource = rel.source.id === id}
-                                {@const target = isSource ? rel.target : rel.source}
-                                <button 
-                                    onclick={() => router.navigate(`/entity/${target.ns}/${target.typ}/${target.id}`)}
-                                    class="w-full flex flex-col items-start p-4 bg-base-200 hover:bg-base-300 transition-all rounded-2xl border border-base-300/50 group"
-                                >
-                                    <span class="text-[8px] font-black uppercase opacity-30 mb-1">{rel.predicate.split('/').pop()}</span>
-                                    <span class="font-bold text-xs group-hover:text-primary transition-colors">{target.id}</span>
-                                    <span class="text-[9px] opacity-40 mt-1">{target.ns}/{target.typ}</span>
-                                </button>
-                            {/each}
-                        </div>
+                    <div class="space-y-6">
+                        <h3 class="text-xs font-black uppercase tracking-[0.3em] opacity-30 px-2 border-l-2 border-primary/20 ml-2">Knowledge Graph</h3>
+                        
+                        {#each Object.entries(groupedRelationships) as [predicate, rels]}
+                            <div class="space-y-2">
+                                <h4 class="text-[9px] font-bold uppercase opacity-20 px-2 tracking-widest">{predicate}</h4>
+                                <div class="grid grid-cols-1 gap-2">
+                                    {#each rels as rel}
+                                        {@const isSource = rel.source.id === id}
+                                        {@const target = isSource ? rel.target : rel.source}
+                                        <button 
+                                            onclick={() => router.navigate(`/entity/${target.ns}/${target.typ}/${target.id}`)}
+                                            class="w-full flex items-center gap-3 p-3 bg-base-200 hover:bg-base-300 transition-all rounded-2xl border border-base-300/50 group text-left"
+                                        >
+                                            <div class="w-8 h-8 rounded-lg bg-base-300 flex items-center justify-center text-[10px] font-bold opacity-40 group-hover:text-primary group-hover:opacity-100 transition-all">
+                                                {target.id.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="font-bold text-xs truncate group-hover:text-primary transition-colors">{target.id}</div>
+                                                <div class="text-[8px] opacity-30 uppercase font-mono tracking-tighter">{target.typ}</div>
+                                            </div>
+                                        </button>
+                                    {/each}
+                                </div>
+                            </div>
+                        {/each}
                     </div>
                 {/if}
 

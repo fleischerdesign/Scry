@@ -494,6 +494,7 @@ pub async fn get_system_plugins(State(state): State<Arc<AppState>>, Extension(au
                 path: e.path,
                 semantic_type: e.semantic_type,
                 description: e.description,
+                icon: e.icon,
             }).collect(),
             provided_traits: m.provided_traits.into_iter().map(|t| ApiTraitCapability {
                 entity_namespace: t.entity_namespace,
@@ -562,30 +563,42 @@ pub async fn get_entities(
 ) -> Result<Json<Vec<crate::models::ApiEntity>>> {
     let db = state.event_service.db();
     
-    // Wir holen alle Entitäten des Typs und versuchen einen Titel aus den Traits zu finden
-    let rows = sqlx::query_as::<_, (String, Option<String>)>("
+    // Wir holen alle Entitäten des Typs und versuchen Titel und Bild aus den Traits zu finden
+    let rows = sqlx::query_as::<_, (String, Option<String>, Option<String>)>("
         SELECT e.id, (
             SELECT value_json FROM entity_traits t 
             WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
             AND (t.trait_id LIKE '%name' OR t.trait_id LIKE '%title')
             LIMIT 1
-        ) as title
+        ) as title,
+        (
+            SELECT value_json FROM entity_traits t 
+            WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
+            AND (t.trait_id LIKE '%photo' OR t.trait_id LIKE '%avatar' OR t.trait_id LIKE '%image')
+            LIMIT 1
+        ) as photo
         FROM entities e
         WHERE e.user_id = ? AND e.namespace = ? AND e.typ = ?
     ")
     .bind(auth.user_id).bind(&namespace).bind(&typ).fetch_all(db).await?;
 
-    let entities = rows.into_iter().map(|(id, title_json)| {
+    let entities = rows.into_iter().map(|(id, title_json, photo_json)| {
         let title = title_json.and_then(|json| {
             serde_json::from_str::<serde_json::Value>(&json).ok()
                 .and_then(|v| v.as_str().map(|s| s.to_string()))
         }).unwrap_or_else(|| id.clone());
+
+        let photo_url = photo_json.and_then(|json| {
+            serde_json::from_str::<serde_json::Value>(&json).ok()
+                .and_then(|v| v.as_str().map(|s| s.to_string()))
+        });
 
         crate::models::ApiEntity {
             namespace: namespace.clone(),
             typ: typ.clone(),
             id: id.clone(),
             title,
+            photo_url,
             link: format!("/entity/{}/{}/{}", namespace, typ, id),
         }
     }).collect();

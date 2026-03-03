@@ -13,10 +13,10 @@ impl ScryPlugin for MusicPlugin {
             subscriptions: vec!["music.*".to_string()],
             capabilities: vec!["network".to_string(), "state".to_string(), "config".to_string()],
             exports: vec![
-                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.artist".to_string(), semantic_type: "music.artist".to_string(), description: "Name des Künstlers".to_string(), format: None },
-                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.track".to_string(), semantic_type: "music.track".to_string(), description: "Name des Songs".to_string(), format: None },
-                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.album".to_string(), semantic_type: "music.album".to_string(), description: "Name des Albums".to_string(), format: None },
-                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.energy_level".to_string(), semantic_type: "music.energy_level".to_string(), description: "Simulierter Energie-Level des Songs".to_string(), format: None },
+                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.artist".to_string(), semantic_type: "music.artist".to_string(), description: "Name des Künstlers".to_string(), format: None, icon: Some("lucide:mic".to_string()) },
+                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.track".to_string(), semantic_type: "music.track".to_string(), description: "Name des Songs".to_string(), format: None, icon: Some("lucide:music".to_string()) },
+                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.album".to_string(), semantic_type: "music.album".to_string(), description: "Name des Albums".to_string(), format: None, icon: Some("lucide:disc".to_string()) },
+                scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.energy_level".to_string(), semantic_type: "music.energy_level".to_string(), description: "Simulierter Energie-Level des Songs".to_string(), format: None, icon: Some("lucide:zap".to_string()) },
             ],
             provided_traits: vec![],
             poll_interval: Some(10),
@@ -38,7 +38,7 @@ impl ScryPlugin for MusicPlugin {
             let track = ev.payload.get("track").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
             let album = ev.payload.get("album").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
             
-            // Tagge Artist, Track und Album als semantische Entitäten
+            // 1. Tagge Artist, Track und Album als semantische Entitäten
             ev.entities.push(scry_plugin_sdk::EntityRef {
                 path: "payload.artist".to_string(),
                 namespace: "scry.music".to_string(),
@@ -61,7 +61,7 @@ impl ScryPlugin for MusicPlugin {
             ev.display_title = Some(format!("{} - {}", artist, track));
             ev.display_subtitle = Some(format!("Album: {}", album));
 
-            // Beziehungen im Knowledge Graph hinterlegen
+            // 2. Beziehungen im Knowledge Graph hinterlegen
             let track_rel = scry_plugin_sdk::Relationship {
                 source_namespace: "scry.music".to_string(), source_type: "track".to_string(), source_id: track.clone(),
                 predicate: "scry.music/belongs_to_album".to_string(),
@@ -119,7 +119,7 @@ impl ScryPlugin for MusicPlugin {
             Err(_) => "Keep it clean.".to_string(),
         };
 
-        let energy_level = (new_count % 10) as f64 * 10.0; // Simuliert Variationen von 0 bis 90
+        let energy_level = (new_count % 10) as f64 * 10.0;
 
         vec![
             scry_plugin_sdk::Event {
@@ -136,6 +136,7 @@ impl ScryPlugin for MusicPlugin {
                 metadata: None,
                 entities: vec![],
                 context: vec!["alias:self".to_string()],
+                context_info: None,
                 display_title: Some(format!("The Granular Poller - Zen: {}", zen)),
                 display_subtitle: Some("Album: Scheduler Edition".to_string()),
             }

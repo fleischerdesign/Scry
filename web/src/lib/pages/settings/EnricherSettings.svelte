@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { plugins } from "../../state/plugins.svelte";
 	import { router } from "../../router.svelte";
+	import Icon from "@iconify/svelte";
 
 	const enrichers = $derived(plugins.enrichers);
 
@@ -99,8 +100,11 @@
 						<div class="flex flex-wrap gap-2">
 							{#each enricher.exports as exp}
 								<div
-									class="badge badge-secondary/10 text-secondary badge-sm gap-2 font-mono border border-secondary/20"
+									class="badge badge-secondary/10 text-secondary badge-sm gap-2 font-mono border border-secondary/20 h-6"
 								>
+									{#if exp.icon}
+										<Icon icon={exp.icon} class="w-3 h-3" />
+									{/if}
 									<span class="opacity-60">{exp.category}</span>
 									<span class="opacity-30">::</span>
 									<span class="font-bold">{exp.semantic_type}</span>

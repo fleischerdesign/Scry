@@ -55,9 +55,17 @@
 				>
 					<div class="card-body p-4">
 						<div class="flex items-center gap-3">
-							<div class="w-10 h-10 rounded-xl bg-base-200 flex items-center justify-center font-bold text-xs group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-								{entity.title.charAt(0)}
-							</div>
+							{#if entity.photo_url}
+								<div class="avatar">
+									<div class="w-10 h-10 rounded-xl shadow-inner">
+										<img src={entity.photo_url} alt={entity.title} />
+									</div>
+								</div>
+							{:else}
+								<div class="w-10 h-10 rounded-xl bg-base-200 flex items-center justify-center font-bold text-xs group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+									{entity.title.charAt(0)}
+								</div>
+							{/if}
 							<div class="flex-1 min-w-0">
 								<h3 class="font-bold text-sm truncate uppercase tracking-tight">{entity.title}</h3>
 								<p class="text-[10px] opacity-40 font-mono truncate italic">{entity.id}</p>

@@ -39,6 +39,7 @@ impl TryFrom<DbEvent> for Event {
             metadata: db_ev.metadata.and_then(|m| serde_json::from_str(&m).ok()),
             entities: db_ev.entities.and_then(|e| serde_json::from_str(&e).ok()).unwrap_or_default(),
             context: vec![], // Resolved during ingestion, not stored in DB
+            context_info: None, // Will be populated by EventService::enrich_event_context
             display_title: db_ev.display_title,
             display_subtitle: db_ev.display_subtitle,
         })
@@ -83,6 +84,7 @@ pub struct ApiEntity {
     pub typ: String,
     pub id: String,
     pub title: String,
+    pub photo_url: Option<String>,
     pub link: String,
 }
 
@@ -92,6 +94,7 @@ pub struct ApiDataField {
     pub path: String,
     pub semantic_type: String,
     pub description: String,
+    pub icon: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]

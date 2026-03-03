@@ -25,6 +25,40 @@ impl EventService {
     pub fn db(&self) -> &sqlx::SqlitePool { &self.db }
     pub fn plugin_manager(&self) -> &PluginManager { &self.plugin_manager }
 
+    pub async fn enrich_event_context(&self, user_id: i64, event: &mut Event) -> Result<()> {
+        let manifests = self.plugin_manager.get_plugin_manifests().await;
+        let mut context_categories = HashMap::new();
+
+        for m in manifests.values() {
+            for export in &m.exports {
+                if event.category != export.category {
+                    context_categories.insert(export.semantic_type.clone(), export.category.clone());
+                }
+            }
+        }
+
+        let mut info = serde_json::Map::new();
+        let ts = event.timestamp.to_rfc3339();
+
+        for (semantic_type, cat) in &context_categories {
+            let context_payload = sqlx::query_scalar::<_, String>(
+                "SELECT payload FROM events WHERE user_id = ? AND category = ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT 1"
+            )
+            .bind(user_id).bind(cat).bind(&ts).fetch_optional(&self.db).await?;
+
+            if let Some(p) = context_payload {
+                if let Ok(json) = serde_json::from_str::<Value>(&p) {
+                    info.insert(semantic_type.clone(), json);
+                }
+            }
+        }
+
+        if !info.is_empty() {
+            event.context_info = Some(Value::Object(info));
+        }
+        Ok(())
+    }
+
     pub async fn ingest_event(&self, user_id: i64, event: Event) -> Result<Event> {
         let mut processed_event: Event = self.plugin_manager.run_ingest_pipeline(user_id, event).await
             .map_err(|e| Error::Plugin(e))?;
@@ -103,6 +137,9 @@ impl EventService {
                 }
             }
         }
+
+        // Live Context Enrichment (e.g. add current weather info to this new event)
+        let _ = self.enrich_event_context(user_id, &mut processed_event).await;
 
         // Metadaten vervollständigen (für DB und Broadcast)
         let mut meta = processed_event.metadata.unwrap_or_else(|| serde_json::json!({}));
@@ -243,36 +280,22 @@ impl EventService {
         let base_events = self.list_events(user_id, base_category, limit, offset).await?;
         let mut enriched_timeline = Vec::new();
 
-        for ev in base_events {
-            let ts = ev.timestamp.to_rfc3339();
-            let mut entry = serde_json::json!({
+        for mut ev in base_events {
+            // New centralized enrichment
+            let _ = self.enrich_event_context(user_id, &mut ev).await;
+
+            let entry = serde_json::json!({
                 "id": ev.id,
-                "timestamp": ts,
+                "timestamp": ev.timestamp.to_rfc3339(),
                 "category": ev.category,
                 "event": ev.payload,
                 "metadata": ev.metadata,
                 "entities": ev.entities,
+                "context": ev.context,
+                "context_info": ev.context_info,
                 "display_title": ev.display_title,
                 "display_subtitle": ev.display_subtitle,
-                "context_info": {} // Enriched Data
             });
-
-            for (semantic_type, cat) in &context_categories {
-                // Don't enrich an event with its own category context
-                if &ev.category == cat { continue; }
-
-                let context_payload = sqlx::query_scalar::<_, String>(
-                    "SELECT payload FROM events WHERE user_id = ? AND category = ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT 1"
-                )
-                .bind(user_id).bind(cat).bind(&ts).fetch_optional(&self.db).await?;
-
-                if let Some(p) = context_payload {
-                    match serde_json::from_str::<Value>(&p) {
-                        Ok(json) => { entry["context_info"][semantic_type] = json; },
-                        Err(e) => { tracing::warn!("Failed to parse context JSON for {}: {}", semantic_type, e); }
-                    }
-                }
-            }
             enriched_timeline.push(entry);
         }
 

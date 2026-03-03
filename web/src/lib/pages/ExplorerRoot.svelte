@@ -2,6 +2,7 @@
 	import { onMount } from "svelte";
 	import { api } from "../api";
 	import { router } from "../router.svelte";
+	import Icon from "@iconify/svelte";
 
 	let namespaces = $state<string[]>([]);
 	let loading = $state(true);
@@ -50,7 +51,10 @@
 					
 					<div class="flex items-center justify-between mb-6">
 						<div class="w-14 h-14 rounded-3xl bg-base-100 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+							<Icon 
+								icon={ns === 'scry.music' ? 'lucide:music' : (ns === 'scry.core' ? 'lucide:shield' : 'lucide:database')} 
+								class="w-6 h-6 text-primary" 
+							/>
 						</div>
 						<div class="badge badge-primary badge-outline badge-xs opacity-30 font-mono tracking-tighter uppercase italic">Namespace</div>
 					</div>

@@ -166,6 +166,7 @@ impl PluginManager {
                             path: e.path.clone(), namespace: e.namespace.clone(), typ: e.typ.clone(), id: e.id.clone()
                         }).collect(),
                         context: event.context.clone(),
+                        context_info: event.context_info.as_ref().map(|c| serde_json::to_string(c).unwrap()),
                         display_title: event.display_title.clone(),
                         display_subtitle: event.display_subtitle.clone(),
                     };
@@ -182,6 +183,7 @@ impl PluginManager {
                             path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                         }).collect(),
                         context: processed.context,
+                        context_info: processed.context_info.as_ref().and_then(|c| serde_json::from_str(c).ok()),
                         display_title: processed.display_title,
                         display_subtitle: processed.display_subtitle,
                     };
@@ -214,6 +216,7 @@ impl PluginManager {
                                                         path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                                                     }).collect(),
                                                     context: ev.context,
+                                                    context_info: ev.context_info.as_ref().and_then(|c| serde_json::from_str(c).ok()),
                                                     display_title: ev.display_title,
                                                     display_subtitle: ev.display_subtitle,
                                                 })            }).collect::<Result<Vec<_>>>()?;

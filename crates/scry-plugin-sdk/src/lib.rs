@@ -26,14 +26,14 @@ pub trait ScryPlugin: Default {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct DataField { 
-    pub category: String, 
-    pub path: String, 
-    pub semantic_type: String, 
+pub struct DataField {
+    pub category: String,
+    pub path: String,
+    pub semantic_type: String,
     pub description: String,
     pub format: Option<String>,
+    pub icon: Option<String>,
 }
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TraitCapability { pub entity_namespace: String, pub entity_type: String, pub trait_id: String }
 
@@ -102,6 +102,7 @@ macro_rules! scry_plugin {
                     exports: m.exports.into_iter().map(|e| scry::plugin::types::DataField {
                         category: e.category, path: e.path, semantic_type: e.semantic_type, description: e.description,
                         format: e.format,
+                        icon: e.icon,
                     }).collect(),
                     provided_traits: m.provided_traits.into_iter().map(|t| scry::plugin::types::TraitCapability {
                         entity_namespace: t.entity_namespace, entity_type: t.entity_type, trait_id: t.trait_id
@@ -138,6 +139,7 @@ macro_rules! scry_plugin {
                         path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                     }).collect(),
                     context: ev.context,
+                    context_info: ev.context_info.and_then(|c| $crate::serde_json::from_str(&c).ok()),
                     display_title: ev.display_title,
                     display_subtitle: ev.display_subtitle,
                 };
@@ -145,11 +147,13 @@ macro_rules! scry_plugin {
                     Ok(res) => Ok(scry::plugin::types::Event {
                         id: res.id.to_string(), timestamp: res.timestamp.to_rfc3339(),
                         category: res.category, source: res.source,
-                        payload: res.payload.to_string(), metadata: res.metadata.as_ref().map(|m| m.to_string()),
+                        payload: $crate::serde_json::to_string(&res.payload).unwrap(),
+                        metadata: res.metadata.as_ref().map(|m| $crate::serde_json::to_string(m).unwrap()),
                         entities: res.entities.into_iter().map(|e| scry::plugin::types::EntityRef {
                             path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                         }).collect(),
                         context: res.context,
+                        context_info: res.context_info.as_ref().map(|c| $crate::serde_json::to_string(c).unwrap()),
                         display_title: res.display_title,
                         display_subtitle: res.display_subtitle,
                     }),
@@ -184,11 +188,13 @@ macro_rules! scry_plugin {
                     scry::plugin::types::Event {
                         id: result.id.to_string(), timestamp: result.timestamp.to_rfc3339(),
                         category: result.category, source: result.source,
-                        payload: result.payload.to_string(), metadata: result.metadata.as_ref().map(|m| m.to_string()),
+                        payload: $crate::serde_json::to_string(&result.payload).unwrap(), 
+                        metadata: result.metadata.as_ref().map(|m| $crate::serde_json::to_string(m).unwrap()),
                         entities: result.entities.into_iter().map(|e| scry::plugin::types::EntityRef {
                             path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
                         }).collect(),
                         context: result.context,
+                        context_info: result.context_info.as_ref().map(|c| $crate::serde_json::to_string(c).unwrap()),
                         display_title: result.display_title,
                         display_subtitle: result.display_subtitle,
                     }
