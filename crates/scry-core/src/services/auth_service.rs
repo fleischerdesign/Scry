@@ -113,8 +113,8 @@ impl AuthService {
         let entity_repo = EntityRepository::new(&self.db, user_id);
         entity_repo.ensure_entity("scry.core", "user", "self").await?;
 
-        // Find avatar for display_image
-        let display_image = entity_repo.get_trait("scry.core", "user", "self", "scry.core/avatar").await.ok().flatten();
+        // Use centralized DRY method
+        let (_title, display_image) = entity_repo.get_display_info("scry.core", "user", "self").await;
 
         // Get scopes from existing API key (or use 'all' default)
         let _api_key = user_repo.get_api_key_by_user(user_id).await?;
