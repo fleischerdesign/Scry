@@ -5,7 +5,7 @@ use crate::domain::*;
 use crate::error::Result;
 use crate::repository::ConfigRepository;
 use crate::plugins::PluginManager;
-use crate::event_service::EventService;
+use super::EventService;
 
 #[derive(Clone)]
 pub struct PluginService {

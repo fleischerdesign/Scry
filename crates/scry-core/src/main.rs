@@ -1,5 +1,4 @@
 mod plugins;
-mod event_service;
 mod domain;
 mod state;
 mod handlers;
@@ -7,7 +6,7 @@ mod error;
 mod repository;
 mod services;
 
-use services::{AuthService, DashboardService, GraphService, AnalyticsService, PluginService, SystemService};
+use services::{AuthService, DashboardService, GraphService, AnalyticsService, PluginService, SystemService, EventService};
 use state::AppState;
 use domain::*;
 
@@ -28,7 +27,6 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use crate::plugins::PluginManager;
-use crate::event_service::EventService;
 use crate::handlers::*;
 use tokio::time::{sleep, Duration};
 use notify::{Watcher, RecursiveMode};
@@ -168,8 +166,7 @@ async fn main() -> anyhow::Result<()> {
                     break;
                 }
                 _ = async {
-                    let db = scheduler_state.event_service.db();
-                    let user_ids: Vec<i64> = match sqlx::query_scalar::<_, i64>("SELECT id FROM users").fetch_all(db).await {
+                    let user_ids = match scheduler_state.auth_service.get_all_user_ids().await {
                         Ok(ids) => ids,
                         Err(e) => {
                             tracing::error!("Failed to fetch users for scheduler: {}", e);
@@ -307,17 +304,15 @@ async fn auth_middleware(State(state): State<Arc<AppState>>, mut req: Request<ax
     let key_to_check = auth_header.map(|s| s.to_string()).or(query_key);
     
     if let Some(key) = key_to_check {
-        let db = state.event_service.db();
-        let auth = sqlx::query_as::<_, (i64, String)>("SELECT user_id, scopes FROM api_keys WHERE key = ?")
-            .bind(&key).fetch_optional(db).await.map_err(|e| {
-                tracing::error!("Auth DB Error: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+        let auth = state.auth_service.verify_api_key(&key).await.map_err(|e| {
+            tracing::error!("Auth Service Error: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
         
-        if let Some((user_id, scopes_str)) = auth {
+        if let Some((user_id, scopes)) = auth {
             let ctx = AuthContext {
                 user_id,
-                scopes: scopes_str.split(',').map(|s| s.to_string()).collect(),
+                scopes,
             };
             req.extensions_mut().insert(ctx);
             return Ok(next.run(req).await);

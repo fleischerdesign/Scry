@@ -99,4 +99,18 @@ impl AuthService {
         }
         Ok(())
     }
+
+    pub async fn get_all_user_ids(&self) -> Result<Vec<i64>> {
+        let user_repo = UserRepository::new(&self.db);
+        user_repo.get_all_ids().await
+    }
+
+    pub async fn verify_api_key(&self, key: &str) -> Result<Option<(i64, Vec<String>)>> {
+        let user_repo = UserRepository::new(&self.db);
+        let auth = user_repo.find_by_api_key(key).await?;
+        
+        Ok(auth.map(|(user_id, scopes_str)| {
+            (user_id, scopes_str.split(',').map(|s| s.to_string()).collect())
+        }))
+    }
 }

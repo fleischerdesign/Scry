@@ -45,4 +45,19 @@ impl<'a> UserRepository<'a> {
             .await?;
         Ok(key)
     }
+
+    pub async fn get_all_ids(&self) -> Result<Vec<i64>> {
+        let ids = sqlx::query_scalar::<_, i64>("SELECT id FROM users")
+            .fetch_all(self.pool)
+            .await?;
+        Ok(ids)
+    }
+
+    pub async fn find_by_api_key(&self, key: &str) -> Result<Option<(i64, String)>> {
+        let auth = sqlx::query_as::<_, (i64, String)>("SELECT user_id, scopes FROM api_keys WHERE key = ?")
+            .bind(key)
+            .fetch_optional(self.pool)
+            .await?;
+        Ok(auth)
+    }
 }

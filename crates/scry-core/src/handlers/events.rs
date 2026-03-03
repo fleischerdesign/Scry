@@ -78,8 +78,8 @@ pub async fn get_event_by_id(
     Path(id): Path<String>,
     Extension(auth): Extension<AuthContext>
 ) -> Result<Json<serde_json::Value>> {
-    let ev = state.event_service.get_event_by_id(auth.user_id, &id).await?
-        .ok_or_else(|| Error::NotFound(format!("Event {} not found", id)))?;
+    let ev: Option<Event> = state.event_service.get_event_by_id(auth.user_id, &id).await?;
+    let ev = ev.ok_or_else(|| Error::NotFound(format!("Event {} not found", id)))?;
     
     Ok(Json(serde_json::to_value(ev).unwrap()))
 }
@@ -96,7 +96,7 @@ pub async fn get_events_by_entity(
     Path((namespace, typ, id)): Path<(String, String, String)>,
     Extension(auth): Extension<AuthContext>
 ) -> Result<Json<serde_json::Value>> {
-    let events = state.event_service.get_events_by_entity(auth.user_id, &namespace, &typ, &id).await?;
+    let events: Vec<Event> = state.event_service.get_events_by_entity(auth.user_id, &namespace, &typ, &id).await?;
     
     let json_events: Vec<serde_json::Value> = events.into_iter()
         .map(|e| serde_json::to_value(e).unwrap())

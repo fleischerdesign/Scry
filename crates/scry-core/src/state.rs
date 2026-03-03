@@ -1,6 +1,5 @@
 use scry_proto::Event;
-use crate::event_service::EventService;
-use crate::services::{AuthService, DashboardService, GraphService, PluginService, AnalyticsService, SystemService};
+use crate::services::{AuthService, DashboardService, GraphService, PluginService, AnalyticsService, SystemService, EventService};
 
 #[derive(Clone)]
 pub struct AppState {

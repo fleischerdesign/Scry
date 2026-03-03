@@ -45,12 +45,15 @@ pub async fn get_semantic_series(State(state): State<Arc<AppState>>, Query(param
 #[utoipa::path(get, path = "/api/v1/analytics/correlations", params(CorrelateParams), responses((status = 200, body = [CorrelationResult])), security(("api_key" = [])))]
 pub async fn correlate_events(State(state): State<Arc<AppState>>, Query(params): Query<CorrelateParams>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<CorrelationResult>>> {
     let limit = params.limit.unwrap_or(50);
-    let results = if let (Some(bs), Some(js)) = (&params.base_semantic, &params.join_semantic) {
+    let results: Vec<serde_json::Value> = if let (Some(bs), Some(js)) = (&params.base_semantic, &params.join_semantic) {
         state.event_service.correlate_semantic(auth.user_id, bs, js, limit).await
     } else if let (Some(bc), Some(jc)) = (&params.base_category, &params.join_category) {
         state.event_service.correlate_nearest(auth.user_id, bc, jc, limit).await
     } else { return Err(Error::BadRequest("Invalid params".to_string())); }?;
-    let api_results = results.into_iter().map(|v| CorrelationResult { base: v.get("base").cloned().unwrap_or(json!({})), joined: v.get("joined").cloned().unwrap_or(json!({})), }).collect();
+    let api_results = results.into_iter().map(|v| CorrelationResult { 
+        base: v.get("base").cloned().unwrap_or(serde_json::json!({})), 
+        joined: v.get("joined").cloned().unwrap_or(serde_json::json!({})), 
+    }).collect();
     Ok(Json(api_results))
 }
 
