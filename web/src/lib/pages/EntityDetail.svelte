@@ -17,20 +17,17 @@
     async function loadData() {
         loading = true;
         try {
-            // 1. Fetch all entities of this type to find the specific one with its display fields
-            // (Standardizing entity details to return display fields directly would be the next Backend step)
-            const [allEntities, fetchedEvents, details] = await Promise.all([
-                api.getEntities(ns, type),
-                api.getEntityEvents(ns, type, id),
-                api.getEntityTraits(ns, type, id)
+            // Fetch entity details and related events in parallel
+            const [entityData, fetchedEvents] = await Promise.all([
+                api.getEntityTraits(ns, type, id),
+                api.getEntityEvents(ns, type, id)
             ]);
             
-            const entity = allEntities.find(e => e.id === id);
-            displayTitle = entity?.display_title || id;
-            displayImage = entity?.display_image || null;
+            displayTitle = entityData.display_title || id;
+            displayImage = entityData.display_image || null;
             
-            traits = details.traits || {};
-            relationships = details.relationships || [];
+            traits = entityData.traits || {};
+            relationships = entityData.relationships || [];
             events = fetchedEvents;
         } catch (e) {
             console.error("Failed to load entity details", e);
@@ -111,11 +108,11 @@
                                             class="w-full flex items-center gap-3 p-3 bg-base-200 hover:bg-base-300 transition-all rounded-2xl border border-base-300/50 group text-left"
                                         >
                                             <div class="w-8 h-8 rounded-lg bg-base-300 flex items-center justify-center text-[10px] font-bold opacity-40 group-hover:text-primary group-hover:opacity-100 transition-all">
-                                                {target.id.charAt(0).toUpperCase()}
+                                                {(target.display_title || target.id).charAt(0).toUpperCase()}
                                             </div>
                                             <div class="flex-1 min-w-0">
-                                                <div class="font-bold text-xs truncate group-hover:text-primary transition-colors">{target.id}</div>
-                                                <div class="text-[8px] opacity-30 uppercase font-mono tracking-tighter">{target.typ}</div>
+                                                <div class="font-bold text-xs truncate group-hover:text-primary transition-colors">{target.display_title || target.id}</div>
+                                                <div class="text-[8px] opacity-30 uppercase font-mono tracking-tighter">{target.typ} {#if target.display_title}• {target.id}{/if}</div>
                                             </div>
                                         </button>
                                     {/each}

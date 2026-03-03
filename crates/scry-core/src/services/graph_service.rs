@@ -86,8 +86,11 @@ impl GraphService {
         let rel_rows = repo.get_relationships(namespace, typ, id).await?;
         let manifests = self.plugin_manager.get_plugin_manifests().await;
 
-        let relationships: Vec<serde_json::Value> = rel_rows.into_iter().map(|(sn, st, si, p, tn, tt, ti)| {
+        let mut relationships = Vec::new();
+        for (sn, st, si, p, tn, tt, ti) in rel_rows {
             let direction = if sn == namespace && st == typ && si == id { "outgoing" } else { "incoming" };
+            
+            // Resolve display label for the predicate
             let mut display_label = p.split('/').last().unwrap_or(&p).replace('_', " ");
             for m in manifests.values() {
                 if let Some(pred) = m.predicates.iter().find(|pr| pr.id == p || format!("{}/{}", sn, pr.id) == p || format!("{}/{}", tn, pr.id) == p) {
@@ -96,16 +99,36 @@ impl GraphService {
                 }
             }
 
-            json!({
+            // Resolve display title for the TARGET entity
+            let (t_ns, t_type, t_id) = if direction == "outgoing" { (&tn, &tt, &ti) } else { (&sn, &st, &si) };
+            let target_display_title = repo.get_trait(t_ns, t_type, t_id, scry_plugin_sdk::schema::traits::NAME).await.ok().flatten()
+                .unwrap_or_else(|| t_id.clone());
+
+            relationships.push(json!({
                 "source": { "ns": sn, "typ": st, "id": si },
                 "predicate": p,
                 "display_label": display_label,
-                "target": { "ns": tn, "typ": tt, "id": ti },
+                "target": { "ns": tn, "typ": tt, "id": ti, "display_title": target_display_title },
                 "direction": direction
-            })
-        }).collect();
+            }));
+        }
 
         let mut result = serde_json::Map::new();
+        
+        // Resolve display fields for the primary entity itself
+        let display_title = repo.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::NAME).await.ok().flatten()
+            .unwrap_or_else(|| id.to_string());
+        
+        let mut display_image = repo.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::PHOTO).await.ok().flatten();
+        if display_image.is_none() {
+            display_image = repo.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::AVATAR).await.ok().flatten();
+        }
+
+        result.insert("display_title".to_string(), serde_json::Value::String(display_title));
+        if let Some(img) = display_image {
+            result.insert("display_image".to_string(), serde_json::Value::String(img));
+        }
+
         result.insert("traits".to_string(), serde_json::Value::Object(traits_map));
         result.insert("relationships".to_string(), serde_json::Value::Array(relationships));
 

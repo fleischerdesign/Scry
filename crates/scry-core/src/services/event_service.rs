@@ -178,12 +178,20 @@ impl EventService {
 
     pub async fn get_event_by_id(&self, user_id: i64, id: &str) -> Result<Option<Event>> {
         let event_repo = EventRepository::new(&self.db, user_id);
-        event_repo.get_by_id(id).await
+        let mut ev = event_repo.get_by_id(id).await?;
+        if let Some(ref mut e) = ev {
+            let _ = self.enrich_event_context(user_id, e).await;
+        }
+        Ok(ev)
     }
 
     pub async fn get_events_by_entity(&self, user_id: i64, namespace: &str, typ: &str, id: &str) -> Result<Vec<Event>> {
         let event_repo = EventRepository::new(&self.db, user_id);
-        event_repo.get_by_entity(namespace, typ, id).await
+        let mut events = event_repo.get_by_entity(namespace, typ, id).await?;
+        for ev in &mut events {
+            let _ = self.enrich_event_context(user_id, ev).await;
+        }
+        Ok(events)
     }
 
     pub async fn poll_and_save_plugin(&self, user_id: i64, name: &str) -> Result<usize> {
@@ -239,7 +247,12 @@ impl EventService {
         }
 
         all_events.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        let paged_events = all_events.into_iter().skip(offset as usize).take(limit as usize).collect::<Vec<_>>();
+        let mut paged_events = all_events.into_iter().skip(offset as usize).take(limit as usize).collect::<Vec<_>>();
+        
+        for ev in &mut paged_events {
+            let _ = self.enrich_event_context(user_id, ev).await;
+        }
+        
         Ok(paged_events)
     }
 
@@ -331,7 +344,7 @@ mod tests {
             CREATE TABLE events (
                 id TEXT PRIMARY KEY, user_id INTEGER, timestamp TEXT, 
                 category TEXT, source TEXT, payload TEXT, metadata TEXT,
-                entities TEXT, display_title TEXT, display_subtitle TEXT
+                entities TEXT, context TEXT, display_title TEXT, display_subtitle TEXT, display_image TEXT
             );
             INSERT INTO users (id, username, password_hash) VALUES (1, 'alice', 'hash'), (2, 'bob', 'hash');
         "#).execute(&pool).await.unwrap();

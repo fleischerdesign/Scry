@@ -49,7 +49,7 @@ class ScryAPI {
 	getEntities(namespace: string, type: string): Promise<ApiEntity[]> {
 		return this.request(`/discovery/entities/${namespace}/${type}`);
 	}
-	getEntityTraits(namespace: string, type: string, id: string): Promise<{ traits: Record<string, JsonValue>, relationships: any[] }> {
+	getEntityTraits(namespace: string, type: string, id: string): Promise<{ traits: Record<string, JsonValue>, relationships: any[], display_title?: string, display_image?: string }> {
 		return this.request(`/discovery/entities/${namespace}/${type}/${encodeURIComponent(id)}/traits`);
 	}
 	getEvent(id: string): Promise<Event> {
