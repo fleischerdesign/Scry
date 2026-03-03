@@ -254,7 +254,7 @@ impl EventService {
                 "entities": ev.entities,
                 "display_title": ev.display_title,
                 "display_subtitle": ev.display_subtitle,
-                "context": {}
+                "context_info": {} // Enriched Data
             });
 
             for (semantic_type, cat) in &context_categories {
@@ -268,7 +268,7 @@ impl EventService {
 
                 if let Some(p) = context_payload {
                     match serde_json::from_str::<Value>(&p) {
-                        Ok(json) => { entry["context"][semantic_type] = json; },
+                        Ok(json) => { entry["context_info"][semantic_type] = json; },
                         Err(e) => { tracing::warn!("Failed to parse context JSON for {}: {}", semantic_type, e); }
                     }
                 }
