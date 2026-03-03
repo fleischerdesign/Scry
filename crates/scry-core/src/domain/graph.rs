@@ -1,13 +1,16 @@
 use serde::Serialize;
 use utoipa::ToSchema;
+use ts_rs::TS;
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct ApiNamespace {
     pub name: String,
     pub icon: Option<String>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct ApiEntity {
     pub namespace: String,
     pub typ: String,

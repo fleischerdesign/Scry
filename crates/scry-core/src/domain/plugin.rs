@@ -1,7 +1,9 @@
 use serde::Serialize;
 use utoipa::ToSchema;
+use ts_rs::TS;
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct ApiReportMetadata {
     pub id: String,
     pub name: String,
@@ -9,16 +11,19 @@ pub struct ApiReportMetadata {
     pub viz: String,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct ApiReportData {
     pub columns: Vec<String>,
     pub data_json: String,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub enum ApiWidgetTemplate { Metric, Trend, TopList, Status, Spotlight }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct ApiWidgetDefinition {
     pub id: String,
     pub title: String,
@@ -26,7 +31,8 @@ pub struct ApiWidgetDefinition {
     pub config_json: String,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct ApiDataField {
     pub category: String,
     pub path: String,
@@ -35,14 +41,16 @@ pub struct ApiDataField {
     pub icon: Option<String>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct ApiTraitCapability {
     pub entity_namespace: String,
     pub entity_type: String,
     pub trait_id: String,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct PluginStatus {
     pub id: String,
     pub name: String,
@@ -58,7 +66,8 @@ pub struct PluginStatus {
     pub suggested_widgets: Vec<ApiWidgetDefinition>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct PluginReports {
     pub plugin: String,
     pub reports: Vec<ApiReportMetadata>,

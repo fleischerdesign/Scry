@@ -12,9 +12,10 @@ uuid = { version = "1.8", features = ["serde", "v4"] }
 # Diese Abhängigkeiten sind optional und nur für den Core (Host) gedacht
 utoipa = { version = "5", features = ["uuid", "chrono"], optional = true }
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "uuid", "chrono"], optional = true }
+ts-rs = { version = "12.0.1", features = ["chrono-impl", "uuid-impl", "serde-json-impl"], optional = true }
 
 [features]
 default = []
-backend = ["utoipa", "sqlx"]
+backend = ["utoipa", "sqlx", "ts-rs"]
 utoipa = ["dep:utoipa"]
 sqlx = ["dep:sqlx"]

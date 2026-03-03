@@ -314,8 +314,6 @@ mod tests {
     use scry_proto::Event;
     use std::sync::Arc;
     use crate::plugins::PluginManager;
-    use chrono::Utc;
-    use uuid::Uuid;
     use serde_json::json;
 
     async fn setup_test_db() -> SqlitePool {
@@ -324,7 +322,8 @@ mod tests {
             CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, password_hash TEXT);
             CREATE TABLE events (
                 id TEXT PRIMARY KEY, user_id INTEGER, timestamp TEXT, 
-                category TEXT, source TEXT, payload TEXT, metadata TEXT
+                category TEXT, source TEXT, payload TEXT, metadata TEXT,
+                entities TEXT, display_title TEXT, display_subtitle TEXT
             );
             INSERT INTO users (id, username, password_hash) VALUES (1, 'alice', 'hash'), (2, 'bob', 'hash');
         "#).execute(&pool).await.unwrap();
@@ -338,14 +337,7 @@ mod tests {
         let pm = Arc::new(PluginManager::new("./non_existent_plugins", db.clone()).unwrap());
         let service = EventService::new(db, pm);
 
-        let event = Event {
-            id: Uuid::new_v4(),
-            timestamp: Utc::now(),
-            category: "test.event".to_string(),
-            source: "test-suite".to_string(),
-            payload: json!({"temp": 22.5}),
-            metadata: None,
-        };
+        let event = Event::new("test.event".to_string(), "test-suite".to_string(), json!({"temp": 22.5}));
 
         // Ingest
         service.ingest_event(1, event.clone()).await.unwrap();
@@ -363,14 +355,7 @@ mod tests {
         let pm = Arc::new(PluginManager::new("./non_existent_plugins", db.clone()).unwrap());
         let service = EventService::new(db, pm);
 
-        let event_alice = Event {
-            id: Uuid::new_v4(),
-            timestamp: Utc::now(),
-            category: "private".to_string(),
-            source: "alice-phone".to_string(),
-            payload: json!({"secret": "alice_data"}),
-            metadata: None,
-        };
+        let event_alice = Event::new("private".to_string(), "alice-phone".to_string(), json!({"secret": "alice_data"}));
 
         service.ingest_event(1, event_alice).await.unwrap();
 

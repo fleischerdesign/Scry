@@ -1,13 +1,16 @@
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
+use ts_rs::TS;
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct CorrelationResult {
     pub base: serde_json::Value,
     pub joined: serde_json::Value,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct SemanticStats {
     pub base_type: String,
     pub join_type: String,
@@ -15,10 +18,12 @@ pub struct SemanticStats {
     pub correlations: serde_json::Value,
 }
 
-#[derive(Deserialize, IntoParams)]
+#[derive(Deserialize, IntoParams, TS)]
+#[ts(export)]
 pub struct SearchParams { pub q: String, pub limit: Option<u32>, pub offset: Option<u32> }
 
-#[derive(Deserialize, IntoParams)]
+#[derive(Deserialize, IntoParams, TS)]
+#[ts(export)]
 pub struct CorrelateParams { 
     pub base_category: Option<String>, 
     pub join_category: Option<String>, 
@@ -27,7 +32,8 @@ pub struct CorrelateParams {
     pub limit: Option<u32> 
 }
 
-#[derive(Deserialize, IntoParams, ToSchema)]
+#[derive(Deserialize, IntoParams, ToSchema, TS)]
+#[ts(export)]
 pub struct SemanticParams { 
     pub semantic_type: String, 
     pub limit: Option<u32>, 

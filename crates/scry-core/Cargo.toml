@@ -35,3 +35,4 @@ futures = "0.3.32"
 async-stream = "0.3.6"
 serde_urlencoded = "0.7.1"
 tokio-util = "0.7.18"
+ts-rs = { version = "12.0.1", features = ["chrono-impl", "uuid-impl", "serde-json-impl"] }

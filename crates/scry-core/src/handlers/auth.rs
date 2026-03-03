@@ -40,8 +40,7 @@ pub async fn update_profile(State(state): State<Arc<AppState>>, Extension(auth):
 mod tests {
     use super::*;
     use sqlx::SqlitePool;
-    use crate::event_service::EventService;
-    use crate::analytics_service::AnalyticsService;
+    use crate::services::*;
     use crate::plugins::PluginManager;
 
     async fn setup_test_state() -> Arc<AppState> {
@@ -49,11 +48,22 @@ mod tests {
         sqlx::migrate!("../../migrations").run(&pool).await.unwrap();
         let pm = Arc::new(PluginManager::new("./non_existent", pool.clone()).unwrap());
         let svc = EventService::new(pool.clone(), pm.clone());
-        let analytics = AnalyticsService::new(pool, pm);
+        let analytics = AnalyticsService::new(pool.clone(), pm.clone());
+        let auth = AuthService::new(pool.clone());
+        let dashboard = DashboardService::new(pool.clone());
+        let graph = GraphService::new(pool.clone(), pm.clone());
+        let plugin = PluginService::new(pool.clone(), pm.clone(), svc.clone());
+        let system = SystemService::new(pool.clone());
+
         let (event_sender, _) = tokio::sync::broadcast::channel(1024);
         Arc::new(AppState { 
             event_service: svc, 
             analytics_service: analytics,
+            auth_service: auth,
+            dashboard_service: dashboard,
+            graph_service: graph,
+            plugin_service: plugin,
+            system_service: system,
             event_sender,
             cancel_token: tokio_util::sync::CancellationToken::new()
         })

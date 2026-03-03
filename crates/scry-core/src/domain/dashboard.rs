@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use ts_rs::TS;
 
-#[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
+#[derive(Serialize, Deserialize, ToSchema, TS, Debug, Clone)]
+#[ts(export)]
 pub struct Dashboard {
     pub id: String,
     pub name: String,
@@ -10,7 +12,8 @@ pub struct Dashboard {
     pub widgets: Vec<DashboardWidget>,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
+#[derive(Serialize, Deserialize, ToSchema, TS, Debug, Clone)]
+#[ts(export)]
 pub struct DashboardWidget {
     pub id: String,
     pub dashboard_id: String,

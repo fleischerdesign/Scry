@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts-rs", ts(export))]
 #[cfg_attr(feature = "backend", derive(utoipa::ToSchema))]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EntityRef {
@@ -11,6 +13,8 @@ pub struct EntityRef {
     pub id: String,
 }
 
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts-rs", ts(export))]
 #[cfg_attr(feature = "backend", derive(utoipa::ToSchema, sqlx::FromRow))]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Event {
