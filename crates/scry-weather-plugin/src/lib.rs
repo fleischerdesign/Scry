@@ -32,6 +32,7 @@ impl ScryPlugin for WeatherPlugin {
             domain_info: vec![
                 scry_plugin_sdk::DomainInfo { ns: "scry.weather".to_string(), icon: Some("lucide:cloud-sun".to_string()) }
             ],
+            predicates: vec![],
             provided_traits: vec![],
             poll_interval: Some(600), // Alle 10 Minuten
             config_schema: Some(json!({

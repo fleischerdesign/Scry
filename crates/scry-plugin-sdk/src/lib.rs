@@ -42,6 +42,13 @@ pub struct DomainInfo {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PredicateDefinition {
+    pub id: String,
+    pub label: String,
+    pub inverse_label: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TraitCapability { pub entity_namespace: String, pub entity_type: String, pub trait_id: String }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -73,6 +80,8 @@ pub struct Manifest {
     pub exports: Vec<DataField>,
     #[serde(default)]
     pub domain_info: Vec<DomainInfo>,
+    #[serde(default)]
+    pub predicates: Vec<PredicateDefinition>,
     pub provided_traits: Vec<TraitCapability>,
     pub poll_interval: Option<u32>,
     pub config_schema: Option<String>,
@@ -115,6 +124,9 @@ macro_rules! scry_plugin {
                     }).collect(),
                     domain_info: m.domain_info.into_iter().map(|d| scry::plugin::types::DomainInfo {
                         ns: d.ns, icon: d.icon,
+                    }).collect(),
+                    predicates: m.predicates.into_iter().map(|p| scry::plugin::types::PredicateDefinition {
+                        id: p.id, label: p.label, inverse_label: p.inverse_label,
                     }).collect(),
                     provided_traits: m.provided_traits.into_iter().map(|t| scry::plugin::types::TraitCapability {
                         entity_namespace: t.entity_namespace, entity_type: t.entity_type, trait_id: t.trait_id

@@ -653,11 +653,26 @@ pub async fn get_entity_traits(
         .bind(&namespace).bind(&typ).bind(&id)
         .fetch_all(db).await?;
 
+    let manifests = state.event_service.plugin_manager().get_plugin_manifests().await;
+
     let relationships: Vec<serde_json::Value> = rel_rows.into_iter().map(|(sn, st, si, p, tn, tt, ti)| {
+        let direction = if sn == namespace && st == typ && si == id { "outgoing" } else { "incoming" };
+        
+        // Find a human-friendly label from manifest predicates
+        let mut display_label = p.split('/').last().unwrap_or(&p).replace('_', " ");
+        for m in manifests.values() {
+            if let Some(pred) = m.predicates.iter().find(|pr| pr.id == p || format!("{}/{}", sn, pr.id) == p || format!("{}/{}", tn, pr.id) == p) {
+                display_label = if direction == "outgoing" { pred.label.clone() } else { pred.inverse_label.clone() };
+                break;
+            }
+        }
+
         serde_json::json!({
             "source": { "ns": sn, "typ": st, "id": si },
             "predicate": p,
-            "target": { "ns": tn, "typ": tt, "id": ti }
+            "display_label": display_label,
+            "target": { "ns": tn, "typ": tt, "id": ti },
+            "direction": direction
         })
     }).collect();
 

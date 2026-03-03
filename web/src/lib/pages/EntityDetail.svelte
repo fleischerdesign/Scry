@@ -32,9 +32,9 @@
     const groupedRelationships = $derived.by(() => {
         const groups: Record<string, any[]> = {};
         relationships.forEach(rel => {
-            const p = rel.predicate.split('/').pop() || rel.predicate;
-            if (!groups[p]) groups[p] = [];
-            groups[p].push(rel);
+            const label = rel.display_label || rel.predicate.split('/').pop() || rel.predicate;
+            if (!groups[label]) groups[label] = [];
+            groups[label].push(rel);
         });
         return groups;
     });

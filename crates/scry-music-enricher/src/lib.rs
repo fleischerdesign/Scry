@@ -14,6 +14,7 @@ impl ScryPlugin for MusicEnricher {
             capabilities: vec!["network".to_string(), "state".to_string()],
             exports: vec![],
             domain_info: vec![],
+            predicates: vec![],
             provided_traits: vec![
                 scry_plugin_sdk::TraitCapability {
                     entity_namespace: "scry.music".to_string(),

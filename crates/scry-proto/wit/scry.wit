@@ -46,6 +46,12 @@ interface types {
         icon: option<string>,
     }
 
+    record predicate-definition {
+        id: string,
+        label: string,
+        inverse-label: string,
+    }
+
     record trait-capability {
         entity-namespace: string,
         entity-type: string,
@@ -76,6 +82,7 @@ interface types {
         capabilities: list<string>,
         exports: list<data-field>,
         domain-info: list<domain-info>,
+        predicates: list<predicate-definition>,
         provided-traits: list<trait-capability>,
         poll-interval: option<u32>,
         config-schema: option<string>,

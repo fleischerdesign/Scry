@@ -21,6 +21,18 @@ impl ScryPlugin for MusicPlugin {
             domain_info: vec![
                 scry_plugin_sdk::DomainInfo { ns: "scry.music".to_string(), icon: Some("lucide:music".to_string()) }
             ],
+            predicates: vec![
+                scry_plugin_sdk::PredicateDefinition { 
+                    id: "scry.music/by_artist".to_string(), 
+                    label: "By Artist".to_string(), 
+                    inverse_label: "Discography / Works".to_string() 
+                },
+                scry_plugin_sdk::PredicateDefinition { 
+                    id: "scry.music/belongs_to_album".to_string(), 
+                    label: "Part of Album".to_string(), 
+                    inverse_label: "Contains Tracks".to_string() 
+                }
+            ],
             provided_traits: vec![],
             poll_interval: Some(10),
             config_schema: None,
