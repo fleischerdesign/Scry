@@ -21,4 +21,32 @@ impl<'a> EntityRepository<'a> {
             .await?;
         Ok(())
     }
+
+    pub async fn set_trait(&self, namespace: &str, entity_type: &str, entity_id: &str, plugin_id: &str, trait_id: &str, value_json: &str) -> Result<()> {
+        sqlx::query("INSERT INTO entity_traits (user_id, namespace, entity_type, entity_id, plugin_id, trait_id, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, namespace, entity_type, entity_id, plugin_id, trait_id) DO UPDATE SET value_json = EXCLUDED.value_json")
+            .bind(self.user_id)
+            .bind(namespace)
+            .bind(entity_type)
+            .bind(entity_id)
+            .bind(plugin_id)
+            .bind(trait_id)
+            .bind(value_json)
+            .execute(self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_trait_if_not_exists(&self, namespace: &str, entity_type: &str, entity_id: &str, plugin_id: &str, trait_id: &str, value_json: &str) -> Result<()> {
+        sqlx::query("INSERT INTO entity_traits (user_id, namespace, entity_type, entity_id, plugin_id, trait_id, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING")
+            .bind(self.user_id)
+            .bind(namespace)
+            .bind(entity_type)
+            .bind(entity_id)
+            .bind(plugin_id)
+            .bind(trait_id)
+            .bind(value_json)
+            .execute(self.pool)
+            .await?;
+        Ok(())
+    }
 }
