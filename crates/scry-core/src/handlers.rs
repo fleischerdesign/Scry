@@ -501,6 +501,68 @@ pub async fn ingest_event(State(state): State<Arc<AppState>>, Extension(auth): E
     Ok(Json(event))
 }
 
+#[utoipa::path(get, path = "/api/v1/discovery/entities", responses((status = 200, body = [String])), security(("api_key" = [])))]
+pub async fn get_namespaces(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>
+) -> Result<Json<Vec<String>>> {
+    let db = state.event_service.db();
+    let namespaces = sqlx::query_scalar::<_, String>("SELECT DISTINCT namespace FROM entities WHERE user_id = ?")
+        .bind(auth.user_id).fetch_all(db).await?;
+    Ok(Json(namespaces))
+}
+
+#[utoipa::path(get, path = "/api/v1/discovery/entities/{namespace}", responses((status = 200, body = [String])), security(("api_key" = [])))]
+pub async fn get_namespace_types(
+    State(state): State<Arc<AppState>>,
+    Path(namespace): Path<String>,
+    Extension(auth): Extension<AuthContext>
+) -> Result<Json<Vec<String>>> {
+    let db = state.event_service.db();
+    let types = sqlx::query_scalar::<_, String>("SELECT DISTINCT typ FROM entities WHERE user_id = ? AND namespace = ?")
+        .bind(auth.user_id).bind(&namespace).fetch_all(db).await?;
+    Ok(Json(types))
+}
+
+#[utoipa::path(get, path = "/api/v1/discovery/entities/{namespace}/{typ}", responses((status = 200, body = [ApiEntity])), security(("api_key" = [])))]
+pub async fn get_entities(
+    State(state): State<Arc<AppState>>,
+    Path((namespace, typ)): Path<(String, String)>,
+    Extension(auth): Extension<AuthContext>
+) -> Result<Json<Vec<crate::models::ApiEntity>>> {
+    let db = state.event_service.db();
+    
+    // Wir holen alle Entitäten des Typs und versuchen einen Titel aus den Traits zu finden
+    let rows = sqlx::query_as::<_, (String, Option<String>)>("
+        SELECT e.id, (
+            SELECT value_json FROM entity_traits t 
+            WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
+            AND (t.trait_id LIKE '%name' OR t.trait_id LIKE '%title')
+            LIMIT 1
+        ) as title
+        FROM entities e
+        WHERE e.user_id = ? AND e.namespace = ? AND e.typ = ?
+    ")
+    .bind(auth.user_id).bind(&namespace).bind(&typ).fetch_all(db).await?;
+
+    let entities = rows.into_iter().map(|(id, title_json)| {
+        let title = title_json.and_then(|json| {
+            serde_json::from_str::<serde_json::Value>(&json).ok()
+                .and_then(|v| v.as_str().map(|s| s.to_string()))
+        }).unwrap_or_else(|| id.clone());
+
+        crate::models::ApiEntity {
+            namespace: namespace.clone(),
+            typ: typ.clone(),
+            id: id.clone(),
+            title,
+            link: format!("/entity/{}/{}/{}", namespace, typ, id),
+        }
+    }).collect();
+
+    Ok(Json(entities))
+}
+
 #[utoipa::path(get, path = "/api/v1/discovery/entities/{namespace}/{typ}/{id}/traits", responses((status = 200, body = serde_json::Value)), security(("api_key" = [])))]
 pub async fn get_entity_traits(
     State(state): State<Arc<AppState>>,

@@ -26,6 +26,15 @@ class ScryAPI {
 	// Discovery
 	getCatalog(): Promise<any> { return this.request("/discovery/catalog"); }
 	search(q: string): Promise<any[]> { return this.request(`/discovery/search?q=${encodeURIComponent(q)}`); }
+	getNamespaces(): Promise<string[]> {
+		return this.request("/discovery/entities");
+	}
+	getNamespaceTypes(namespace: string): Promise<string[]> {
+		return this.request(`/discovery/entities/${namespace}`);
+	}
+	getEntities(namespace: string, type: string): Promise<any[]> {
+		return this.request(`/discovery/entities/${namespace}/${type}`);
+	}
 	getEntityTraits(namespace: string, type: string, id: string): Promise<Record<string, any>> {
 		return this.request(`/discovery/entities/${namespace}/${type}/${encodeURIComponent(id)}/traits`);
 	}

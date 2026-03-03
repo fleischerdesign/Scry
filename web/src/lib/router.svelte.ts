@@ -15,12 +15,15 @@ const ROUTES: RouteConfig[] = [
 	{ path: "/settings/dashboards", label: "Dashboards" },
 	{ path: "/dashboard/:slug", label: "Dashboard" },
 	{ path: "/event/:id", label: "Event" },
-	{ path: "/entity/:ns/:type/:id", label: "Entity" },
+	{ path: "/entity", label: "Discovery" },
+	{ path: "/entity/:ns" },
+	{ path: "/entity/:ns/:type" },
+	{ path: "/entity/:ns/:type/:id" },
 ];
 
 class Router {
 	path = $state(window.location.pathname || "/overview");
-	
+
 	// Registry für dynamische Titel (z.B. { "/event/123": "Meeting mit Max" })
 	#dynamicTitles = $state<Record<string, string>>({});
 
@@ -62,20 +65,24 @@ class Router {
 	get breadcrumbs() {
 		const parts = this.path.split('/').filter(Boolean);
 		let currentPath = "";
-		
+
 		return parts.map((part, index) => {
 			currentPath += `/${part}`;
-			const isLast = index === parts.length - 1;
 			
+			// Skip 'entity' root segment for breadcrumbs
+			if (part === "entity") return null;
+
+			const isLast = index === parts.length - 1;
+
 			// Für das letzte Element schauen wir auch in die dynamischen Titel
 			const dynamic = isLast ? this.#dynamicTitles[this.path] : null;
 			const config = ROUTES.find(r => this.match(r.path, currentPath));
-			
+
 			return {
 				label: dynamic || config?.label || this.#prettyName(part),
 				path: currentPath
 			};
-		});
+		}).filter(Boolean) as {label: string, path: string}[];
 	}
 
 	#prettyName(str: string) {

@@ -22,6 +22,9 @@
 	import PluginSettings from "./lib/pages/settings/PluginSettings.svelte";
 	import EnricherSettings from "./lib/pages/settings/EnricherSettings.svelte";
 	import DashboardSettings from "./lib/pages/settings/DashboardSettings.svelte";
+	import ExplorerRoot from "./lib/pages/ExplorerRoot.svelte";
+	import NamespaceOverview from "./lib/pages/NamespaceOverview.svelte";
+	import EntityList from "./lib/pages/EntityList.svelte";
 	import EventDetail from "./lib/pages/EventDetail.svelte";
 	import EntityDetail from "./lib/pages/EntityDetail.svelte";
 	import Auth from "./lib/components/Auth.svelte";
@@ -89,15 +92,23 @@
 						></label
 					>
 					<div class="hidden lg:flex px-4">
-						<div class="text-[10px] breadcrumbs font-black tracking-[0.2em] opacity-40 uppercase">
+						<div
+							class="text-[10px] breadcrumbs font-black tracking-[0.2em] opacity-40 uppercase"
+						>
 							<ul>
 								{#each router.breadcrumbs as crumb, i}
 									{#if router.breadcrumbs.length <= 3 || i === 0 || i >= router.breadcrumbs.length - 2}
 										<li>
 											{#if i === router.breadcrumbs.length - 1}
-												<span class="text-primary opacity-100">{crumb.label.toUpperCase()}</span>
+												<span class="text-primary opacity-100"
+													>{crumb.label.toUpperCase()}</span
+												>
 											{:else}
-												<button class="hover:text-base-content transition-colors" onclick={() => router.navigate(crumb.path)}>{crumb.label.toUpperCase()}</button>
+												<button
+													class="hover:text-base-content transition-colors"
+													onclick={() => router.navigate(crumb.path)}
+													>{crumb.label.toUpperCase()}</button
+												>
 											{/if}
 										</li>
 									{:else if i === 1}
@@ -187,6 +198,12 @@
 					{/if}
 				{:else if router.match("/event/:id")}
 					<EventDetail />
+				{:else if router.path === "/entity"}
+					<ExplorerRoot />
+				{:else if router.match("/entity/:ns")}
+					<NamespaceOverview />
+				{:else if router.match("/entity/:ns/:type")}
+					<EntityList onRefresh={loadAll} />
 				{:else if router.match("/entity/:ns/:type/:id")}
 					<EntityDetail />
 				{/if}

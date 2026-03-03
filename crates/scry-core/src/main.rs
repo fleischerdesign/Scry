@@ -49,13 +49,16 @@ use tokio_util::sync::CancellationToken;
         handlers::get_dashboards, handlers::add_widget,
         handlers::create_dashboard, handlers::delete_widget,
         handlers::ingest_event,
+        handlers::get_namespaces,
+        handlers::get_namespace_types,
+        handlers::get_entities,
         handlers::get_entity_traits,
         handlers::get_event_by_id,
         handlers::get_events_by_entity,
         handlers::run_plugin_report,
         handlers::health_check
     ),
-    components(schemas(Event, User, RegisterRequest, LoginRequest, AuthResponse, ApiReportMetadata, ApiReportData, PluginReports, CorrelationResult, SemanticStats, PluginStatus, SemanticParams, Dashboard, DashboardWidget)),
+    components(schemas(Event, User, RegisterRequest, LoginRequest, AuthResponse, ApiReportMetadata, ApiReportData, PluginReports, CorrelationResult, SemanticStats, PluginStatus, SemanticParams, Dashboard, DashboardWidget, ApiEntity)),
     modifiers(&SecurityAddon),
     tags((name = "scry", description = "Scry Multi-Tenant Platform API"))
 )]
@@ -189,6 +192,9 @@ async fn main() -> anyhow::Result<()> {
             .nest("/discovery", Router::new()
                 .route("/catalog", get(get_catalog))
                 .route("/search", get(search_events))
+                .route("/entities", get(get_namespaces))
+                .route("/entities/:namespace", get(get_namespace_types))
+                .route("/entities/:namespace/:typ", get(get_entities))
                 .route("/entities/:namespace/:typ/:id/traits", get(get_entity_traits)))
             .nest("/data", Router::new()
                 .route("/id/:id", get(get_event_by_id))
