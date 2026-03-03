@@ -200,6 +200,7 @@ impl ScryPlugin for MusicPlugin {
                 display_subtitle: Some("Album: Scheduler Edition".to_string()),
                 display_image: None,
                 display_value: None,
+                confidence: Some(1.0),
             }
         ]
     }

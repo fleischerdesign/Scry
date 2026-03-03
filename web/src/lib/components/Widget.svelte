@@ -14,52 +14,53 @@
         let chart: Chart | undefined;
         let loading = $state(true);
         let data = $state<any[]>([]);
-        let latestValue = $state<any>(null);
-        let displayValue = $state<string>('---');
-        let pluginsStatus = $state<any[]>([]);
+            let latestValue = $state<any>(null);
+            let latestConfidence = $state<number | null>(null);
+            let displayValue = $state<string>('---');
+            let pluginsStatus = $state<any[]>([]);
+                
+                async function loadWidgetData() {
+                    loading = true;
+                    try {
+                        const { semantic_type, category, path, days = 7 } = parsedConfig;
             
-            async function loadWidgetData() {
-                loading = true;
-                try {
-                    const { semantic_type, category, path, days = 7 } = parsedConfig;
-        
-                    if (widget.type === 'Status') {
-                        pluginsStatus = await api.getPlugins();
-                    } else if (semantic_type === 'system.entities') {
-                        // Simulating growth (Future: Core API)
-                        data = Array.from({length: days}, (_, i) => ({
-                            label: new Date(Date.now() - (days - 1 - i) * 86400000).toLocaleDateString(),
-                            count: Math.floor(Math.random() * 50) + 10
-                        }));
-                    } else if (widget.type === 'Trend' || widget.type === 'semantic_series') {
-                        data = await api.getSemanticSeries(semantic_type, days);
-                    } else if (widget.type === 'TopList' || widget.type === 'semantic_top') {
-                        data = await api.getSemanticTop(semantic_type, 10, days);
-                    } else if (widget.type === 'Metric' || widget.type === 'stat') {
-                        const queryPath = semantic_type || category;
-                        if (!queryPath) return;
-                        
-                        const latest = await api.getData(queryPath, 1);
-                        if (latest && latest.length > 0) {
-                            const event = latest[0];
-                            latestValue = event.display_value;
+                        if (widget.type === 'Status') {
+                            pluginsStatus = await api.getPlugins();
+                        } else if (semantic_type === 'system.entities') {
+                            // Simulating growth (Future: Core API)
+                            data = Array.from({length: days}, (_, i) => ({
+                                label: new Date(Date.now() - (days - 1 - i) * 86400000).toLocaleDateString(),
+                                count: Math.floor(Math.random() * 50) + 10
+                            }));
+                        } else if (widget.type === 'Trend' || widget.type === 'semantic_series') {
+                            data = await api.getSemanticSeries(semantic_type, days);
+                        } else if (widget.type === 'TopList' || widget.type === 'semantic_top') {
+                            data = await api.getSemanticTop(semantic_type, 10, days);
+                        } else if (widget.type === 'Metric' || widget.type === 'stat') {
+                            const queryPath = semantic_type || category;
+                            if (!queryPath) return;
                             
-                            // Semantic Formatting
-                            displayValue = semanticService.formatValue(latestValue, {
-                                semantic_type: semantic_type,
-                                unit: parsedConfig.unit,
-                                privacy: parsedConfig.privacy
-                            });
+                            const latest = await api.getData(queryPath, 1);
+                            if (latest && latest.length > 0) {
+                                const event = latest[0];
+                                latestValue = event.display_value;
+                                latestConfidence = event.confidence;
+                                
+                                // Semantic Formatting
+                                displayValue = semanticService.formatValue(latestValue, {
+                                    semantic_type: semantic_type,
+                                    unit: parsedConfig.unit,
+                                    privacy: parsedConfig.privacy
+                                });
+                            }
                         }
+                    } catch (e) {
+                        console.error("Widget Data Load Error", e);
+                    } finally {
+                        loading = false;
                     }
-                } catch (e) {
-                    console.error("Widget Data Load Error", e);
-                } finally {
-                    loading = false;
                 }
-            }
-    
-
+        
     function renderChart(node: HTMLCanvasElement, plotData: any[]) {
         if (plotData.length === 0) return;
         if (chart) chart.destroy();
@@ -106,7 +107,7 @@
                 </div>
             {:else if widget.type === 'Metric' || widget.type === 'stat'}
                 <div class="flex flex-col items-center">
-                    <span class="text-5xl font-black tracking-tighter text-primary">
+                    <span class="text-5xl font-black tracking-tighter text-primary {latestConfidence !== null && latestConfidence < 0.9 ? 'opacity-40 italic' : ''}">
                         {displayValue}
                     </span>
                 </div>

@@ -176,6 +176,7 @@ impl PluginManager {
                         display_subtitle: event.display_subtitle.clone(),
                         display_image: event.display_image.clone(),
                         display_value: event.display_value,
+                        confidence: event.confidence,
                     };
                     let processed = instance.call_on_ingest(&mut store, &ev).await?.map_err(|e| anyhow::anyhow!(e))?;
                     
@@ -195,6 +196,7 @@ impl PluginManager {
                         display_subtitle: processed.display_subtitle,
                         display_image: processed.display_image,
                         display_value: processed.display_value,
+                        confidence: processed.confidence,
                     };
                     Ok((mapped, store))
                 }).await?;
@@ -227,10 +229,12 @@ impl PluginManager {
                                                     context: ev.context,
                                                     context_info: ev.context_info.as_ref().and_then(|c| serde_json::from_str(c).ok()),
                                                     display_title: ev.display_title,
-                                                    display_subtitle: ev.display_subtitle,
-                                                    display_image: ev.display_image,
-                                                    display_value: ev.display_value,
-                                                })            }).collect::<Result<Vec<_>>>()?;
+                                                                            display_subtitle: ev.display_subtitle,
+                                                                            display_image: ev.display_image,
+                                                                            display_value: ev.display_value,
+                                                                            confidence: ev.confidence,
+                                                                        })
+                                                                }).collect::<Result<Vec<_>>>()?;
             Ok((mapped, store))
         }).await
     }

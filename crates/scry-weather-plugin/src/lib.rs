@@ -111,6 +111,7 @@ impl ScryPlugin for WeatherPlugin {
                     display_value: None,
                     display_title: Some(format!("Temperature: {}°C", temp)),
                     display_subtitle: Some(format!("Weather in {}", city)),
+                    confidence: Some(1.0),
                 }]
             },
             Err(e) => {

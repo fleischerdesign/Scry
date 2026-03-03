@@ -34,6 +34,7 @@ pub struct Event {
     pub display_subtitle: Option<String>,
     pub display_image: Option<String>,
     pub display_value: Option<f64>,
+    pub confidence: Option<f64>,
 }
 
 impl Event {
@@ -52,6 +53,7 @@ impl Event {
             display_subtitle: None,
             display_image: None,
             display_value: None,
+            confidence: None,
         }
     }
 }

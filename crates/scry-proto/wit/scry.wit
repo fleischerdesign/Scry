@@ -32,6 +32,7 @@ interface types {
         display-subtitle: option<string>,
         display-image: option<string>,
         display-value: option<f64>,
+        confidence: option<f64>,
     }
 
     record data-field {

@@ -10,7 +10,7 @@ impl ScryPlugin for MusicEnricher {
             name: "Music Visual Enricher".to_string(),
             version: "0.1.0".to_string(),
             description: "Anreichern von Künstlern mit Bildern und Metadaten.".to_string(),
-            subscriptions: vec![], // Keine Events, wir reagieren nur auf Entitäten
+            subscriptions: vec!["music.scrobble".to_string()],
             capabilities: vec!["network".to_string(), "state".to_string()],
             exports: vec![],
             domain_info: vec![],
@@ -26,6 +26,16 @@ impl ScryPlugin for MusicEnricher {
             config_schema: None,
             suggested_widgets: vec![],
         }
+    }
+
+    async fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
+        if ev.category == "music.scrobble" {
+            // Demo for dynamic confidence:
+            // If we have an artist but maybe the track is unknown, we are less confident.
+            let has_track = ev.payload.get("track").is_some();
+            ev.confidence = Some(if has_track { 1.0 } else { 0.6 });
+        }
+        Ok(ev)
     }
 
     async fn resolve_trait(&self, namespace: &str, typ: &str, id: &str, trait_id: &str) -> Result<Option<String>, String> {
