@@ -61,6 +61,38 @@ pub async fn search_events(State(state): State<Arc<AppState>>, Query(params): Qu
     let q = params.q.trim();
     if q.is_empty() { return Ok(Json(serde_json::Value::Array(vec![]))); }
 
-    let results = state.analytics_service.search(auth.user_id, q, params.limit.unwrap_or(20)).await?;
-    Ok(Json(serde_json::Value::Array(results)))
+    let raw_results = state.analytics_service.search(auth.user_id, q, params.limit.unwrap_or(20)).await?;
+    let mut enriched_results = Vec::new();
+
+    for res in raw_results {
+        let id = res["id"].as_str().unwrap_or_default();
+        let typ = res["type"].as_str().unwrap_or_default();
+        
+        let mut enriched = res.clone();
+        
+        if typ == "event" {
+            if let Ok(Some(ev)) = state.event_service.get_event_by_id(auth.user_id, id).await {
+                enriched["display_title"] = json!(ev.display_title.unwrap_or_else(|| ev.category.clone()));
+                enriched["display_image"] = json!(ev.display_image);
+                enriched["display_subtitle"] = json!(ev.display_subtitle);
+            }
+        } else if typ == "entity" {
+            // Link format is typically /entity/ns/type/id
+            let link = res["link"].as_str().unwrap_or_default();
+            let parts: Vec<&str> = link.split('/').collect();
+            if parts.len() >= 5 {
+                let ns = parts[2];
+                let e_type = parts[3];
+                let e_id = parts[4];
+                if let Ok(details) = state.graph_service.get_entity_details(auth.user_id, ns, e_type, e_id).await {
+                    enriched["display_title"] = details["display_title"].clone();
+                    enriched["display_image"] = details["display_image"].clone();
+                }
+            }
+        }
+        
+        enriched_results.push(enriched);
+    }
+
+    Ok(Json(serde_json::Value::Array(enriched_results)))
 }

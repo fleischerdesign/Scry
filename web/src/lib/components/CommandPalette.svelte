@@ -30,8 +30,9 @@
         const searchResults = results.map(r => {
             return {
                 id: r.id,
-                label: r.label || r.content, // Das Backend liefert hier jetzt den schönen display_title
-                sublabel: r.title,
+                label: r.display_title || r.id,
+                sublabel: r.display_subtitle || r.subtext || r.id,
+                image: r.display_image,
                 category: r.type.toUpperCase(),
                 execute: () => router.navigate(r.link)
             };
@@ -116,14 +117,27 @@
                 onclick={() => { item.execute(); isOpen = false; query = ""; }}
                 onmouseenter={() => selectedIndex = i}
                 >
-                <div class="flex flex-col items-start overflow-hidden flex-1">
-                    <div class="flex items-center gap-2">
-                        <span class="text-[9px] px-1.5 py-0.5 rounded-md bg-base-300 font-black uppercase tracking-widest text-base-content/50">{item.category}</span>
-                        {#if (item as any).sublabel}
-                            <span class="text-[10px] opacity-40 font-mono italic">{(item as any).sublabel}</span>
-                        {/if}
+                <div class="flex items-center gap-4 overflow-hidden flex-1">
+                    {#if (item as any).image}
+                        <div class="avatar">
+                            <div class="w-8 h-8 rounded-lg shadow">
+                                <img src={(item as any).image} alt="" />
+                            </div>
+                        </div>
+                    {:else}
+                        <div class="w-8 h-8 rounded-lg bg-base-300 flex items-center justify-center text-[10px] font-bold opacity-40">
+                            {item.label.charAt(0).toUpperCase()}
+                        </div>
+                    {/if}
+                    <div class="flex flex-col items-start overflow-hidden flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[9px] px-1.5 py-0.5 rounded-md bg-base-300 font-black uppercase tracking-widest text-base-content/50">{item.category}</span>
+                            {#if (item as any).sublabel}
+                                <span class="text-[10px] opacity-40 font-mono italic">{(item as any).sublabel}</span>
+                            {/if}
+                        </div>
+                        <span class="font-bold tracking-tight mt-1 truncate w-full text-left">{item.label}</span>
                     </div>
-                    <span class="font-bold tracking-tight mt-1 truncate w-full text-left">{item.label}</span>
                 </div>
                 {#if selectedIndex === i}
                     <div class="flex items-center gap-2 opacity-40 shrink-0 ml-4">

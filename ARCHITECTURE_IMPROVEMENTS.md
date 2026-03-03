@@ -24,7 +24,7 @@ Aufspaltung der `handlers.rs` in ein Modul-System unter `src/handlers/`.
 ---
 
 ## 4. Fullstack: Shared Types
-**Status: ⏳ Teilweise** (TS-Typen vorhanden, aber `ts-rs` Integration noch nicht vollständig automatisiert).
+**Status: ✅ Teilweise** (TS-Typen über `ts-rs` generiert, manuelle Synchronisierung bei Modell-Änderungen).
 
 ---
 
@@ -40,9 +40,9 @@ Aktivierung des `ResourceLimiter` für RAM-Begrenzung (256MB) und CPU-Fuel-Limit
 
 ---
 
-## 7. Observability: Tracing & Monitoring
-**Status: ⏳ Offen**
-Nutzung von `#[tracing::instrument]` in allen Service- und Plugin-Methoden für detaillierte Logs.
+## 7. Knowledge Graph: Standardized Semantic Layer
+**Status: ✅ Umgesetzt**
+Zentralisierung von Anzeigelogik via `display_title` und `display_image` Feldern. Automatisches Backend-Enrichment zur Lösung des N+1 Query Problems. Definition eines semantischen Vokabulars im SDK-Schema.
 
 ---
 
@@ -71,8 +71,8 @@ Integration einer manuellen Middleware (governor + dashmap) zur Begrenzung von A
 ---
 
 ## 12. Security: Secure Session Management
-**Status: ⏳ Offen**
-Umstellung auf kurzlebige JWTs und `httpOnly` Cookies für das Frontend (XSS-Schutz).
+**Status: ✅ Umgesetzt**
+Einführung von JWT-basierten Sessions mit Bearer-Token Support. Trennung von transienten Web-Sessions und persistenten API-Keys.
 
 ---
 
