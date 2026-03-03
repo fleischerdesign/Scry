@@ -5,9 +5,12 @@ pub use chrono;
 pub use uuid;
 pub use wit_bindgen;
 
+pub mod schema;
+
 pub mod prelude {
     pub use crate::{ScryPlugin, ReportMetadata, ReportData, Visualization, Manifest, DataField, EntityRef, Relationship, WidgetTemplate, WidgetDefinition, scry_plugin};
     pub use crate::Event as SdkEvent;
+    pub use crate::schema;
     pub use serde_json::json;
 }
 

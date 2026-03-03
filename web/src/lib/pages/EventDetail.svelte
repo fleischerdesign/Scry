@@ -28,11 +28,12 @@
 </script>
 
 <div
-	class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-4xl"
+	class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-4xl pb-20"
 >
-	<div class="flex items-center gap-4 border-b border-base-300 pb-6">
+	<!-- Header consistent with EntityDetail -->
+	<div class="flex items-start gap-6 border-b border-base-300 pb-8">
 		<button
-			class="btn btn-ghost btn-sm btn-square"
+			class="btn btn-ghost btn-sm btn-square mt-2"
 			onclick={() => window.history.back()}
 		>
 			<svg
@@ -49,17 +50,29 @@
 				/></svg
 			>
 		</button>
-		<div>
-			<h2
-				class="text-3xl font-black font-mono tracking-tighter italic text-secondary uppercase"
-			>
-				EVENT_DETAIL
+
+		{#if !loading && event?.display_image}
+			<div class="avatar">
+				<div class="w-24 h-24 rounded-3xl shadow-2xl ring ring-primary/20 overflow-hidden bg-base-300">
+					<img src={event.display_image} alt={event.display_title || ''} class="object-cover w-full h-full" />
+				</div>
+			</div>
+		{:else if !loading}
+			<div class="w-24 h-24 rounded-3xl bg-base-300 flex items-center justify-center text-3xl font-black opacity-20 uppercase">
+				{(event?.display_title || "E").charAt(0)}
+			</div>
+		{/if}
+
+		<div class="flex-1">
+			<div class="badge badge-secondary badge-outline font-mono text-[9px] uppercase tracking-widest mb-2">Event / {event?.category.split('.').pop()}</div>
+			<h2 class="text-4xl font-black tracking-tighter italic uppercase text-base-content">
+				{event?.display_title || "EVENT_DETAIL"}
 			</h2>
-			<p
-				class="text-[10px] uppercase tracking-[0.4em] opacity-30 mt-1 font-black"
-			>
-				UUID: {id}
-			</p>
+			{#if event?.display_subtitle}
+				<p class="text-[10px] font-mono opacity-40 uppercase tracking-widest mt-2">
+					{event.display_subtitle}
+				</p>
+			{/if}
 		</div>
 	</div>
 
@@ -98,8 +111,16 @@
 
 			<!-- Sidebar Info -->
 			<div class="space-y-6">
-				<Card title="Context" subtitle="TEMPORAL">
+				<Card title="Context" subtitle="TECHNICAL">
 					<div class="space-y-4">
+						<div>
+							<p class="text-[9px] font-black uppercase opacity-30 mb-1">
+								Event UUID
+							</p>
+							<p class="font-mono text-[10px] opacity-60 truncate">
+								{id}
+							</p>
+						</div>
 						<div>
 							<p class="text-[9px] font-black uppercase opacity-30 mb-1">
 								Timestamp

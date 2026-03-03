@@ -10,17 +10,27 @@
     let traits = $state<Record<string, any>>({});
     let relationships = $state<any[]>([]);
     let events = $state<any[]>([]);
+    let displayTitle = $state("");
+    let displayImage = $state<string | null>(null);
     let loading = $state(true);
 
     async function loadData() {
         loading = true;
         try {
-            const [entityData, fetchedEvents] = await Promise.all([
-                api.getEntityTraits(ns, type, id),
-                api.getEntityEvents(ns, type, id)
+            // 1. Fetch all entities of this type to find the specific one with its display fields
+            // (Standardizing entity details to return display fields directly would be the next Backend step)
+            const [allEntities, fetchedEvents, details] = await Promise.all([
+                api.getEntities(ns, type),
+                api.getEntityEvents(ns, type, id),
+                api.getEntityTraits(ns, type, id)
             ]);
-            traits = entityData.traits || {};
-            relationships = entityData.relationships || [];
+            
+            const entity = allEntities.find(e => e.id === id);
+            displayTitle = entity?.display_title || id;
+            displayImage = entity?.display_image || null;
+            
+            traits = details.traits || {};
+            relationships = details.relationships || [];
             events = fetchedEvents;
         } catch (e) {
             console.error("Failed to load entity details", e);
@@ -41,11 +51,8 @@
 
     onMount(loadData);
 
-    const photoUrl = $derived(traits["scry.core/avatar"] || traits["scry.visual/photo"] || traits["scry.identity/avatar"]);
-    const displayName = $derived((traits["scry.core/name"] || traits["scry.identity/name"] || id).toUpperCase());
-
     $effect(() => {
-        router.title = displayName;
+        router.title = displayTitle.toUpperCase();
     });
 </script>
 
@@ -56,21 +63,21 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
         </button>
 
-        {#if photoUrl}
+        {#if displayImage}
             <div class="avatar">
                 <div class="w-24 h-24 rounded-3xl shadow-2xl ring ring-primary/20 overflow-hidden bg-base-300">
-                    <img src={photoUrl} alt={displayName} class="object-cover w-full h-full" />
+                    <img src={displayImage} alt={displayTitle} class="object-cover w-full h-full" />
                 </div>
             </div>
         {:else}
             <div class="w-24 h-24 rounded-3xl bg-base-300 flex items-center justify-center text-3xl font-black opacity-20">
-                {displayName.charAt(0).toUpperCase()}
+                {displayTitle.charAt(0).toUpperCase()}
             </div>
         {/if}
 
         <div class="flex-1">
             <div class="badge badge-primary badge-outline font-mono text-[9px] uppercase tracking-widest mb-2">{ns} / {type}</div>
-            <h2 class="text-4xl font-black tracking-tighter italic uppercase text-base-content">{displayName}</h2>
+            <h2 class="text-4xl font-black tracking-tighter italic uppercase text-base-content">{displayTitle}</h2>
             <div class="flex gap-4 mt-4 text-[10px] font-mono opacity-40 uppercase tracking-widest">
                 <span>{events.length} Events Logged</span>
                 <span>•</span>

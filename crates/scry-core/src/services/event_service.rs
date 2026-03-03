@@ -60,8 +60,8 @@ impl EventService {
                     for (_plugin_id, k, v) in traits {
                         let json_v = serde_json::from_str::<Value>(&v).unwrap_or(Value::String(v));
                         
-                        // Auto-populate display_image if not already set
-                        if event.display_image.is_none() && (k == "scry.visual/photo" || k == "scry.core/avatar") {
+                        // Auto-populate display_image if not already set, using standardized schema
+                        if event.display_image.is_none() && (k == scry_plugin_sdk::schema::traits::PHOTO || k == scry_plugin_sdk::schema::traits::AVATAR) {
                             event.display_image = json_v.as_str().map(|s| s.to_string());
                         }
                         
