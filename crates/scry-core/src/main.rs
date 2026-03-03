@@ -92,7 +92,8 @@ async fn main() -> anyhow::Result<()> {
         .filename(db_filename)
         .create_if_missing(true)
         .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
-        .synchronous(sqlx::sqlite::SqliteSynchronous::Normal);
+        .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
+        .busy_timeout(std::time::Duration::from_secs(5));
 
     let db = SqlitePool::connect_with(pool_options).await?;
     sqlx::migrate!("../../migrations").run(&db).await?;
