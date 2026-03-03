@@ -17,7 +17,7 @@ impl ScryPlugin for WeatherPlugin {
             name: "Weather Node".to_string(),
             version: "0.2.0".to_string(),
             description: "Abfrage von Wetterdaten basierend auf dem aktuellen Standort des Users.".to_string(),
-            subscriptions: vec![],
+            subscriptions: vec!["weather.*".to_string()],
             capabilities: vec!["network".to_string(), "state".to_string(), "config".to_string()],
             exports: vec![
                 scry_plugin_sdk::DataField {
