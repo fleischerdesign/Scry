@@ -14,54 +14,42 @@
     let loading = $state(true);
     let data = $state<any[]>([]);
     let latestValue = $state<any>(null);
-    let pluginsStatus = $state<any[]>([]);
-
-    function resolvePath(obj: any, path: string) {
-        // Try direct path first (e.g. "payload.temperature")
-        let val = path.split('.').reduce((acc, part) => acc && acc[part], obj);
+        let pluginsStatus = $state<any[]>([]);
         
-        // If not found, try prepending "payload." (e.g. "temperature" -> "payload.temperature")
-        if (val === undefined && !path.startsWith('payload.')) {
-            val = path.split('.').reduce((acc, part) => acc && acc[part], obj.payload);
-        }
-        
-        return val;
-    }
-
-    async function loadWidgetData() {
-        loading = true;
-        try {
-            const { semantic_type, category, path, days = 7 } = parsedConfig;
-
-            if (widget.type === 'Status') {
-                pluginsStatus = await api.getPlugins();
-            } else if (semantic_type === 'system.entities') {
-                // Hier simulieren wir aktuell den Wachstumsgraphen (Zukunft: Core API dafür bauen)
-                data = Array.from({length: days}, (_, i) => ({
-                    label: new Date(Date.now() - (days - 1 - i) * 86400000).toLocaleDateString(),
-                    count: Math.floor(Math.random() * 50) + 10
-                }));
-            } else if (widget.type === 'Trend' || widget.type === 'semantic_series') {
-                data = await api.getSemanticSeries(semantic_type, days);
-            } else if (widget.type === 'TopList' || widget.type === 'semantic_top') {
-                data = await api.getSemanticTop(semantic_type, 10, days);
-            } else if (widget.type === 'Metric' || widget.type === 'stat') {
-                const queryPath = semantic_type || category;
-                if (!queryPath) return;
-                
-                const latest = await api.getData(queryPath, 1);
-                if (latest && latest.length > 0) {
-                    // Use the pre-enriched display_value from the backend
-                    latestValue = latest[0].display_value;
+        async function loadWidgetData() {
+            loading = true;
+            try {
+                const { semantic_type, category, path, days = 7 } = parsedConfig;
+    
+                if (widget.type === 'Status') {
+                    pluginsStatus = await api.getPlugins();
+                } else if (semantic_type === 'system.entities') {
+                    // Hier simulieren wir aktuell den Wachstumsgraphen (Zukunft: Core API dafür bauen)
+                    data = Array.from({length: days}, (_, i) => ({
+                        label: new Date(Date.now() - (days - 1 - i) * 86400000).toLocaleDateString(),
+                        count: Math.floor(Math.random() * 50) + 10
+                    }));
+                } else if (widget.type === 'Trend' || widget.type === 'semantic_series') {
+                    data = await api.getSemanticSeries(semantic_type, days);
+                } else if (widget.type === 'TopList' || widget.type === 'semantic_top') {
+                    data = await api.getSemanticTop(semantic_type, 10, days);
+                } else if (widget.type === 'Metric' || widget.type === 'stat') {
+                    const queryPath = semantic_type || category;
+                    if (!queryPath) return;
                     
-                    // Fallback for legacy events or explicit overrides
-                    if (latestValue === undefined || latestValue === null) {
-                        latestValue = path ? resolvePath(latest[0], path) : null;
+                    const latest = await api.getData(queryPath, 1);
+                    if (latest && latest.length > 0) {
+                        // Use the pre-enriched display_value from the backend
+                        latestValue = latest[0].display_value;
+                        
+                        // Fallback: If no display_value is present, we show '---' instead of guessing
+                        if (latestValue === undefined || latestValue === null) {
+                            console.warn("Metric widget: Backend provided no display_value for", queryPath);
+                            latestValue = null;
+                        }
                     }
                 }
-            }
-        } catch (e) {
-            console.error("Widget Data Load Error", e);
+            } catch (e) {            console.error("Widget Data Load Error", e);
         } finally {
             loading = false;
         }

@@ -68,22 +68,29 @@ impl<'a> EntityRepository<'a> {
     }
 
     pub async fn get_entities_by_type(&self, namespace: &str, typ: &str) -> Result<Vec<(String, Option<String>, Option<String>)>> {
+        let name_trait = scry_plugin_sdk::schema::traits::NAME;
+        let photo_trait = scry_plugin_sdk::schema::traits::PHOTO;
+        let avatar_trait = scry_plugin_sdk::schema::traits::AVATAR;
+
         let rows = sqlx::query_as::<_, (String, Option<String>, Option<String>)>("
             SELECT e.id, (
                 SELECT value_json FROM entity_traits t 
                 WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
-                AND (t.trait_id LIKE '%name' OR t.trait_id LIKE '%title' OR t.trait_id LIKE '%label')
+                AND t.trait_id = ?
                 LIMIT 1
             ) as display_title,
             (
                 SELECT value_json FROM entity_traits t 
                 WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
-                AND (t.trait_id LIKE '%photo' OR t.trait_id LIKE '%avatar' OR t.trait_id LIKE '%image')
+                AND (t.trait_id = ? OR t.trait_id = ?)
                 LIMIT 1
             ) as display_image
             FROM entities e
             WHERE e.user_id = ? AND e.namespace = ? AND e.typ = ?
         ")
+        .bind(name_trait)
+        .bind(photo_trait)
+        .bind(avatar_trait)
         .bind(self.user_id)
         .bind(namespace)
         .bind(typ)
