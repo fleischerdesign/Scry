@@ -11,6 +11,7 @@ pub struct DbEvent {
     pub payload: String,
     pub metadata: Option<String>,
     pub entities: Option<String>,
+    pub context: Option<String>,
     pub display_title: Option<String>,
     pub display_subtitle: Option<String>,
 }
@@ -27,7 +28,7 @@ impl TryFrom<DbEvent> for Event {
             payload: serde_json::from_str(&db_ev.payload)?,
             metadata: db_ev.metadata.and_then(|m| serde_json::from_str(&m).ok()),
             entities: db_ev.entities.and_then(|e| serde_json::from_str(&e).ok()).unwrap_or_default(),
-            context: vec![], // Resolved during ingestion, not stored in DB
+            context: db_ev.context.and_then(|c| serde_json::from_str(&c).ok()).unwrap_or_default(),
             context_info: None, // Will be populated by EventService::enrich_event_context
             display_title: db_ev.display_title,
             display_subtitle: db_ev.display_subtitle,
@@ -47,10 +48,10 @@ impl<'a> EventRepository<'a> {
 
     pub async fn list(&self, category: Option<String>, limit: u32, offset: u32) -> Result<Vec<Event>> {
         let db_events = if let Some(cat) = category {
-            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle FROM events WHERE user_id = ? AND category = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
+            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle FROM events WHERE user_id = ? AND category = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
                 .bind(self.user_id).bind(cat).bind(limit).bind(offset)
         } else {
-            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle FROM events WHERE user_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
+            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle FROM events WHERE user_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
                 .bind(self.user_id).bind(limit).bind(offset)
         }.fetch_all(self.pool).await?;
 
@@ -58,7 +59,7 @@ impl<'a> EventRepository<'a> {
     }
 
     pub async fn get_by_id(&self, id: &str) -> Result<Option<Event>> {
-        let db_event = sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle FROM events WHERE user_id = ? AND id = ?")
+        let db_event = sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle FROM events WHERE user_id = ? AND id = ?")
             .bind(self.user_id).bind(id).fetch_optional(self.pool).await?;
 
         Ok(db_event.and_then(|e| Event::try_from(e).ok()))
@@ -66,7 +67,7 @@ impl<'a> EventRepository<'a> {
 
     pub async fn get_by_entity(&self, namespace: &str, typ: &str, id: &str) -> Result<Vec<Event>> {
         let rows = sqlx::query_as::<_, DbEvent>(
-            "SELECT id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle FROM events 
+            "SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle FROM events 
              WHERE user_id = ? AND EXISTS (
                 SELECT 1 FROM json_each(entities) WHERE json_extract(value, '$.namespace') = ? AND json_extract(value, '$.typ') = ? AND json_extract(value, '$.id') = ?
              ) ORDER BY timestamp DESC LIMIT 100"
@@ -77,7 +78,7 @@ impl<'a> EventRepository<'a> {
     }
 
     pub async fn insert(&self, event: &Event) -> Result<()> {
-        sqlx::query("INSERT INTO events (id, user_id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        sqlx::query("INSERT INTO events (id, user_id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
             .bind(event.id.to_string())
             .bind(self.user_id)
             .bind(event.timestamp.to_rfc3339())
@@ -86,6 +87,7 @@ impl<'a> EventRepository<'a> {
             .bind(serde_json::to_string(&event.payload).map_err(|e| Error::BadRequest(e.to_string()))?)
             .bind(serde_json::to_string(event.metadata.as_ref().unwrap()).unwrap())
             .bind(serde_json::to_string(&event.entities).unwrap_or_else(|_| "[]".to_string()))
+            .bind(serde_json::to_string(&event.context).unwrap_or_else(|_| "[]".to_string()))
             .bind(&event.display_title)
             .bind(&event.display_subtitle)
             .execute(self.pool)

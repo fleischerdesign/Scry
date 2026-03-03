@@ -35,7 +35,7 @@
             } else if (widget.type === 'Metric' || widget.type === 'stat') {
                 const latest = await api.getData(category, 1);
                 if (latest && latest.length > 0) {
-                    latestValue = path ? latest[0].event[path] : latest[0].event;
+                    latestValue = path ? (latest[0] as any)[path] : latest[0];
                 }
             }
         } catch (e) {

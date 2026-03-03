@@ -4,7 +4,7 @@
 	import Card from "../../components/Card.svelte";
 	import { router } from "../../router.svelte";
 
-	let profile = $state<Record<string, string>>({});
+	let profile = $state<Record<string, any>>({});
 	let loading = $state(true);
 	let saving = $state(false);
 	let successMessage = $state("");

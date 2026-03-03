@@ -4,12 +4,12 @@
 	import Card from "../components/Card.svelte";
 	import { api } from "../api";
 	import { ui } from "../ui.svelte";
-	import { dashboards } from "../state/dashboards.svelte";
+	import { createDashboardsQuery } from "../queries/dashboards";
 	import { router } from "../router.svelte";
 
 	Chart.register(...registerables);
 
-	let { onRefresh } = $props();
+	const dashboardsQuery = createDashboardsQuery();
 
 	$effect(() => {
 		router.title = "Explorer";
@@ -38,8 +38,9 @@
 	}
 
 	$effect(() => {
-		if (dashboards.items.length > 0 && !selectedDashboardId) {
-			selectedDashboardId = dashboards.items[0].id;
+		const items = dashboardsQuery.data ?? [];
+		if (items.length > 0 && !selectedDashboardId) {
+			selectedDashboardId = items[0].id;
 		}
 	});
 
@@ -90,7 +91,7 @@
 				`Pinned ${selectedType} to dashboard`,
 				"success",
 			);
-			onRefresh();
+			dashboardsQuery.refetch();
 		} catch (e) {
 			ui.notify("Failed to pin", "Check logs for details", "error");
 		} finally {
@@ -208,7 +209,7 @@
 								bind:value={selectedDashboardId}
 								class="select select-bordered select-xs font-mono"
 							>
-								{#each dashboards as dash}
+								{#each dashboardsQuery.data ?? [] as dash}
 									<option value={dash.id}>{dash.name}</option>
 								{/each}
 							</select>

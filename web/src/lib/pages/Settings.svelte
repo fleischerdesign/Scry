@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { router } from "../router.svelte";
-	import { plugins } from "../state/plugins.svelte";
-	import { dashboards } from "../state/dashboards.svelte";
+	import { createPluginsQuery } from "../queries/plugins";
+	import { createDashboardsQuery } from "../queries/dashboards";
+
+	const pluginsQuery = createPluginsQuery();
+	const dashboardsQuery = createDashboardsQuery();
 
 	$effect(() => {
 		router.title = "Settings";
@@ -97,7 +100,7 @@
 				</p>
 			</div>
 			<div class="flex items-center gap-3">
-				<div class="badge badge-secondary badge-outline badge-sm opacity-40 font-mono text-[9px]">{plugins.items.length}</div>
+				<div class="badge badge-secondary badge-outline badge-sm opacity-40 font-mono text-[9px]">{pluginsQuery.data?.length ?? 0}</div>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="h-4 w-4 opacity-20"
@@ -145,7 +148,7 @@
 				</p>
 			</div>
 			<div class="flex items-center gap-3">
-				<div class="badge badge-warning badge-outline badge-sm opacity-40 font-mono text-[9px]">{dashboards.items.length}</div>
+				<div class="badge badge-warning badge-outline badge-sm opacity-40 font-mono text-[9px]">{dashboardsQuery.data?.length ?? 0}</div>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="h-4 w-4 opacity-20"

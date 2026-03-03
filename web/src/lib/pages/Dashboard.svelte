@@ -3,11 +3,9 @@
 	import { api } from "../api";
 	import { ui } from "../ui.svelte";
 	import { router } from "../router.svelte";
-	import { dashboards } from "../state/dashboards.svelte";
-	import { plugins } from "../state/plugins.svelte";
+	import { createDashboardsQuery } from "../queries/dashboards";
+	import { createPluginsQuery } from "../queries/plugins";
 	import type { ApiWidgetDefinition } from "../types/ApiWidgetDefinition";
-
-	let { onRefresh } = $props();
 
 	let isEditing = $state(false);
 	let isCreating = $state(false);
@@ -15,12 +13,20 @@
 	let newDashName = $state("");
 	let deletingId = $state<string | null>(null);
 
-	// Find active dashboard from URL via global state
-	const activeDashboard = $derived(dashboards.active);
+	const dashboardsQuery = createDashboardsQuery();
+	const pluginsQuery = createPluginsQuery();
 
-	// Collect all suggested widgets from global plugin state
+	// Find active dashboard from URL via query data
+	const activeDashboard = $derived.by(() => {
+		const slug = router.path.split('/').pop();
+		const items = dashboardsQuery.data ?? [];
+		return items.find(d => d.slug === slug) || items[0] || null;
+	});
+
+	// Collect all suggested widgets from query data
 	const widgetMarketplace = $derived.by(() => {
-		return plugins.items.flatMap((p) =>
+		const items = pluginsQuery.data ?? [];
+		return items.flatMap((p) =>
 			(p.suggested_widgets || []).map((w: ApiWidgetDefinition) => ({
 				...w,
 				pluginName: p.name,
@@ -40,7 +46,7 @@
 			ui.notify("Dashboard Created", newDashName, "success");
 			newDashName = "";
 			isCreating = false;
-			onRefresh();
+			dashboardsQuery.refetch();
 		} catch (e) {
 			console.error(e);
 		}
@@ -52,7 +58,7 @@
 		try {
 			await api.deleteWidget(activeDashboard.id, widgetId);
 			ui.notify("Widget Removed", "", "info");
-			onRefresh();
+			dashboardsQuery.refetch();
 		} catch (e) {
 			console.error(e);
 		} finally {
@@ -74,7 +80,7 @@
 			});
 			ui.notify("Widget Added", w.title, "success");
 			isAddingWidget = false;
-			onRefresh();
+			dashboardsQuery.refetch();
 		} catch (e) {
 			console.error("Failed to add widget", e);
 		}

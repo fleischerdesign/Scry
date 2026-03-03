@@ -1,15 +1,25 @@
 <script lang="ts">
 	import Stat from "../components/Stat.svelte";
-	import { timeline } from "../state/timeline.svelte";
-	import { plugins } from "../state/plugins.svelte";
-	import { dashboards } from "../state/dashboards.svelte";
+	import { createTimelineQuery } from "../queries/timeline";
+	import { createPluginsQuery } from "../queries/plugins";
+	import { createDashboardsQuery } from "../queries/dashboards";
 	import { router } from "../router.svelte";
 
-	let { dailySummary, onRefresh } = $props();
+	let { dailySummary = [] } = $props();
+
+	const timelineQuery = createTimelineQuery(100);
+	const pluginsQuery = createPluginsQuery();
+	const dashboardsQuery = createDashboardsQuery();
 
 	$effect(() => {
 		router.title = "Overview";
 	});
+
+	function syncKernel() {
+		timelineQuery.refetch();
+		pluginsQuery.refetch();
+		dashboardsQuery.refetch();
+	}
 </script>
 
 <div class="space-y-12 animate-in fade-in duration-700 w-full pb-20">
@@ -53,21 +63,21 @@
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 		<Stat
 			title="Core Intelligence"
-			value={plugins.items.length}
+			value={pluginsQuery.data?.length ?? 0}
 			desc="Semantic plugins active"
 			color="primary"
 			trend="Stable"
 		/>
 		<Stat
 			title="Event Density"
-			value={timeline.items.length}
+			value={timelineQuery.data?.length ?? 0}
 			desc="Total life events logged"
 			color="secondary"
 			trend="+5%"
 		/>
 		<Stat
 			title="Interface Nodes"
-			value={dashboards.items.length}
+			value={dashboardsQuery.data?.length ?? 0}
 			desc="Active UI layouts"
 			color="accent"
 		/>
@@ -101,7 +111,7 @@
 	>
 		<button
 			class="btn btn-outline btn-xs font-mono tracking-widest px-8 hover:btn-primary uppercase"
-			onclick={onRefresh}>Sync_Kernel</button
+			onclick={syncKernel}>Sync_Kernel</button
 		>
 	</div>
 </div>

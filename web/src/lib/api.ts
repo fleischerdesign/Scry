@@ -1,4 +1,5 @@
 import { auth } from "./auth.svelte";
+import { ui } from "./ui.svelte";
 import type { Event } from "./types/Event";
 import type { ApiNamespace } from "./types/ApiNamespace";
 import type { ApiEntity } from "./types/ApiEntity";
@@ -10,9 +11,9 @@ import type { SemanticStats } from "./types/SemanticStats";
 import type { JsonValue } from "./types/serde_json/JsonValue";
 
 class ScryAPI {
-	private baseUrl = "http://127.0.0.1:3000/api/v1";
+	private baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:3000/api/v1";
 
-	private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+	public async request<T>(path: string, options: RequestInit = {}): Promise<T> {
 		const headers = new Headers(options.headers || {});
 		if (auth.apiKey) {
 			headers.set("X-API-Key", auth.apiKey);
@@ -24,7 +25,12 @@ class ScryAPI {
 		const response = await fetch(url, { ...options, headers });
 		if (!response.ok) {
 			const error = await response.json().catch(() => ({ error: "Unknown error" }));
-			throw new Error(error.error || `API Error: ${response.statusText}`);
+			const errorMessage = error.error || `API Error: ${response.statusText}`;
+			
+			// Global error notification
+			ui.notify("API Fehler", errorMessage, "error");
+			
+			throw new Error(errorMessage);
 		}
 
 		const text = await response.text();

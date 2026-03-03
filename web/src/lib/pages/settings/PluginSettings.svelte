@@ -2,19 +2,22 @@
 	import { onMount } from "svelte";
 	import { api } from "../../api";
 	import ConfigField from "../../components/ConfigField.svelte";
-	import { plugins } from "../../state/plugins.svelte";
+	import { createPluginsQuery } from "../../queries/plugins";
 	import { router } from "../../router.svelte";
 
 	let pluginConfigs = $state<Record<string, any>>({});
 	let saving = $state(false);
 	let successMessage = $state("");
 
+	const pluginsQuery = createPluginsQuery();
+
 	$effect(() => {
 		router.title = "Extensions";
 	});
 
 	async function loadAllConfigs() {
-		for (const p of plugins.items) {
+		const items = pluginsQuery.data ?? [];
+		for (const p of items) {
 			try {
 				const cfg = await api.request(`/system/plugins/${p.id}/config`);
 				pluginConfigs[p.id] = cfg;
@@ -25,7 +28,11 @@
 		}
 	}
 
-	onMount(loadAllConfigs);
+	$effect(() => {
+		if (pluginsQuery.isSuccess) {
+			loadAllConfigs();
+		}
+	});
 
 	async function savePluginConfig(pluginId: string) {
 		saving = true;
@@ -55,7 +62,7 @@
 		</div>
 	{/if}
 
-	{#each plugins.items as plugin}
+	{#each pluginsQuery.data ?? [] as plugin}
 		{@const aliases = getAliases(pluginConfigs[plugin.id])}
 
 		<div

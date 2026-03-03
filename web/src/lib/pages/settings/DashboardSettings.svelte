@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { api } from "../../api";
 	import Card from "../../components/Card.svelte";
-	import { dashboards } from "../../state/dashboards.svelte";
+	import { createDashboardsQuery } from "../../queries/dashboards";
 	import { router } from "../../router.svelte";
 
-	let { onRefresh } = $props();
 	let newDashboardName = $state("");
+
+	const dashboardsQuery = createDashboardsQuery();
 
 	$effect(() => {
 		router.title = "Dashboards";
@@ -15,7 +16,7 @@
 		if (!newDashboardName) return;
 		await api.createDashboard(newDashboardName);
 		newDashboardName = "";
-		if (onRefresh) onRefresh();
+		dashboardsQuery.refetch();
 	}
 </script>
 
@@ -43,7 +44,7 @@
 		<div
 			class="flex flex-col bg-base-200 rounded-3xl overflow-hidden border border-base-300 divide-y divide-base-300/50"
 		>
-			{#each dashboards.items as dash}
+			{#each dashboardsQuery.data ?? [] as dash}
 				<div class="flex items-center justify-between p-4 px-6">
 					<div class="flex items-center gap-4">
 						<div class="w-2 h-2 rounded-full bg-secondary"></div>

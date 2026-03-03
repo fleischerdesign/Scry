@@ -2,12 +2,14 @@
 	import { onMount } from "svelte";
 	import { api } from "../api";
 	import { router } from "../router.svelte";
-	import { plugins } from "../state/plugins.svelte";
+	import { createPluginsQuery } from "../queries/plugins";
 	import Icon from "@iconify/svelte";
 
 	let { ns } = $derived(router.getParams("/entity/:ns"));
 	let types = $state<string[]>([]);
 	let loading = $state(true);
+
+	const pluginsQuery = createPluginsQuery();
 
 	$effect(() => {
 		router.title = ns.toUpperCase();
@@ -30,8 +32,9 @@
 	});
 
 	function getIconForType(type: string) {
+		const items = pluginsQuery.data ?? [];
 		// 1. Suche in allen Plugin-Exports nach diesem semantischen Typ
-		for (const p of plugins.items) {
+		for (const p of items) {
 			if (p.exports) {
 				const exp = p.exports.find(e => e.semantic_type === `${ns}/${type}` || e.semantic_type === type);
 				if (exp?.icon) return exp.icon;

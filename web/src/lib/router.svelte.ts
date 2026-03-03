@@ -1,6 +1,6 @@
 interface RouteConfig {
 	path: string;
-	label: string;
+	label?: string;
 }
 
 const ROUTES: RouteConfig[] = [

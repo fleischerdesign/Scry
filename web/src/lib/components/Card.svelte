@@ -1,5 +1,12 @@
 <script lang="ts">
-    let { title = "", subtitle = "", children, actions } = $props();
+    import type { Snippet } from 'svelte';
+    interface Props {
+        title?: string;
+        subtitle?: string;
+        children: Snippet;
+        actions?: Snippet;
+    }
+    let { title = "", subtitle = "", children, actions }: Props = $props();
 </script>
 
 <div class="card card-bordered bg-base-100 shadow-sm hover:shadow-md transition-shadow">
