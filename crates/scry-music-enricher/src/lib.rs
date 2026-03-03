@@ -13,6 +13,7 @@ impl ScryPlugin for MusicEnricher {
             subscriptions: vec![], // Keine Events, wir reagieren nur auf Entitäten
             capabilities: vec!["network".to_string(), "state".to_string()],
             exports: vec![],
+            domain_info: vec![],
             provided_traits: vec![
                 scry_plugin_sdk::TraitCapability {
                     entity_namespace: "scry.music".to_string(),

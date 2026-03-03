@@ -26,7 +26,7 @@ class ScryAPI {
 	// Discovery
 	getCatalog(): Promise<any> { return this.request("/discovery/catalog"); }
 	search(q: string): Promise<any[]> { return this.request(`/discovery/search?q=${encodeURIComponent(q)}`); }
-	getNamespaces(): Promise<string[]> {
+	getNamespaces(): Promise<{name: string, icon?: string}[]> {
 		return this.request("/discovery/entities");
 	}
 	getNamespaceTypes(namespace: string): Promise<string[]> {

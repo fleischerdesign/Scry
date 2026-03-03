@@ -34,6 +34,13 @@ pub struct DataField {
     pub format: Option<String>,
     pub icon: Option<String>,
 }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DomainInfo {
+    pub ns: String,
+    pub icon: Option<String>,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TraitCapability { pub entity_namespace: String, pub entity_type: String, pub trait_id: String }
 
@@ -64,6 +71,8 @@ pub struct Manifest {
     pub id: String, pub name: String, pub version: String, pub description: String,
     pub subscriptions: Vec<String>, pub capabilities: Vec<String>,
     pub exports: Vec<DataField>,
+    #[serde(default)]
+    pub domain_info: Vec<DomainInfo>,
     pub provided_traits: Vec<TraitCapability>,
     pub poll_interval: Option<u32>,
     pub config_schema: Option<String>,
@@ -103,6 +112,9 @@ macro_rules! scry_plugin {
                         category: e.category, path: e.path, semantic_type: e.semantic_type, description: e.description,
                         format: e.format,
                         icon: e.icon,
+                    }).collect(),
+                    domain_info: m.domain_info.into_iter().map(|d| scry::plugin::types::DomainInfo {
+                        ns: d.ns, icon: d.icon,
                     }).collect(),
                     provided_traits: m.provided_traits.into_iter().map(|t| scry::plugin::types::TraitCapability {
                         entity_namespace: t.entity_namespace, entity_type: t.entity_type, trait_id: t.trait_id

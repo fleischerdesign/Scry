@@ -79,6 +79,12 @@ pub struct ApiTraitCapability {
 }
 
 #[derive(Serialize, ToSchema)]
+pub struct ApiNamespace {
+    pub name: String,
+    pub icon: Option<String>,
+}
+
+#[derive(Serialize, ToSchema)]
 pub struct ApiEntity {
     pub namespace: String,
     pub typ: String,

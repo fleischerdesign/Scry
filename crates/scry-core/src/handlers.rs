@@ -532,14 +532,38 @@ pub async fn ingest_event(State(state): State<Arc<AppState>>, Extension(auth): E
     Ok(Json(event))
 }
 
-#[utoipa::path(get, path = "/api/v1/discovery/entities", responses((status = 200, body = [String])), security(("api_key" = [])))]
+#[utoipa::path(get, path = "/api/v1/discovery/entities", responses((status = 200, body = [ApiNamespace])), security(("api_key" = [])))]
 pub async fn get_namespaces(
     State(state): State<Arc<AppState>>,
     Extension(auth): Extension<AuthContext>
-) -> Result<Json<Vec<String>>> {
+) -> Result<Json<Vec<crate::models::ApiNamespace>>> {
     let db = state.event_service.db();
-    let namespaces = sqlx::query_scalar::<_, String>("SELECT DISTINCT namespace FROM entities WHERE user_id = ?")
+    let names = sqlx::query_scalar::<_, String>("SELECT DISTINCT namespace FROM entities WHERE user_id = ?")
         .bind(auth.user_id).fetch_all(db).await?;
+    
+    let manifests = state.event_service.plugin_manager().get_plugin_manifests().await;
+    
+    let namespaces = names.into_iter().map(|name| {
+        let mut icon = None;
+
+        // Deterministic Ownership: Check domain_info directly
+        for m in manifests.values() {
+            if let Some(domain) = m.domain_info.iter().find(|d| d.ns == name) {
+                if domain.icon.is_some() {
+                    icon = domain.icon.clone();
+                    break;
+                }
+            }
+        }
+
+        // System Core Fallback (since core is not a plugin yet)
+        if icon.is_none() && name == "scry.core" {
+            icon = Some("lucide:shield-check".to_string());
+        }
+
+        crate::models::ApiNamespace { name, icon }
+    }).collect();
+
     Ok(Json(namespaces))
 }
 

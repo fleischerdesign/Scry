@@ -58,7 +58,7 @@ use tokio_util::sync::CancellationToken;
         handlers::run_plugin_report,
         handlers::health_check
     ),
-    components(schemas(Event, User, RegisterRequest, LoginRequest, AuthResponse, ApiReportMetadata, ApiReportData, PluginReports, CorrelationResult, SemanticStats, PluginStatus, SemanticParams, Dashboard, DashboardWidget, ApiEntity)),
+    components(schemas(Event, User, RegisterRequest, LoginRequest, AuthResponse, ApiReportMetadata, ApiReportData, PluginReports, CorrelationResult, SemanticStats, PluginStatus, SemanticParams, Dashboard, DashboardWidget, ApiEntity, ApiNamespace)),
     modifiers(&SecurityAddon),
     tags((name = "scry", description = "Scry Multi-Tenant Platform API"))
 )]

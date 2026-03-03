@@ -18,6 +18,9 @@ impl ScryPlugin for MusicPlugin {
                 scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.album".to_string(), semantic_type: "music.album".to_string(), description: "Name des Albums".to_string(), format: None, icon: Some("lucide:disc".to_string()) },
                 scry_plugin_sdk::DataField { category: "music.scrobble".to_string(), path: "payload.energy_level".to_string(), semantic_type: "music.energy_level".to_string(), description: "Simulierter Energie-Level des Songs".to_string(), format: None, icon: Some("lucide:zap".to_string()) },
             ],
+            domain_info: vec![
+                scry_plugin_sdk::DomainInfo { ns: "scry.music".to_string(), icon: Some("lucide:music".to_string()) }
+            ],
             provided_traits: vec![],
             poll_interval: Some(10),
             config_schema: None,

@@ -41,6 +41,11 @@ interface types {
         icon: option<string>,
     }
 
+    record domain-info {
+        ns: string,
+        icon: option<string>,
+    }
+
     record trait-capability {
         entity-namespace: string,
         entity-type: string,
@@ -70,6 +75,7 @@ interface types {
         subscriptions: list<string>,
         capabilities: list<string>,
         exports: list<data-field>,
+        domain-info: list<domain-info>,
         provided-traits: list<trait-capability>,
         poll-interval: option<u32>,
         config-schema: option<string>,

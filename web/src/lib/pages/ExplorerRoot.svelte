@@ -4,7 +4,7 @@
 	import { router } from "../router.svelte";
 	import Icon from "@iconify/svelte";
 
-	let namespaces = $state<string[]>([]);
+	let namespaces = $state<{name: string, icon?: string}[]>([]);
 	let loading = $state(true);
 
 	$effect(() => {
@@ -43,7 +43,7 @@
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
 			{#each namespaces as ns}
 				<button 
-					onclick={() => router.navigate(`/entity/${ns}`)}
+					onclick={() => router.navigate(`/entity/${ns.name}`)}
 					class="group relative p-8 bg-base-200 border border-base-300 rounded-[2.5rem] hover:bg-base-300 transition-all text-left overflow-hidden"
 				>
 					<!-- Decoration -->
@@ -52,14 +52,14 @@
 					<div class="flex items-center justify-between mb-6">
 						<div class="w-14 h-14 rounded-3xl bg-base-100 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
 							<Icon 
-								icon={ns === 'scry.music' ? 'lucide:music' : (ns === 'scry.core' ? 'lucide:shield' : 'lucide:database')} 
+								icon={ns.icon || 'lucide:database'} 
 								class="w-6 h-6 text-primary" 
 							/>
 						</div>
 						<div class="badge badge-primary badge-outline badge-xs opacity-30 font-mono tracking-tighter uppercase italic">Namespace</div>
 					</div>
 					
-					<h3 class="font-black text-xl uppercase tracking-tighter mb-2 group-hover:text-primary transition-colors italic">{ns}</h3>
+					<h3 class="font-black text-xl uppercase tracking-tighter mb-2 group-hover:text-primary transition-colors italic">{ns.name}</h3>
 					<p class="text-[10px] opacity-40 uppercase font-mono leading-relaxed">
 						Semantic domain containing specialized entity definitions and relationships_
 					</p>
