@@ -20,7 +20,6 @@
 	import Settings from "./lib/pages/Settings.svelte";
 	import GeneralSettings from "./lib/pages/settings/GeneralSettings.svelte";
 	import PluginSettings from "./lib/pages/settings/PluginSettings.svelte";
-	import EnricherSettings from "./lib/pages/settings/EnricherSettings.svelte";
 	import DashboardSettings from "./lib/pages/settings/DashboardSettings.svelte";
 	import ExplorerRoot from "./lib/pages/ExplorerRoot.svelte";
 	import NamespaceOverview from "./lib/pages/NamespaceOverview.svelte";
@@ -189,14 +188,11 @@
 						<Settings />
 					{:else if router.path === "/settings/general"}
 						<GeneralSettings />
-					{:else if router.path === "/settings/plugins"}
-						<PluginSettings />
-					{:else if router.path === "/settings/enrichers"}
-						<EnricherSettings />
-					{:else if router.path === "/settings/dashboards"}
-						<DashboardSettings onRefresh={loadAll} />
-					{/if}
-				{:else if router.match("/event/:id")}
+														{:else if router.path === "/settings/plugins"}
+															<PluginSettings />
+														{:else if router.path === "/settings/dashboards"}
+															<DashboardSettings onRefresh={loadAll} />
+														{/if}				{:else if router.match("/event/:id")}
 					<EventDetail />
 				{:else if router.path === "/entity"}
 					<ExplorerRoot />

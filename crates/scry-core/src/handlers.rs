@@ -471,14 +471,20 @@ pub async fn get_system_plugins(State(state): State<Arc<AppState>>, Extension(au
         
         // Auto-classify roles based on manifest structure
         let mut roles = Vec::new();
-        if !m.provided_traits.is_empty() || !m.exports.is_empty() {
-            roles.push("enricher".to_string());
+        if m.poll_interval.is_some() {
+            roles.push("SOURCE".to_string());
         }
-        if !m.subscriptions.is_empty() || m.poll_interval.is_some() {
-            roles.push("source".to_string());
+        if !m.subscriptions.is_empty() {
+            roles.push("ENRICHER".to_string());
+        }
+        if !m.provided_traits.is_empty() {
+            roles.push("RESOLVER".to_string());
+        }
+        if !m.suggested_widgets.is_empty() {
+            roles.push("VISUALIZER".to_string());
         }
         if !p_reports.is_empty() {
-            roles.push("analyzer".to_string());
+            roles.push("ANALYZER".to_string());
         }
 
         statuses.push(PluginStatus {
