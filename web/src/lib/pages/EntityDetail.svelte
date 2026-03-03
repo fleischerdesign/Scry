@@ -1,11 +1,10 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
     import { api } from '../api';
     import { router } from '../router.svelte';
     import Card from '../components/Card.svelte';
     import TimelineItem from '../components/TimelineItem.svelte';
 
-    const { ns, type, id } = router.getParams('/entity/:ns/:type/:id');
+    const params = $derived(router.getParams('/entity/:ns/:type/:id'));
     
     let traits = $state<Record<string, any>>({});
     let relationships = $state<any[]>([]);
@@ -14,7 +13,7 @@
     let displayImage = $state<string | null>(null);
     let loading = $state(true);
 
-    async function loadData() {
+    async function loadData(ns: string, type: string, id: string) {
         loading = true;
         try {
             // Fetch entity details and related events in parallel
@@ -46,7 +45,11 @@
         return groups;
     });
 
-    onMount(loadData);
+    $effect(() => {
+        if (params.ns && params.type && params.id) {
+            loadData(params.ns, params.type, params.id);
+        }
+    });
 
     $effect(() => {
         router.title = displayTitle.toUpperCase();
@@ -73,7 +76,7 @@
         {/if}
 
         <div class="flex-1">
-            <div class="badge badge-primary badge-outline font-mono text-[9px] uppercase tracking-widest mb-2">{ns} / {type}</div>
+            <div class="badge badge-primary badge-outline font-mono text-[9px] uppercase tracking-widest mb-2">{params.ns} / {params.type}</div>
             <h2 class="text-4xl font-black tracking-tighter italic uppercase text-base-content">{displayTitle}</h2>
             <div class="flex gap-4 mt-4 text-[10px] font-mono opacity-40 uppercase tracking-widest">
                 <span>{events.length} Events Logged</span>
@@ -101,7 +104,7 @@
                                 <h4 class="text-[9px] font-bold uppercase opacity-20 px-2 tracking-widest">{predicate}</h4>
                                 <div class="grid grid-cols-1 gap-2">
                                     {#each rels as rel}
-                                        {@const isSource = rel.source.id === id}
+                                        {@const isSource = rel.source.id === params.id}
                                         {@const target = isSource ? rel.target : rel.source}
                                         <button 
                                             onclick={() => router.navigate(`/entity/${target.ns}/${target.typ}/${target.id}`)}

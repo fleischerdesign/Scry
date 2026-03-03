@@ -50,9 +50,10 @@ impl EventService {
                 
                 if category == SemanticCategory::Metric {
                     if let Some(val) = other_event.display_value {
-                        // For metrics, we store a standardized object: { "value": X, "unit": "Y" }
+                        // For metrics, we store a standardized object: { "value": X, "unit": "Y", "source_id": "UUID" }
                         let mut metric_info = serde_json::Map::new();
                         metric_info.insert("value".to_string(), json!(val));
+                        metric_info.insert("source_id".to_string(), json!(other_event.id.to_string()));
                         
                         // Try to find the unit from the plugin export manifest
                         for m in manifests.values() {

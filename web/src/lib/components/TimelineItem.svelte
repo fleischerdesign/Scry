@@ -50,9 +50,20 @@
                 <div class="flex flex-wrap gap-1 mt-1">
                     <!-- Context Data (Agnostic Metrics) -->
                     {#each contextMetrics as metric}
-                        <div class="badge badge-accent/10 text-accent border-accent/20 badge-xs gap-1 font-black">
+                        <div 
+                            role="button"
+                            tabindex="0"
+                            onclick={(e) => { 
+                                if (metric.source_id) {
+                                    e.stopPropagation();
+                                    router.navigate(`/event/${metric.source_id}`);
+                                }
+                            }}
+                            onkeydown={(e) => e.key === 'Enter' && metric.source_id && router.navigate(`/event/${metric.source_id}`)}
+                            class="badge badge-accent/10 text-accent border-accent/20 badge-xs gap-1 font-black {metric.source_id ? 'hover:bg-accent/20 cursor-pointer transition-colors' : ''}"
+                        >
                             <span class="opacity-40 uppercase text-[8px] tracking-widest">{semanticService.getLabel(metric.key)}:</span>
-                            {semanticService.formatValue(metric.value?.value || metric.value, { semantic_type: metric.key, unit: metric.value?.unit })}
+                            {semanticService.formatValue(metric.value?.value ?? metric.value, { semantic_type: metric.key, unit: metric.value?.unit })}
                         </div>
                     {/each}
 

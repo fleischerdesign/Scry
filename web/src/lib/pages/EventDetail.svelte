@@ -1,30 +1,34 @@
 <script lang="ts">
-	import { onMount } from "svelte";
 	import { api } from "../api";
 	import { router } from "../router.svelte";
+	import { semanticService } from "../services/semantic.svelte";
 	import Card from "../components/Card.svelte";
 	import type { Event } from "../types/Event";
 
-	const { id } = router.getParams("/event/:id");
+	const params = $derived(router.getParams("/event/:id"));
 	let event = $state<Event | null>(null);
 	let loading = $state(true);
 
+	// Agnostically find all metrics in context
+	const contextMetrics = $derived(event ? semanticService.getMetricsFromContext(event.context_info) : []);
+
 	$effect(() => {
 		router.title = "Event";
+		if (params.id) {
+			loadEvent(params.id);
+		}
 	});
 
-	async function loadEvent() {
+	async function loadEvent(eventId: string) {
 		loading = true;
 		try {
-			event = await api.getEvent(id);
+			event = await api.getEvent(eventId);
 		} catch (e) {
 			console.error("Failed to load event", e);
 		} finally {
 			loading = false;
 		}
 	}
-
-	onMount(loadEvent);
 </script>
 
 <div
@@ -111,6 +115,24 @@
 
 			<!-- Sidebar Info -->
 			<div class="space-y-6">
+				{#if contextMetrics.length > 0}
+					<Card title="Semantic Context" subtitle="ENRICHED_METRICS">
+						<div class="grid grid-cols-1 gap-2">
+							{#each contextMetrics as metric}
+								<button 
+									onclick={() => metric.source_id && router.navigate(`/event/${metric.source_id}`)}
+									class="flex justify-between items-center p-3 bg-base-200 rounded-xl border border-base-300/50 text-left {metric.source_id ? 'hover:bg-base-300 cursor-pointer transition-all active:scale-[0.98]' : ''}"
+								>
+									<span class="text-[9px] font-black uppercase opacity-30">{semanticService.getLabel(metric.key)}</span>
+									<span class="text-xs font-black tracking-tight text-primary">
+										{semanticService.formatValue(metric.value?.value ?? metric.value, { semantic_type: metric.key, unit: metric.value?.unit })}
+									</span>
+								</button>
+							{/each}
+						</div>
+					</Card>
+				{/if}
+
 				<Card title="Context" subtitle="TECHNICAL">
 					<div class="space-y-4">
 						<div>
@@ -118,7 +140,7 @@
 								Event UUID
 							</p>
 							<p class="font-mono text-[10px] opacity-60 truncate">
-								{id}
+								{params.id}
 							</p>
 						</div>
 						<div>

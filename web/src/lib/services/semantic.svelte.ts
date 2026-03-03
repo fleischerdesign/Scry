@@ -113,14 +113,15 @@ class SemanticService {
     /**
      * Helper to find all metrics in a context object.
      */
-    getMetricsFromContext(context: any): Array<{ key: string, value: any, icon: string }> {
+    getMetricsFromContext(context: any): Array<{ key: string, value: any, icon: string, source_id?: string }> {
         if (!context) return [];
         return Object.entries(context)
             .filter(([key]) => this.parseType(key).category === 'metric')
-            .map(([key, val]) => ({
+            .map(([key, val]: [string, any]) => ({
                 key,
                 value: val,
-                icon: this.getIcon(key)
+                icon: this.getIcon(key),
+                source_id: val?.source_id
             }));
     }
 }
