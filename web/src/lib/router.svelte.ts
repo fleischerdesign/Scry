@@ -29,13 +29,19 @@ class Router {
 
 	constructor() {
 		window.addEventListener("popstate", () => {
-			this.path = window.location.pathname || "/overview";
+			this.path = this.#normalize(window.location.pathname || "/overview");
 		});
+		this.path = this.#normalize(this.path);
 		if (this.path === "/") this.path = "/overview";
 	}
 
+	#normalize(p: string) {
+		if (p.length > 1 && p.endsWith('/')) return p.slice(0, -1);
+		return p;
+	}
+
 	navigate(newPath: string) {
-		const target = newPath.startsWith("/") ? newPath : `/${newPath}`;
+		const target = this.#normalize(newPath.startsWith("/") ? newPath : `/${newPath}`);
 		window.history.pushState({}, "", target);
 		this.path = target;
 	}

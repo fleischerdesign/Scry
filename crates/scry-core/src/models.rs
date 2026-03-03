@@ -77,6 +77,15 @@ pub struct ApiTraitCapability {
 }
 
 #[derive(Serialize, ToSchema)]
+pub struct ApiEntity {
+    pub namespace: String,
+    pub typ: String,
+    pub id: String,
+    pub title: String,
+    pub link: String,
+}
+
+#[derive(Serialize, ToSchema)]
 pub struct ApiDataField {
     pub category: String,
     pub path: String,
