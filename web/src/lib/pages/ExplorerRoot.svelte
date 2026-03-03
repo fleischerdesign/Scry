@@ -8,7 +8,7 @@
 	let loading = $state(true);
 
 	$effect(() => {
-		router.title = "KNOWLEDGE GRAPH";
+		router.title = "DISCOVERY";
 	});
 
 	async function loadNamespaces() {

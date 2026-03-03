@@ -75,9 +75,6 @@ class Router {
 		return parts.map((part, index) => {
 			currentPath += `/${part}`;
 			
-			// Skip 'entity' root segment for breadcrumbs
-			if (part === "entity") return null;
-
 			const isLast = index === parts.length - 1;
 
 			// Für das letzte Element schauen wir auch in die dynamischen Titel
