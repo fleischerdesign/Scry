@@ -77,11 +77,9 @@ pub async fn get_event_by_id(
     Path(id): Path<String>,
     Extension(auth): Extension<AuthContext>
 ) -> Result<Json<serde_json::Value>> {
-    let db = state.event_service.db();
-    let row = sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle FROM events WHERE user_id = ? AND id = ?")
-        .bind(auth.user_id).bind(id).fetch_one(db).await?;
+    let ev = state.event_service.get_event_by_id(auth.user_id, &id).await?
+        .ok_or_else(|| Error::NotFound(format!("Event {} not found", id)))?;
     
-    let ev = Event::try_from(row).map_err(|e| Error::Plugin(e))?;
     Ok(Json(serde_json::to_value(ev).unwrap()))
 }
 
@@ -97,19 +95,11 @@ pub async fn get_events_by_entity(
     Path((namespace, typ, id)): Path<(String, String, String)>,
     Extension(auth): Extension<AuthContext>
 ) -> Result<Json<serde_json::Value>> {
-    let db = state.event_service.db();
-    let rows = sqlx::query_as::<_, DbEvent>(
-        "SELECT id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle FROM events 
-         WHERE user_id = ? AND EXISTS (
-            SELECT 1 FROM json_each(entities) WHERE json_extract(value, '$.namespace') = ? AND json_extract(value, '$.typ') = ? AND json_extract(value, '$.id') = ?
-         ) ORDER BY timestamp DESC LIMIT 100"
-    )
-    .bind(auth.user_id).bind(namespace).bind(typ).bind(id).fetch_all(db).await?;
+    let events = state.event_service.get_events_by_entity(auth.user_id, &namespace, &typ, &id).await?;
     
-    let events: Vec<serde_json::Value> = rows.into_iter()
-        .filter_map(|r| Event::try_from(r).ok())
+    let json_events: Vec<serde_json::Value> = events.into_iter()
         .map(|e| serde_json::to_value(e).unwrap())
         .collect();
 
-    Ok(Json(serde_json::Value::Array(events)))
+    Ok(Json(serde_json::Value::Array(json_events)))
 }

@@ -4,6 +4,7 @@ mod analytics_service;
 mod models;
 mod handlers;
 mod error;
+mod repository;
 
 use analytics_service::AnalyticsService;
 

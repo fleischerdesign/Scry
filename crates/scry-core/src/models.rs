@@ -13,39 +13,6 @@ pub struct AppState {
     pub cancel_token: tokio_util::sync::CancellationToken,
 }
 
-#[derive(sqlx::FromRow, Debug)]
-pub struct DbEvent {
-    pub id: String,
-    pub timestamp: String,
-    pub category: String,
-    pub source: String,
-    pub payload: String,
-    pub metadata: Option<String>,
-    pub entities: Option<String>,
-    pub display_title: Option<String>,
-    pub display_subtitle: Option<String>,
-}
-
-impl TryFrom<DbEvent> for Event {
-    type Error = anyhow::Error;
-
-    fn try_from(db_ev: DbEvent) -> Result<Self, Self::Error> {
-        Ok(Self {
-            id: uuid::Uuid::parse_str(&db_ev.id)?,
-            timestamp: chrono::DateTime::parse_from_rfc3339(&db_ev.timestamp)?.with_timezone(&chrono::Utc),
-            category: db_ev.category,
-            source: db_ev.source,
-            payload: serde_json::from_str(&db_ev.payload)?,
-            metadata: db_ev.metadata.and_then(|m| serde_json::from_str(&m).ok()),
-            entities: db_ev.entities.and_then(|e| serde_json::from_str(&e).ok()).unwrap_or_default(),
-            context: vec![], // Resolved during ingestion, not stored in DB
-            context_info: None, // Will be populated by EventService::enrich_event_context
-            display_title: db_ev.display_title,
-            display_subtitle: db_ev.display_subtitle,
-        })
-    }
-}
-
 #[derive(Serialize, ToSchema)]
 pub struct ApiReportMetadata {
     pub id: String,

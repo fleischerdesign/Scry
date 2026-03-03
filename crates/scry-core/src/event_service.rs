@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use crate::plugins::PluginManager;
 use scry_proto::Event;
-use crate::models::{DbEvent};
 use crate::error::{Error, Result};
+use crate::repository::{EventRepository, ConfigRepository, EntityRepository, AnalyticsRepository};
 use serde_json::Value;
 
 #[derive(Clone)]
@@ -26,6 +26,7 @@ impl EventService {
     pub fn plugin_manager(&self) -> &PluginManager { &self.plugin_manager }
 
     pub async fn enrich_event_context(&self, user_id: i64, event: &mut Event) -> Result<()> {
+        let event_repo = EventRepository::new(&self.db, user_id);
         let manifests = self.plugin_manager.get_plugin_manifests().await;
         let mut context_categories = HashMap::new();
 
@@ -41,12 +42,7 @@ impl EventService {
         let ts = event.timestamp.to_rfc3339();
 
         for (semantic_type, cat) in &context_categories {
-            let context_payload = sqlx::query_scalar::<_, String>(
-                "SELECT payload FROM events WHERE user_id = ? AND category = ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT 1"
-            )
-            .bind(user_id).bind(cat).bind(&ts).fetch_optional(&self.db).await?;
-
-            if let Some(p) = context_payload {
+            if let Some(p) = event_repo.get_last_payload(cat, &ts).await? {
                 if let Ok(json) = serde_json::from_str::<Value>(&p) {
                     info.insert(semantic_type.clone(), json);
                 }
@@ -60,14 +56,15 @@ impl EventService {
     }
 
     pub async fn ingest_event(&self, user_id: i64, event: Event) -> Result<Event> {
+        let event_repo = EventRepository::new(&self.db, user_id);
+        let config_repo = ConfigRepository::new(&self.db, user_id);
+        let entity_repo = EntityRepository::new(&self.db, user_id);
+
         let mut processed_event: Event = self.plugin_manager.run_ingest_pipeline(user_id, event).await
             .map_err(|e| Error::Plugin(e))?;
         
         // --- Dynamic Context Resolution ---
-        // Resolve semantic hints (aliases or full URIs) into real EntityRefs
         let hints = processed_event.context.clone();
-        
-        // Use the processor ID from metadata if available, otherwise fallback to source (base ID)
         let processor_id = processed_event.metadata.as_ref()
             .and_then(|m| m.get("processor"))
             .and_then(|p| p.as_str())
@@ -76,15 +73,7 @@ impl EventService {
         for hint in hints {
             let entity_ref = if hint.starts_with("alias:") {
                 let alias_key = hint.clone();
-                
-                // 1. Try to load from plugin configuration
-                let config_val = sqlx::query_scalar::<_, String>(
-                    "SELECT value FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ?"
-                )
-                .bind(user_id).bind(processor_id).bind(&alias_key).fetch_optional(&self.db).await?;
-
-                if let Some(target_uri) = config_val {
-                    // Resolve the URI found in config (ns/typ/id)
+                if let Some(target_uri) = config_repo.get(processor_id, &alias_key).await? {
                     let parts: Vec<&str> = target_uri.split('/').collect();
                     if parts.len() == 3 {
                         Some(scry_proto::EntityRef {
@@ -95,7 +84,6 @@ impl EventService {
                         })
                     } else { None }
                 } else {
-                    // 2. Default Fallbacks & Dynamic Discovery
                     let alias_name = hint.strip_prefix("alias:").unwrap();
                     let default_target = match alias_name {
                         "self" | "owner" | "subject" | "listener" => Some("scry.core/user/self"),
@@ -103,10 +91,7 @@ impl EventService {
                     };
 
                     if let Some(target) = default_target {
-                        // Store default in config so it becomes visible in UI
-                        let _ = sqlx::query("INSERT INTO plugin_config (user_id, plugin_id, key, value) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
-                            .bind(user_id).bind(processor_id).bind(&alias_key).bind(target).execute(&self.db).await;
-                        
+                        let _ = config_repo.set_if_not_exists(processor_id, &alias_key, target).await;
                         Some(scry_proto::EntityRef {
                             path: hint.clone(),
                             namespace: "scry.core".to_string(),
@@ -116,7 +101,6 @@ impl EventService {
                     } else { None }
                 }
             } else {
-                // Expected format: namespace/type/id
                 let parts: Vec<&str> = hint.split('/').collect();
                 if parts.len() == 3 {
                     Some(scry_proto::EntityRef {
@@ -125,39 +109,24 @@ impl EventService {
                         typ: parts[1].to_string(),
                         id: parts[2].to_string(),
                     })
-                } else {
-                    None
-                }
+                } else { None }
             };
 
             if let Some(r) = entity_ref {
-                // Avoid duplicates
                 if !processed_event.entities.iter().any(|e| e.namespace == r.namespace && e.typ == r.typ && e.id == r.id) {
                     processed_event.entities.push(r);
                 }
             }
         }
 
-        // Live Context Enrichment (e.g. add current weather info to this new event)
         let _ = self.enrich_event_context(user_id, &mut processed_event).await;
 
-        // Metadaten vervollständigen (für DB und Broadcast)
         let mut meta = processed_event.metadata.unwrap_or_else(|| serde_json::json!({}));
         meta["user_id"] = serde_json::json!(user_id);
         processed_event.metadata = Some(meta);
 
-        // Entitäten persistieren (Global Knowledge Graph) und benachrichtigen
         for ent in &processed_event.entities {
-            // 1. In globale Entitäten-Tabelle eintragen (für Suche und Traits)
-            sqlx::query("INSERT INTO entities (user_id, namespace, typ, id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
-                .bind(user_id)
-                .bind(&ent.namespace)
-                .bind(&ent.typ)
-                .bind(&ent.id)
-                .execute(&self.db)
-                .await?;
-
-            // 2. Enricher benachrichtigen (Background)
+            entity_repo.ensure_entity(&ent.namespace, &ent.typ, &ent.id).await?;
             let pm = self.plugin_manager.clone();
             let ns = ent.namespace.clone();
             let typ = ent.typ.clone();
@@ -169,21 +138,8 @@ impl EventService {
             });
         }
 
-        sqlx::query("INSERT INTO events (id, user_id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-            .bind(processed_event.id.to_string())
-            .bind(user_id)
-            .bind(processed_event.timestamp.to_rfc3339())
-            .bind(&processed_event.category)
-            .bind(&processed_event.source)
-            .bind(serde_json::to_string(&processed_event.payload).map_err(|e| Error::BadRequest(e.to_string()))?)
-            .bind(serde_json::to_string(processed_event.metadata.as_ref().unwrap()).unwrap())
-            .bind(serde_json::to_string(&processed_event.entities).unwrap_or_else(|_| "[]".to_string()))
-            .bind(&processed_event.display_title)
-            .bind(&processed_event.display_subtitle)
-            .execute(&self.db)
-            .await?;
+        event_repo.insert(&processed_event).await?;
 
-        // BROADCAST
         if let Some(ref sender) = self.event_sender {
             let _ = sender.send(processed_event.clone());
         }
@@ -192,23 +148,18 @@ impl EventService {
     }
 
     pub async fn list_events(&self, user_id: i64, category: Option<String>, limit: u32, offset: u32) -> Result<Vec<Event>> {
-        let db_events = if let Some(cat) = category {
-            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle FROM events WHERE user_id = ? AND category = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
-                .bind(user_id).bind(cat).bind(limit).bind(offset)
-        } else {
-            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, display_title, display_subtitle FROM events WHERE user_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
-                .bind(user_id).bind(limit).bind(offset)
-        }.fetch_all(&self.db).await?;
+        let event_repo = EventRepository::new(&self.db, user_id);
+        event_repo.list(category, limit, offset).await
+    }
 
-        Ok(db_events.into_iter().filter_map(|e| {
-            match Event::try_from(e) {
-                Ok(ev) => Some(ev),
-                Err(err) => {
-                    tracing::error!("Failed to convert DB event: {}", err);
-                    None
-                }
-            }
-        }).collect())
+    pub async fn get_event_by_id(&self, user_id: i64, id: &str) -> Result<Option<Event>> {
+        let event_repo = EventRepository::new(&self.db, user_id);
+        event_repo.get_by_id(id).await
+    }
+
+    pub async fn get_events_by_entity(&self, user_id: i64, namespace: &str, typ: &str, id: &str) -> Result<Vec<Event>> {
+        let event_repo = EventRepository::new(&self.db, user_id);
+        event_repo.get_by_entity(namespace, typ, id).await
     }
 
     pub async fn poll_and_save_plugin(&self, user_id: i64, name: &str) -> Result<usize> {
@@ -236,7 +187,10 @@ impl EventService {
         }
 
         match (base_cat, join_cat) {
-            (Some(bc), Some(jc)) => self.correlate_nearest(user_id, &bc, &jc, limit).await,
+            (Some(bc), Some(jc)) => {
+                let repo = AnalyticsRepository::new(&self.db, user_id);
+                repo.correlate_nearest(&bc, &jc, limit).await
+            },
             _ => Err(Error::NotFound(format!("Semantic types {} or {} not found", base_semantic, join_semantic))),
         }
     }
@@ -266,22 +220,10 @@ impl EventService {
     }
 
     pub async fn get_enriched_timeline(&self, user_id: i64, base_category: Option<String>, limit: u32, offset: u32) -> Result<Vec<Value>> {
-        let manifests: HashMap<String, crate::plugins::scry::plugin::types::Manifest> = self.plugin_manager.get_plugin_manifests().await;
-        let mut context_categories = std::collections::HashMap::new();
-
-        for m in manifests.values() {
-            for export in &m.exports {
-                if base_category.as_ref() != Some(&export.category) {
-                    context_categories.insert(export.semantic_type.clone(), export.category.clone());
-                }
-            }
-        }
-
         let base_events = self.list_events(user_id, base_category, limit, offset).await?;
         let mut enriched_timeline = Vec::new();
 
         for mut ev in base_events {
-            // New centralized enrichment
             let _ = self.enrich_event_context(user_id, &mut ev).await;
 
             let entry = serde_json::json!({
@@ -303,37 +245,8 @@ impl EventService {
     }
 
     pub async fn correlate_nearest(&self, user_id: i64, base_category: &str, join_category: &str, limit: u32) -> Result<Vec<Value>> {
-        let sql = r#"
-            SELECT 
-                CAST(b.payload AS TEXT),
-                CAST(j.payload AS TEXT),
-                b.entities,
-                b.display_title,
-                b.display_subtitle
-            FROM events b
-            JOIN events j ON j.category = ? AND j.user_id = ?
-            WHERE b.category = ? AND b.user_id = ?
-            GROUP BY b.id
-            HAVING MIN(ABS(julianday(substr(b.timestamp, 1, 19)) - julianday(substr(j.timestamp, 1, 19))))
-            ORDER BY b.timestamp DESC
-            LIMIT ?
-        "#;
-
-        let rows = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<String>, Option<String>)>(sql)
-            .bind(join_category).bind(user_id)
-            .bind(base_category).bind(user_id)
-            .bind(limit)
-            .fetch_all(&self.db).await?;
-
-        Ok(rows.into_iter().map(|(b, j, e, dt, ds)| {
-            serde_json::json!({
-                "base": serde_json::from_str::<Value>(&b).unwrap_or_default(),
-                "joined": j.and_then(|s| serde_json::from_str::<Value>(&s).ok()).unwrap_or_default(),
-                "entities": e.and_then(|s| serde_json::from_str::<Value>(&s).ok()).unwrap_or_default(),
-                "display_title": dt,
-                "display_subtitle": ds,
-            })
-        }).collect())
+        let repo = AnalyticsRepository::new(&self.db, user_id);
+        repo.correlate_nearest(base_category, join_category, limit).await
     }
 
     pub async fn resolve_semantic_info(&self, semantic_type: &str) -> Result<(String, String)> {
@@ -349,55 +262,16 @@ impl EventService {
         Err(Error::NotFound(format!("Semantic type {} not found in catalog", semantic_type)))
     }
 
-    pub async fn get_semantic_top(&self, _user_id: i64, semantic_type: &str, limit: u32, days: Option<u32>) -> Result<Vec<Value>> {
+    pub async fn get_semantic_top(&self, user_id: i64, semantic_type: &str, limit: u32, days: Option<u32>) -> Result<Vec<Value>> {
         let (category, path) = self.resolve_semantic_info(semantic_type).await?;
-        
-        let mut sql = format!(
-            "SELECT payload ->> '{}' as key, COUNT(*) as count FROM events WHERE category = ?",
-            path
-        );
-
-        if days.is_some() {
-            sql.push_str(" AND timestamp > date('now', ?)");
-        }
-
-        sql.push_str(" GROUP BY key ORDER BY count DESC LIMIT ?");
-
-        let mut query = sqlx::query_as::<_, (Option<String>, i64)>(&sql)
-            .bind(category);
-
-        if let Some(d) = days {
-            query = query.bind(format!("-{} days", d));
-        }
-
-        let rows = query.bind(limit).fetch_all(&self.db).await?;
-
-        Ok(rows.into_iter().map(|(k, c)| {
-            serde_json::json!({ "key": k.unwrap_or_else(|| "Unknown".to_string()), "count": c })
-        }).collect())
+        let repo = AnalyticsRepository::new(&self.db, user_id);
+        repo.get_semantic_top(&category, &path, limit, days).await
     }
 
-    pub async fn get_semantic_series(&self, _user_id: i64, semantic_type: &str, days: u32, interval: Option<String>) -> Result<Vec<Value>> {
+    pub async fn get_semantic_series(&self, user_id: i64, semantic_type: &str, days: u32, interval: Option<String>) -> Result<Vec<Value>> {
         let (category, path) = self.resolve_semantic_info(semantic_type).await?;
-        
-        let format_str = match interval.as_deref() {
-            Some("1h") => "%Y-%m-%dT%H:00:00Z",
-            _ => "%Y-%m-%d",
-        };
-
-        let sql = format!(
-            "SELECT strftime('{}', timestamp) as label, AVG(CAST(payload ->> '{}' as REAL)) as value FROM events WHERE category = ? AND timestamp > date('now', ?) GROUP BY label ORDER BY label ASC",
-            format_str, path
-        );
-
-        let rows = sqlx::query_as::<_, (String, f64)>(&sql)
-            .bind(category)
-            .bind(format!("-{} days", days))
-            .fetch_all(&self.db).await?;
-
-        Ok(rows.into_iter().map(|(l, v)| {
-            serde_json::json!({ "label": l, "value": v })
-        }).collect())
+        let repo = AnalyticsRepository::new(&self.db, user_id);
+        repo.get_semantic_series(&category, &path, days, interval).await
     }
 
     pub async fn calculate_semantic_stats(&self, user_id: i64, base_semantic: &str, join_semantic: &str, limit: u32) -> Result<crate::models::SemanticStats> {
