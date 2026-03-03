@@ -2,26 +2,72 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use password_hash::{PasswordHash, SaltString, rand_core::OsRng};
+use serde::{Serialize, Deserialize};
+use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey, DecodingKey};
 use serde_json::json;
 
 use crate::domain::*;
 use crate::error::{Error, Result};
 use crate::repository::{UserRepository, ProfileRepository, EntityRepository};
 
+const DEV_JWT_SECRET: &str = "scry_development_secret_do_not_use_in_production_123456789";
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    pub sub: i64,      // User ID
+    pub scopes: String, // Comma separated scopes
+    pub exp: usize,    // Expiration time
+}
+
 #[derive(Clone)]
 pub struct AuthService {
     db: SqlitePool,
+    jwt_secret: String,
 }
 
 impl AuthService {
     pub fn new(db: SqlitePool) -> Self {
-        Self { db }
+        let jwt_secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| DEV_JWT_SECRET.to_string());
+        Self { db, jwt_secret }
+    }
+
+    fn generate_jwt(&self, user_id: i64, scopes: &str) -> Result<String> {
+        let expiration = chrono::Utc::now()
+            .checked_add_signed(chrono::Duration::days(7)) // 1 week duration for now
+            .expect("valid timestamp")
+            .timestamp() as usize;
+
+        let claims = Claims {
+            sub: user_id,
+            scopes: scopes.to_string(),
+            exp: expiration,
+        };
+
+        encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(self.jwt_secret.as_bytes()),
+        ).map_err(|e| {
+            tracing::error!("JWT Encoding Error: {}", e);
+            Error::Internal
+        })
+    }
+
+    pub fn verify_jwt(&self, token: &str) -> Option<(i64, Vec<String>)> {
+        let validation = Validation::new(Algorithm::HS256);
+        decode::<Claims>(
+            token,
+            &DecodingKey::from_secret(self.jwt_secret.as_bytes()),
+            &validation,
+        ).ok().map(|data| {
+            let claims = data.claims;
+            (claims.sub, claims.scopes.split(',').map(|s| s.to_string()).collect())
+        })
     }
 
     pub async fn register(&self, req: RegisterRequest) -> Result<AuthResponse> {
         let user_repo = UserRepository::new(&self.db);
-        let _entity_repo = EntityRepository::new(&self.db, 0); // Temporary user_id 0
-
+        
         // Hash password with Argon2
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
@@ -35,10 +81,19 @@ impl AuthService {
         let entity_repo = EntityRepository::new(&self.db, user_id);
         entity_repo.ensure_entity("scry.core", "user", "self").await?;
 
-        let api_key = Uuid::new_v4().to_string();
-        user_repo.create_api_key(user_id, &api_key, "Default Key", "all").await?;
+        let api_key_val = Uuid::new_v4().to_string();
+        user_repo.create_api_key(user_id, &api_key_val, "Default Key", "all").await?;
 
-        Ok(AuthResponse { api_key, user: User { id: user_id, username: req.username } })
+        // Try to find an existing avatar for the user to populate display_image
+        let display_image = entity_repo.get_trait("scry.core", "user", "self", "scry.core/avatar").await.ok().flatten();
+
+        // Generate JWT for the session
+        let token = self.generate_jwt(user_id, "all")?;
+
+        Ok(AuthResponse { 
+            api_key: token, // We return JWT as the primary token for web clients
+            user: User { id: user_id, username: req.username, display_image } 
+        })
     }
 
     pub async fn login(&self, req: LoginRequest) -> Result<AuthResponse> {
@@ -58,8 +113,19 @@ impl AuthService {
         let entity_repo = EntityRepository::new(&self.db, user_id);
         entity_repo.ensure_entity("scry.core", "user", "self").await?;
 
-        let api_key = user_repo.get_api_key_by_user(user_id).await?;
-        Ok(AuthResponse { api_key, user: User { id: user_id, username } })
+        // Find avatar for display_image
+        let display_image = entity_repo.get_trait("scry.core", "user", "self", "scry.core/avatar").await.ok().flatten();
+
+        // Get scopes from existing API key (or use 'all' default)
+        let _api_key = user_repo.get_api_key_by_user(user_id).await?;
+        
+        // Generate fresh JWT
+        let token = self.generate_jwt(user_id, "all")?;
+
+        Ok(AuthResponse { 
+            api_key: token, 
+            user: User { id: user_id, username, display_image } 
+        })
     }
 
     pub async fn get_profile(&self, user_id: i64) -> Result<serde_json::Value> {

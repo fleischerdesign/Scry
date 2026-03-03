@@ -24,7 +24,7 @@ export function useStreaming() {
 
     $effect(() => {
         // Reactively reconnect if auth state changes
-        if (!auth.isAuthenticated || !auth.apiKey) {
+        if (!auth.isAuthenticated || !auth.token) {
             if (eventSource) {
                 eventSource.close();
                 eventSource = null;
@@ -35,7 +35,7 @@ export function useStreaming() {
         if (eventSource) return; // Already connected
 
         const baseUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:3000/api/v1";
-        const url = `${baseUrl.replace(/\/api\/v1\/?$/, "")}/api/v1/streams/live?api_key=${auth.apiKey}`;
+        const url = `${baseUrl.replace(/\/api\/v1\/?$/, "")}/api/v1/streams/live?api_key=${auth.token}`;
         
         eventSource = new EventSource(url);
         

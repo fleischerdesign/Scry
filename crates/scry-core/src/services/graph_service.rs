@@ -51,12 +51,12 @@ impl GraphService {
         let rows = repo.get_entities_by_type(namespace, typ).await?;
 
         let entities = rows.into_iter().map(|(id, title_json, photo_json)| {
-            let title = title_json.and_then(|json| {
+            let display_title = title_json.and_then(|json| {
                 serde_json::from_str::<serde_json::Value>(&json).ok()
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
             }).unwrap_or_else(|| id.clone());
 
-            let photo_url = photo_json.and_then(|json| {
+            let display_image = photo_json.and_then(|json| {
                 serde_json::from_str::<serde_json::Value>(&json).ok()
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
             });
@@ -65,9 +65,8 @@ impl GraphService {
                 namespace: namespace.to_string(),
                 typ: typ.to_string(),
                 id: id.clone(),
-                title,
-                photo_url,
-                link: format!("/entity/{}/{}/{}", namespace, typ, id),
+                display_title,
+                display_image,
             }
         }).collect();
 

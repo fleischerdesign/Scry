@@ -71,6 +71,7 @@ impl PluginManager {
         };
 
         let mut store = Store::new(&self.engine, ctx);
+        store.limiter(|ctx| ctx); // Aktiviert den ResourceLimiter (Memory Limits)
         store.set_fuel(1_000_000)?; // Max 1M CPU-Zyklen pro Plugin-Ausführung
         let instance = crate::plugins::Plugin::instantiate_async(&mut store, &plugin.component, &linker).await?;
         
@@ -121,6 +122,7 @@ impl PluginManager {
         };
 
         let mut store = Store::new(&self.engine, ctx);
+        store.limiter(|ctx| ctx); // Aktiviert den ResourceLimiter
         store.set_fuel(1_000_000)?; // 1M Fuel für Init
         let instance_raw = crate::plugins::Plugin::instantiate_async(&mut store, &component, &linker).await?;
         let manifest = instance_raw.call_get_manifest(&mut store).await?;
@@ -172,6 +174,7 @@ impl PluginManager {
                         context_info: event.context_info.as_ref().map(|c| serde_json::to_string(c).unwrap()),
                         display_title: event.display_title.clone(),
                         display_subtitle: event.display_subtitle.clone(),
+                        display_image: event.display_image.clone(),
                     };
                     let processed = instance.call_on_ingest(&mut store, &ev).await?.map_err(|e| anyhow::anyhow!(e))?;
                     
@@ -189,6 +192,7 @@ impl PluginManager {
                         context_info: processed.context_info.as_ref().and_then(|c| serde_json::from_str(c).ok()),
                         display_title: processed.display_title,
                         display_subtitle: processed.display_subtitle,
+                        display_image: processed.display_image,
                     };
                     Ok((mapped, store))
                 }).await?;
@@ -222,6 +226,7 @@ impl PluginManager {
                                                     context_info: ev.context_info.as_ref().and_then(|c| serde_json::from_str(c).ok()),
                                                     display_title: ev.display_title,
                                                     display_subtitle: ev.display_subtitle,
+                                                    display_image: ev.display_image,
                                                 })            }).collect::<Result<Vec<_>>>()?;
             Ok((mapped, store))
         }).await

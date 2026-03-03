@@ -8,7 +8,6 @@
 	// Services & Queries
 	import { useStreaming } from "./lib/services/streaming.svelte";
 	import { createDashboardsQuery } from "./lib/queries/dashboards";
-	import { createSelfTraitsQuery } from "./lib/queries/user";
 
 	// Pages
 	import Overview from "./lib/pages/Overview.svelte";
@@ -32,14 +31,10 @@
 	// Initialize global background services
 	useStreaming();
 	const dashboardsQuery = createDashboardsQuery();
-	const selfTraitsQuery = createSelfTraitsQuery();
 
 	let isPaletteOpen = $state(false);
 	let currentTheme = $state(localStorage.getItem("scry_theme") || "dark");
 	
-	// Declarative derivation of the avatar from the query
-	let userAvatar = $derived(selfTraitsQuery.data?.traits?.["scry.core/avatar"] as string | undefined);
-
 	// Dummy loadAll function to prevent breaking child components that expect an onRefresh prop
 	const loadAll = async () => {};
 
@@ -287,10 +282,10 @@
 								class="flex items-center gap-3 flex-1 text-left hover:bg-base-300 p-1 rounded-xl transition-colors"
 								onclick={() => router.navigate("/entity/scry.core/user/self")}
 							>
-								{#if userAvatar}
+								{#if auth.user?.display_image}
 									<div class="avatar">
 										<div class="w-8 h-8 rounded-lg">
-											<img src={userAvatar} alt="Profile" />
+											<img src={auth.user.display_image} alt="Profile" />
 										</div>
 									</div>
 								{:else}

@@ -14,8 +14,8 @@ pub struct MyCtx {
 
 impl ResourceLimiter for MyCtx {
     fn memory_growing(&mut self, _current: usize, desired: usize, _maximum: Option<usize>) -> wasmtime::Result<bool> {
-        // Limit auf 32 MB setzen
-        const MAX_MEMORY: usize = 32 * 1024 * 1024;
+        // Limit auf 256 MB setzen
+        const MAX_MEMORY: usize = 256 * 1024 * 1024;
         Ok(desired <= MAX_MEMORY)
     }
 

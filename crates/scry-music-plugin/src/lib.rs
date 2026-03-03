@@ -154,6 +154,7 @@ impl ScryPlugin for MusicPlugin {
                 context_info: None,
                 display_title: Some(format!("The Granular Poller - Zen: {}", zen)),
                 display_subtitle: Some("Album: Scheduler Edition".to_string()),
+                display_image: None,
             }
         ]
     }

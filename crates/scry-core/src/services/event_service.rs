@@ -28,6 +28,7 @@ impl EventService {
 
     pub async fn enrich_event_context(&self, user_id: i64, event: &mut Event) -> Result<()> {
         let event_repo = EventRepository::new(&self.db, user_id);
+        let entity_repo = EntityRepository::new(&self.db, user_id);
         let manifests = self.plugin_manager.get_plugin_manifests().await;
         let mut context_categories = HashMap::new();
 
@@ -42,10 +43,32 @@ impl EventService {
         let mut info = serde_json::Map::new();
         let ts = event.timestamp.to_rfc3339();
 
+        // 1. Existing Temporal Context (Payloads from other events)
         for (semantic_type, cat) in &context_categories {
             if let Some(p) = event_repo.get_last_payload(cat, &ts).await? {
                 if let Ok(json) = serde_json::from_str::<Value>(&p) {
                     info.insert(semantic_type.clone(), json);
+                }
+            }
+        }
+
+        // 2. Entity Traits (Static metadata from the knowledge graph)
+        for entity in &event.entities {
+            if let Ok(traits) = entity_repo.get_traits(&entity.namespace, &entity.typ, &entity.id).await {
+                if !traits.is_empty() {
+                    let mut entity_info = serde_json::Map::new();
+                    for (_plugin_id, k, v) in traits {
+                        let json_v = serde_json::from_str::<Value>(&v).unwrap_or(Value::String(v));
+                        
+                        // Auto-populate display_image if not already set
+                        if event.display_image.is_none() && (k == "scry.visual/photo" || k == "scry.core/avatar") {
+                            event.display_image = json_v.as_str().map(|s| s.to_string());
+                        }
+                        
+                        entity_info.insert(k, json_v);
+                    }
+                    // Key the traits by the entity's semantic path (e.g., "payload.artist")
+                    info.insert(format!("traits:{}", entity.path), Value::Object(entity_info));
                 }
             }
         }

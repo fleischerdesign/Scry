@@ -1,29 +1,10 @@
 <script lang="ts">
-    import { api } from "../api";
-    import { onMount } from "svelte";
     import { router } from "../router.svelte";
     import type { Event } from "../types/Event";
 
     let { item, isFirst = false, isLast = false }: { item: Event, isFirst?: boolean, isLast?: boolean } = $props();
-    let traits = $state<Record<string, any>>({});
 
     const time = $derived(new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-
-    onMount(async () => {
-        const entities = item.entities || [];
-        if (entities.length > 0) {
-            for (const ent of entities) {
-                try {
-                    const fetchedTraits = await api.getEntityTraits(ent.namespace, ent.typ, ent.id);
-                    traits = { ...traits, ...fetchedTraits };
-                } catch (e) {
-                    console.warn("Failed to fetch traits for entity", ent, e);
-                }
-            }
-        }
-    });
-
-    const photoUrl = $derived(traits["scry.visual/photo"]);
 </script>
 
 <li>
@@ -37,10 +18,10 @@
         class="timeline-end timeline-box border-none bg-base-100 shadow-none py-4 px-2 hover:bg-base-300/30 transition-colors rounded-xl w-full text-left flex items-center"
     >
         <div class="flex items-center gap-4 w-full">
-            {#if photoUrl}
+            {#if item.display_image}
                 <div class="avatar">
                     <div class="w-10 h-10 rounded-xl shadow-lg ring ring-primary/10">
-                        <img src={photoUrl} alt="Entity visualization" />
+                        <img src={item.display_image} alt="Entity visualization" />
                     </div>
                 </div>
             {/if}

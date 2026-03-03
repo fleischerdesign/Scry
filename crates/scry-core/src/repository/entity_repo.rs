@@ -72,15 +72,15 @@ impl<'a> EntityRepository<'a> {
             SELECT e.id, (
                 SELECT value_json FROM entity_traits t 
                 WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
-                AND (t.trait_id LIKE '%name' OR t.trait_id LIKE '%title')
+                AND (t.trait_id LIKE '%name' OR t.trait_id LIKE '%title' OR t.trait_id LIKE '%label')
                 LIMIT 1
-            ) as title,
+            ) as display_title,
             (
                 SELECT value_json FROM entity_traits t 
                 WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
                 AND (t.trait_id LIKE '%photo' OR t.trait_id LIKE '%avatar' OR t.trait_id LIKE '%image')
                 LIMIT 1
-            ) as photo
+            ) as display_image
             FROM entities e
             WHERE e.user_id = ? AND e.namespace = ? AND e.typ = ?
         ")
@@ -101,6 +101,20 @@ impl<'a> EntityRepository<'a> {
             .fetch_all(self.pool)
             .await?;
         Ok(rows)
+    }
+
+    pub async fn get_trait(&self, namespace: &str, typ: &str, id: &str, trait_id: &str) -> Result<Option<String>> {
+        let val = sqlx::query_scalar::<_, String>("SELECT value_json FROM entity_traits WHERE user_id = ? AND namespace = ? AND entity_type = ? AND entity_id = ? AND trait_id = ?")
+            .bind(self.user_id)
+            .bind(namespace)
+            .bind(typ)
+            .bind(id)
+            .bind(trait_id)
+            .fetch_optional(self.pool)
+            .await?;
+        
+        // Remove JSON quotes if it's a string
+        Ok(val.map(|v| v.trim_matches('"').to_string()))
     }
 
     pub async fn get_relationships(&self, namespace: &str, typ: &str, id: &str) -> Result<Vec<(String, String, String, String, String, String, String)>> {

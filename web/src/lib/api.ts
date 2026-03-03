@@ -15,8 +15,8 @@ class ScryAPI {
 
 	public async request<T>(path: string, options: RequestInit = {}): Promise<T> {
 		const headers = new Headers(options.headers || {});
-		if (auth.apiKey) {
-			headers.set("X-API-Key", auth.apiKey);
+		if (auth.token) {
+			headers.set("Authorization", `Bearer ${auth.token}`);
 		}
 		headers.set("Content-Type", "application/json");
 

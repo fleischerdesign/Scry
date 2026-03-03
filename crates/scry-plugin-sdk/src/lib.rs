@@ -166,6 +166,7 @@ macro_rules! scry_plugin {
                     context_info: ev.context_info.and_then(|c| $crate::serde_json::from_str(&c).ok()),
                     display_title: ev.display_title,
                     display_subtitle: ev.display_subtitle,
+                    display_image: ev.display_image,
                 };
                 match plugin.on_ingest(sdk_ev).await {
                     Ok(res) => Ok(scry::plugin::types::Event {
@@ -180,6 +181,7 @@ macro_rules! scry_plugin {
                         context_info: res.context_info.as_ref().map(|c| $crate::serde_json::to_string(c).unwrap()),
                         display_title: res.display_title,
                         display_subtitle: res.display_subtitle,
+                        display_image: res.display_image,
                     }),
                     Err(e) => Err(e),
                 }
@@ -221,6 +223,7 @@ macro_rules! scry_plugin {
                         context_info: result.context_info.as_ref().map(|c| $crate::serde_json::to_string(c).unwrap()),
                         display_title: result.display_title,
                         display_subtitle: result.display_subtitle,
+                        display_image: result.display_image,
                     }
                 }).collect()
             }

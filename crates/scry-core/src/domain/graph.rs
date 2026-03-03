@@ -15,7 +15,6 @@ pub struct ApiEntity {
     pub namespace: String,
     pub typ: String,
     pub id: String,
-    pub title: String,
-    pub photo_url: Option<String>,
-    pub link: String,
+    pub display_title: String,
+    pub display_image: Option<String>,
 }

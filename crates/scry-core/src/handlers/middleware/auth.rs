@@ -23,17 +23,24 @@ pub async fn auth_middleware(
 
     match identity {
         Identity::ApiKey(key) => {
-            let auth = state.auth_service.verify_api_key(key).await.map_err(|e| {
-                tracing::error!("Auth Service Error: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+            // Dual Verification:
+            // 1. Try if it's a JWT (fast, no DB call)
+            let auth = if let Some(jwt_auth) = state.auth_service.verify_jwt(key) {
+                Some(jwt_auth)
+            } else {
+                // 2. Fallback to classic API Key in DB
+                state.auth_service.verify_api_key(key).await.map_err(|e| {
+                    tracing::error!("Auth Service Error: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?
+            };
             
             if let Some((user_id, scopes)) = auth {
                 let ctx = AuthContext { user_id, scopes };
                 req.extensions_mut().insert(ctx);
                 Ok(next.run(req).await)
             } else {
-                tracing::warn!("Invalid API Key: {}", key);
+                tracing::warn!("Invalid API Key or JWT");
                 Err(StatusCode::UNAUTHORIZED)
             }
         },

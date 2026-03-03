@@ -32,6 +32,7 @@ pub struct Event {
     pub context_info: Option<serde_json::Value>,
     pub display_title: Option<String>,
     pub display_subtitle: Option<String>,
+    pub display_image: Option<String>,
 }
 
 impl Event {
@@ -48,6 +49,7 @@ impl Event {
             context_info: None,
             display_title: None,
             display_subtitle: None,
+            display_image: None,
         }
     }
 }

@@ -50,24 +50,24 @@
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 			{#each entities as entity}
 				<button 
-					onclick={() => router.navigate(entity.link)}
+					onclick={() => router.navigate(`/entity/${entity.namespace}/${entity.typ}/${entity.id}`)}
 					class="card bg-base-100 border border-base-300 hover:border-primary transition-all group text-left"
 				>
 					<div class="card-body p-4">
 						<div class="flex items-center gap-3">
-							{#if entity.photo_url}
+							{#if entity.display_image}
 								<div class="avatar">
 									<div class="w-10 h-10 rounded-xl shadow-inner">
-										<img src={entity.photo_url} alt={entity.title} />
+										<img src={entity.display_image} alt={entity.display_title} />
 									</div>
 								</div>
 							{:else}
 								<div class="w-10 h-10 rounded-xl bg-base-200 flex items-center justify-center font-bold text-xs group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-									{entity.title.charAt(0)}
+									{entity.display_title.charAt(0)}
 								</div>
 							{/if}
 							<div class="flex-1 min-w-0">
-								<h3 class="font-bold text-sm truncate uppercase tracking-tight">{entity.title}</h3>
+								<h3 class="font-bold text-sm truncate uppercase tracking-tight">{entity.display_title}</h3>
 								<p class="text-[10px] opacity-40 font-mono truncate italic">{entity.id}</p>
 							</div>
 						</div>

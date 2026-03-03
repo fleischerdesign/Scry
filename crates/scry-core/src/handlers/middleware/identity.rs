@@ -21,17 +21,29 @@ impl Identity {
     }
 }
 
-/// Extracts identity from headers, query parameters, or peer IP.
+/// Extracts identity from headers (Bearer/X-API-Key), query parameters, or peer IP.
 pub async fn identity_resolver(
     mut req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let identity = if let Some(key) = req.headers().get("X-API-Key").and_then(|h| h.to_str().ok()) {
-        Identity::ApiKey(key.to_string())
-    } else if let Some(query_key) = req.uri().query()
+    // 1. Try Authorization: Bearer <token>
+    let bearer_key = req.headers().get(axum::http::header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .map(|s| s.to_string());
+
+    // 2. Try X-API-Key header
+    let api_key = req.headers().get("X-API-Key")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+
+    // 3. Try api_key in query string (for SSE)
+    let query_key = req.uri().query()
         .and_then(|q| serde_urlencoded::from_str::<std::collections::HashMap<String, String>>(q).ok())
-        .and_then(|m| m.get("api_key").cloned()) {
-        Identity::ApiKey(query_key)
+        .and_then(|m| m.get("api_key").cloned());
+
+    let identity = if let Some(key) = bearer_key.or(api_key).or(query_key) {
+        Identity::ApiKey(key)
     } else {
         let ip = req.extensions().get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
             .map(|ci| ci.0.ip().to_string())

@@ -103,6 +103,7 @@ impl ScryPlugin for WeatherPlugin {
                     entities: vec![],
                     context: vec!["alias:self".to_string()],
                     context_info: None,
+                    display_image: None,
                     display_title: Some(format!("Temperature: {}°C", temp)),
                     display_subtitle: Some(format!("Weather in {}", city)),
                 }]

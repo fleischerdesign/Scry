@@ -7,6 +7,7 @@ use ts_rs::TS;
 pub struct User {
     pub id: i64,
     pub username: String,
+    pub display_image: Option<String>,
 }
 
 #[derive(Clone, Debug, TS)]
