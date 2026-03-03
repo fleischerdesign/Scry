@@ -1,10 +1,14 @@
 <script lang="ts">
     import { router } from "../router.svelte";
+    import { semanticService } from "../services/semantic.svelte";
     import type { Event } from "../types/Event";
 
     let { item, isFirst = false, isLast = false }: { item: Event, isFirst?: boolean, isLast?: boolean } = $props();
 
     const time = $derived(new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+    // Agnostically find all metrics in context to show as badges
+    const contextMetrics = $derived(semanticService.getMetricsFromContext(item.context_info));
 </script>
 
 <li>
@@ -44,15 +48,13 @@
                 </div>
                 
                 <div class="flex flex-wrap gap-1 mt-1">
-                    <!-- Context Data (Enrichment from other categories) -->
-                    {#if item.context_info}
-                        {#if (item.context_info as any)['environment.temperature']}
-                            <div class="badge badge-accent/10 text-accent border-accent/20 badge-xs gap-1 font-black">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-2 w-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                                {(item.context_info as any)['environment.temperature'].temperature}°C
-                            </div>
-                        {/if}
-                    {/if}
+                    <!-- Context Data (Agnostic Metrics) -->
+                    {#each contextMetrics as metric}
+                        <div class="badge badge-accent/10 text-accent border-accent/20 badge-xs gap-1 font-black">
+                            <span class="opacity-40 uppercase text-[8px] tracking-widest">{semanticService.getLabel(metric.key)}:</span>
+                            {semanticService.formatValue(metric.value?.value || metric.value, { semantic_type: metric.key, unit: metric.value?.unit })}
+                        </div>
+                    {/each}
 
                     <!-- Context Hints (Aliases) -->
                     {#if item.context && item.context.length > 0}

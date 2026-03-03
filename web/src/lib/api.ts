@@ -121,6 +121,11 @@ class ScryAPI {
 	pollPlugin(id: string): Promise<{events_saved: number}> { 
 		return this.request(`/system/plugins/${id}/poll`, { method: "POST" }); 
 	}
+
+	// Semantic
+	resolveSemantic(type: string): Promise<{ scry_type: string, schema_org_uri?: string, description?: string }> {
+		return this.request(`/semantic/resolve?type=${encodeURIComponent(type)}`);
+	}
 }
 
 export const api = new ScryAPI();

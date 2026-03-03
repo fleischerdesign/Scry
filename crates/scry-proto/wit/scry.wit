@@ -41,6 +41,10 @@ interface types {
         description: string,
         format: option<string>,
         icon: option<string>,
+        unit: option<string>,
+        privacy: option<string>,
+        confidence: option<f64>,
+        temporal: option<string>,
     }
 
     record domain-info {

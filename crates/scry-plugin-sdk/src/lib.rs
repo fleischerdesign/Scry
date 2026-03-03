@@ -36,6 +36,10 @@ pub struct DataField {
     pub description: String,
     pub format: Option<String>,
     pub icon: Option<String>,
+    pub unit: Option<String>,
+    pub privacy: Option<String>,
+    pub confidence: Option<f64>,
+    pub temporal: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -124,6 +128,10 @@ macro_rules! scry_plugin {
                         category: e.category, path: e.path, semantic_type: e.semantic_type, description: e.description,
                         format: e.format,
                         icon: e.icon,
+                        unit: e.unit,
+                        privacy: e.privacy,
+                        confidence: e.confidence,
+                        temporal: e.temporal,
                     }).collect(),
                     domain_info: m.domain_info.into_iter().map(|d| scry::plugin::types::DomainInfo {
                         ns: d.ns, icon: d.icon,

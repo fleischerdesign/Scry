@@ -5,6 +5,7 @@ pub mod plugins;
 pub mod analytics;
 pub mod entities;
 pub mod system;
+pub mod semantic;
 pub mod middleware;
 
 use axum::{
@@ -24,6 +25,8 @@ pub fn app_router(state: Arc<AppState>) -> Router {
     let api_v1 = Router::new()
         .nest("/auth", auth_routes)
         .merge(Router::new()
+            .nest("/semantic", Router::new()
+                .route("/resolve", get(semantic::resolve_semantic_type)))
             .nest("/discovery", Router::new()
                 .route("/catalog", get(plugins::get_catalog))
                 .route("/search", get(analytics::search_events))

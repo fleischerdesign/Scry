@@ -43,11 +43,31 @@ impl EventService {
         let mut info = serde_json::Map::new();
         let ts = event.timestamp.to_rfc3339();
 
-        // 1. Existing Temporal Context (Payloads from other events)
+        // 1. Existing Temporal Context (Normalized values from other events)
         for (semantic_type, cat) in &context_categories {
-            if let Some(p) = event_repo.get_last_payload(cat, &ts).await? {
-                if let Ok(json) = serde_json::from_str::<Value>(&p) {
-                    info.insert(semantic_type.clone(), json);
+            if let Some(other_event) = event_repo.get_last_event(cat, &ts).await? {
+                let category = SemanticCategory::from(semantic_type.as_str());
+                
+                if category == SemanticCategory::Metric {
+                    if let Some(val) = other_event.display_value {
+                        // For metrics, we store a standardized object: { "value": X, "unit": "Y" }
+                        let mut metric_info = serde_json::Map::new();
+                        metric_info.insert("value".to_string(), json!(val));
+                        
+                        // Try to find the unit from the plugin export manifest
+                        for m in manifests.values() {
+                            if let Some(export) = m.exports.iter().find(|e| e.semantic_type == *semantic_type) {
+                                if let Some(ref u) = export.unit {
+                                    metric_info.insert("unit".to_string(), json!(u));
+                                }
+                                break;
+                            }
+                        }
+                        info.insert(semantic_type.clone(), Value::Object(metric_info));
+                    }
+                } else {
+                    // For non-metrics, keep current behavior for now
+                    info.insert(semantic_type.clone(), json!(other_event.payload));
                 }
             }
         }
@@ -56,10 +76,17 @@ impl EventService {
         for m in manifests.values() {
             for export in &m.exports {
                 if export.category == event.category {
-                    // If the manifest defines a path for this category, extract the value
-                    let path = export.path.strip_prefix("payload.").unwrap_or(&export.path);
-                    if let Some(val) = event.payload.get(path).and_then(|v| v.as_f64()) {
-                        event.display_value = Some(val);
+                    // Extract value if it's a metric OR if display_value isn't set yet
+                    let cat = SemanticCategory::from(export.semantic_type.as_str());
+                    let is_metric = cat == SemanticCategory::Metric;
+
+                    if is_metric || event.display_value.is_none() {
+                        let path = export.path.strip_prefix("payload.").unwrap_or(&export.path);
+                        if let Some(val) = event.payload.get(path).and_then(|v| v.as_f64()) {
+                            event.display_value = Some(val);
+                            // If we found a metric, we're happy and can stop searching for this export
+                            if is_metric { break; }
+                        }
                     }
                 }
             }

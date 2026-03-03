@@ -23,10 +23,14 @@ impl ScryPlugin for WeatherPlugin {
                 scry_plugin_sdk::DataField {
                     category: "weather.current".to_string(),
                     path: "temperature".to_string(),
-                    semantic_type: "environment.temperature".to_string(),
+                    semantic_type: "metric.environment.temperature".to_string(),
                     description: "Aktuelle Temperatur in Celsius".to_string(),
                     format: None,
                     icon: Some("lucide:thermometer".to_string()),
+                    unit: Some("celsius".to_string()),
+                    privacy: None,
+                    confidence: Some(1.0),
+                    temporal: Some("absolute".to_string()),
                 }
             ],
             domain_info: vec![
@@ -47,13 +51,13 @@ impl ScryPlugin for WeatherPlugin {
                     id: "weather-temp-now".to_string(),
                     title: "Temperature Now".to_string(),
                     template: scry_plugin_sdk::WidgetTemplate::Metric,
-                    config_json: json!({ "semantic_type": "environment.temperature", "unit": "°C" }).to_string(),
+                    config_json: json!({ "semantic_type": "metric.environment.temperature", "unit": "celsius" }).to_string(),
                 },
                 scry_plugin_sdk::WidgetDefinition {
                     id: "weather-temp-trend".to_string(),
                     title: "Weather Trend".to_string(),
                     template: scry_plugin_sdk::WidgetTemplate::Trend,
-                    config_json: json!({ "semantic_type": "environment.temperature", "days": 7 }).to_string(),
+                    config_json: json!({ "semantic_type": "metric.environment.temperature", "days": 7 }).to_string(),
                 }
             ],
         }

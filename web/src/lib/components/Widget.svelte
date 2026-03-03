@@ -1,59 +1,64 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
-    import { Chart, registerables } from 'chart.js';
-    import { api } from '../api';
-    import Card from './Card.svelte';
-
-    Chart.register(...registerables);
-
-    let { widget } = $props();
-    const parsedConfig = $derived(typeof widget.config === 'string' ? JSON.parse(widget.config) : widget.config);
+        import { onMount } from 'svelte';
+        import { Chart, registerables } from 'chart.js';
+        import { api } from '../api';
+        import { semanticService } from '../services/semantic.svelte';
+        import Card from './Card.svelte';
     
-    let canvas = $state<HTMLCanvasElement>();
-    let chart: Chart | undefined;
-    let loading = $state(true);
-    let data = $state<any[]>([]);
-    let latestValue = $state<any>(null);
-        let pluginsStatus = $state<any[]>([]);
+        Chart.register(...registerables);
+    
+        let { widget } = $props();
+        const parsedConfig = $derived(typeof widget.config === 'string' ? JSON.parse(widget.config) : widget.config);
         
-        async function loadWidgetData() {
-            loading = true;
-            try {
-                const { semantic_type, category, path, days = 7 } = parsedConfig;
-    
-                if (widget.type === 'Status') {
-                    pluginsStatus = await api.getPlugins();
-                } else if (semantic_type === 'system.entities') {
-                    // Hier simulieren wir aktuell den Wachstumsgraphen (Zukunft: Core API dafür bauen)
-                    data = Array.from({length: days}, (_, i) => ({
-                        label: new Date(Date.now() - (days - 1 - i) * 86400000).toLocaleDateString(),
-                        count: Math.floor(Math.random() * 50) + 10
-                    }));
-                } else if (widget.type === 'Trend' || widget.type === 'semantic_series') {
-                    data = await api.getSemanticSeries(semantic_type, days);
-                } else if (widget.type === 'TopList' || widget.type === 'semantic_top') {
-                    data = await api.getSemanticTop(semantic_type, 10, days);
-                } else if (widget.type === 'Metric' || widget.type === 'stat') {
-                    const queryPath = semantic_type || category;
-                    if (!queryPath) return;
-                    
-                    const latest = await api.getData(queryPath, 1);
-                    if (latest && latest.length > 0) {
-                        // Use the pre-enriched display_value from the backend
-                        latestValue = latest[0].display_value;
+        let canvas = $state<HTMLCanvasElement>();
+        let chart: Chart | undefined;
+        let loading = $state(true);
+        let data = $state<any[]>([]);
+        let latestValue = $state<any>(null);
+        let displayValue = $state<string>('---');
+        let pluginsStatus = $state<any[]>([]);
+            
+            async function loadWidgetData() {
+                loading = true;
+                try {
+                    const { semantic_type, category, path, days = 7 } = parsedConfig;
+        
+                    if (widget.type === 'Status') {
+                        pluginsStatus = await api.getPlugins();
+                    } else if (semantic_type === 'system.entities') {
+                        // Simulating growth (Future: Core API)
+                        data = Array.from({length: days}, (_, i) => ({
+                            label: new Date(Date.now() - (days - 1 - i) * 86400000).toLocaleDateString(),
+                            count: Math.floor(Math.random() * 50) + 10
+                        }));
+                    } else if (widget.type === 'Trend' || widget.type === 'semantic_series') {
+                        data = await api.getSemanticSeries(semantic_type, days);
+                    } else if (widget.type === 'TopList' || widget.type === 'semantic_top') {
+                        data = await api.getSemanticTop(semantic_type, 10, days);
+                    } else if (widget.type === 'Metric' || widget.type === 'stat') {
+                        const queryPath = semantic_type || category;
+                        if (!queryPath) return;
                         
-                        // Fallback: If no display_value is present, we show '---' instead of guessing
-                        if (latestValue === undefined || latestValue === null) {
-                            console.warn("Metric widget: Backend provided no display_value for", queryPath);
-                            latestValue = null;
+                        const latest = await api.getData(queryPath, 1);
+                        if (latest && latest.length > 0) {
+                            const event = latest[0];
+                            latestValue = event.display_value;
+                            
+                            // Semantic Formatting
+                            displayValue = semanticService.formatValue(latestValue, {
+                                semantic_type: semantic_type,
+                                unit: parsedConfig.unit,
+                                privacy: parsedConfig.privacy
+                            });
                         }
                     }
+                } catch (e) {
+                    console.error("Widget Data Load Error", e);
+                } finally {
+                    loading = false;
                 }
-            } catch (e) {            console.error("Widget Data Load Error", e);
-        } finally {
-            loading = false;
-        }
-    }
+            }
+    
 
     function renderChart(node: HTMLCanvasElement, plotData: any[]) {
         if (plotData.length === 0) return;
@@ -102,11 +107,8 @@
             {:else if widget.type === 'Metric' || widget.type === 'stat'}
                 <div class="flex flex-col items-center">
                     <span class="text-5xl font-black tracking-tighter text-primary">
-                        {latestValue !== null ? (typeof latestValue === 'number' ? latestValue.toFixed(1) : latestValue) : '---'}
+                        {displayValue}
                     </span>
-                    {#if (parsedConfig?.unit)}
-                        <span class="text-xs font-mono opacity-30 mt-1 uppercase tracking-widest">{parsedConfig.unit}</span>
-                    {/if}
                 </div>
             {:else if widget.type === 'Status'}
                 <div class="space-y-2 overflow-y-auto max-h-full px-2">

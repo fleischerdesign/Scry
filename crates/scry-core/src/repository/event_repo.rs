@@ -108,4 +108,17 @@ impl<'a> EventRepository<'a> {
         .bind(self.user_id).bind(category).bind(timestamp).fetch_optional(self.pool).await?;
         Ok(payload)
     }
+
+    pub async fn get_last_event(&self, category: &str, timestamp: &str) -> Result<Option<Event>> {
+        let db_event = sqlx::query_as::<_, DbEvent>(
+            "SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image, display_value 
+             FROM events WHERE user_id = ? AND category = ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT 1"
+        )
+        .bind(self.user_id).bind(category).bind(timestamp).fetch_optional(self.pool).await?;
+        
+        match db_event {
+            Some(e) => Ok(Some(Event::try_from(e).map_err(|err| Error::Internal)?)),
+            None => Ok(None)
+        }
+    }
 }

@@ -60,7 +60,12 @@ impl PluginService {
                     "plugin": plugin_name, 
                     "path": export.path, 
                     "description": export.description, 
-                    "category": export.category 
+                    "category": export.category,
+                    "icon": export.icon,
+                    "unit": export.unit,
+                    "privacy": export.privacy,
+                    "confidence": export.confidence,
+                    "temporal": export.temporal,
                 });
                 let array = catalog.entry(export.semantic_type).or_insert_with(|| json!([]));
                 if let Some(arr) = array.as_array_mut() {
@@ -130,6 +135,10 @@ impl PluginService {
                     semantic_type: e.semantic_type,
                     description: e.description,
                     icon: e.icon,
+                    unit: e.unit,
+                    privacy: e.privacy,
+                    confidence: e.confidence,
+                    temporal: e.temporal,
                 }).collect(),
                 provided_traits: m.provided_traits.into_iter().map(|t| ApiTraitCapability {
                     entity_namespace: t.entity_namespace,

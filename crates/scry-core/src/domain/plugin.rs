@@ -39,6 +39,10 @@ pub struct ApiDataField {
     pub semantic_type: String,
     pub description: String,
     pub icon: Option<String>,
+    pub unit: Option<String>,
+    pub privacy: Option<String>,
+    pub confidence: Option<f64>,
+    pub temporal: Option<String>,
 }
 
 #[derive(Serialize, ToSchema, TS)]
