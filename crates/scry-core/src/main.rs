@@ -1,14 +1,12 @@
 mod plugins;
 mod event_service;
-mod analytics_service;
 mod models;
 mod handlers;
 mod error;
 mod repository;
 mod services;
 
-use analytics_service::AnalyticsService;
-use services::{AuthService, DashboardService};
+use services::{AuthService, DashboardService, GraphService, AnalyticsService, PluginService, SystemService};
 
 use axum::{
     extract::State,
@@ -138,14 +136,21 @@ async fn main() -> anyhow::Result<()> {
     let analytics_service = AnalyticsService::new(db.clone(), plugin_manager.clone());
     let auth_service = AuthService::new(db.clone());
     let dashboard_service = DashboardService::new(db.clone());
+    let graph_service = GraphService::new(db.clone(), plugin_manager.clone());
     let (event_sender, _rx) = tokio::sync::broadcast::channel(1024);
     event_service.set_event_sender(event_sender.clone());
     
+    let plugin_service = PluginService::new(db.clone(), plugin_manager.clone(), event_service.clone());
+    let system_service = SystemService::new(db.clone());
+
     let shared_state = Arc::new(AppState { 
         event_service, 
         analytics_service,
         auth_service,
         dashboard_service,
+        graph_service,
+        plugin_service,
+        system_service,
         event_sender,
         cancel_token: cancel_token.clone()
     });

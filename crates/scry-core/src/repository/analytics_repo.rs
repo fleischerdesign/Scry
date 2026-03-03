@@ -93,4 +93,66 @@ impl<'a> AnalyticsRepository<'a> {
             serde_json::json!({ "label": l, "value": v })
         }).collect())
     }
+
+    pub async fn calculate_pearson_series(&self, cat_a: &str, path_a: &str, cat_b: &str, path_b: &str) -> Result<Vec<(f64, f64)>> {
+        let sql = format!(r#"
+            WITH series_a AS (
+                SELECT strftime('%Y-%m-%d %H:00:00', timestamp) as bucket,
+                       AVG(CAST(payload ->> '{}' as REAL)) as val
+                FROM events WHERE user_id = ? AND category = ?
+                GROUP BY bucket
+            ),
+            series_b AS (
+                SELECT strftime('%Y-%m-%d %H:00:00', timestamp) as bucket,
+                       AVG(CAST(payload ->> '{}' as REAL)) as val
+                FROM events WHERE user_id = ? AND category = ?
+                GROUP BY bucket
+            )
+            SELECT a.val as val_a, b.val as val_b
+            FROM series_a a
+            JOIN series_b b ON a.bucket = b.bucket
+        "#, path_a, path_b);
+
+        let rows = sqlx::query_as::<_, (f64, f64)>(&sql)
+            .bind(self.user_id).bind(cat_a)
+            .bind(self.user_id).bind(cat_b)
+            .fetch_all(self.pool).await?;
+        Ok(rows)
+    }
+
+    pub async fn store_discovery(&self, sem_a: &str, sem_b: &str, metadata_json: &str) -> Result<()> {
+        sqlx::query(r#"
+            INSERT INTO entity_relationships (user_id, plugin_id, source_ns, source_type, source_id, predicate, target_ns, target_type, target_id, metadata)
+            VALUES (?, 'core', 'scry.core', 'semantic_type', ?, 'scry.core/correlates_with', 'scry.core', 'semantic_type', ?, ?)
+            ON CONFLICT(user_id, plugin_id, source_ns, source_type, source_id, predicate, target_ns, target_type, target_id) 
+            DO UPDATE SET metadata = EXCLUDED.metadata
+        "#)
+        .bind(self.user_id)
+        .bind(sem_a)
+        .bind(sem_b)
+        .bind(metadata_json)
+        .execute(self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn get_discoveries(&self) -> Result<Vec<(String, String, String)>> {
+        let rows = sqlx::query_as::<_, (String, String, String)>(
+            "SELECT source_id, target_id, metadata FROM entity_relationships 
+             WHERE user_id = ? AND predicate = 'scry.core/correlates_with'
+             ORDER BY json_extract(metadata, '$.strength') DESC"
+        )
+        .bind(self.user_id).fetch_all(self.pool).await?;
+        Ok(rows)
+    }
+
+    pub async fn search(&self, query: &str, limit: u32) -> Result<Vec<(String, String, String, String, String)>> {
+        let search_term = format!("{}*", query);
+        let rows = sqlx::query_as::<_, (String, String, String, String, String)>(
+            "SELECT item_id, type, content, subtext, link FROM universal_search 
+             WHERE user_id = ? AND universal_search MATCH ? 
+             ORDER BY rank LIMIT ?"
+        )
+        .bind(self.user_id).bind(search_term).bind(limit).fetch_all(self.pool).await?;
+        Ok(rows)
+    }
 }

@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 use scry_proto::Event;
 use utoipa::ToSchema;
 use crate::event_service::EventService;
-use crate::analytics_service::AnalyticsService;
-use crate::services::{AuthService, DashboardService};
+use crate::services::{AuthService, DashboardService, GraphService, PluginService, AnalyticsService, SystemService};
 use validator::Validate;
 
 #[derive(Clone)]
@@ -12,6 +11,9 @@ pub struct AppState {
     pub analytics_service: AnalyticsService,
     pub auth_service: AuthService,
     pub dashboard_service: DashboardService,
+    pub graph_service: GraphService,
+    pub plugin_service: PluginService,
+    pub system_service: SystemService,
     pub event_sender: tokio::sync::broadcast::Sender<Event>,
     pub cancel_token: tokio_util::sync::CancellationToken,
 }

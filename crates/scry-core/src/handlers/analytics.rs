@@ -58,26 +58,6 @@ pub async fn search_events(State(state): State<Arc<AppState>>, Query(params): Qu
     let q = params.q.trim();
     if q.is_empty() { return Ok(Json(serde_json::Value::Array(vec![]))); }
 
-    let db = state.event_service.db();
-    let search_term = format!("{}*", q);
-    
-    let rows = sqlx::query_as::<_, (String, String, String, String, String)>(
-        "SELECT item_id, type, content, subtext, link FROM universal_search 
-         WHERE user_id = ? AND universal_search MATCH ? 
-         ORDER BY rank LIMIT ?"
-    )
-    .bind(auth.user_id).bind(search_term).bind(params.limit.unwrap_or(20)).fetch_all(db).await?;
-
-    let results: Vec<serde_json::Value> = rows.into_iter().map(|(id, typ, content, subtext, link)| {
-        serde_json::json!({
-            "id": id,
-            "type": typ,
-            "title": if typ == "event" { subtext.clone() } else { id.clone() },
-            "label": content.split('{').next().unwrap_or(&content).trim(), // Extrahiert den Text vor dem JSON
-            "content": content,
-            "link": link
-        })
-    }).collect();
-
+    let results = state.analytics_service.search(auth.user_id, q, params.limit.unwrap_or(20)).await?;
     Ok(Json(serde_json::Value::Array(results)))
 }
