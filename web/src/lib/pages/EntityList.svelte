@@ -3,10 +3,11 @@
 	import { api } from "../api";
 	import { router } from "../router.svelte";
 	import Card from "../components/Card.svelte";
+	import type { ApiEntity } from "../types/ApiEntity";
 
 	let { onRefresh } = $props();
 	let { ns, type } = $derived(router.getParams("/entity/:ns/:type"));
-	let entities = $state<any[]>([]);
+	let entities = $state<ApiEntity[]>([]);
 	let loading = $state(true);
 
 	$effect(() => {

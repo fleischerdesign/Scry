@@ -2,8 +2,9 @@
     import { api } from "../api";
     import { onMount } from "svelte";
     import { router } from "../router.svelte";
+    import type { Event } from "../types/Event";
 
-    let { item, isFirst = false, isLast = false } = $props();
+    let { item, isFirst = false, isLast = false }: { item: Event, isFirst?: boolean, isLast?: boolean } = $props();
     let traits = $state<Record<string, any>>({});
 
     const time = $derived(new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));

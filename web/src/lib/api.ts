@@ -1,9 +1,18 @@
 import { auth } from "./auth.svelte";
+import type { Event } from "./types/Event";
+import type { ApiNamespace } from "./types/ApiNamespace";
+import type { ApiEntity } from "./types/ApiEntity";
+import type { PluginStatus } from "./types/PluginStatus";
+import type { Dashboard } from "./types/Dashboard";
+import type { ApiReportData } from "./types/ApiReportData";
+import type { CorrelationResult } from "./types/CorrelationResult";
+import type { SemanticStats } from "./types/SemanticStats";
+import type { JsonValue } from "./types/serde_json/JsonValue";
 
 class ScryAPI {
 	private baseUrl = "http://127.0.0.1:3000/api/v1";
 
-	private async request(path: string, options: RequestInit = {}) {
+	private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
 		const headers = new Headers(options.headers || {});
 		if (auth.apiKey) {
 			headers.set("X-API-Key", auth.apiKey);
@@ -18,41 +27,40 @@ class ScryAPI {
 			throw new Error(error.error || `API Error: ${response.statusText}`);
 		}
 
-		// Prüfe ob die Antwort leer ist (z.B. bei 200 OK ohne Body)
 		const text = await response.text();
-		return text ? JSON.parse(text) : {};
+		return text ? JSON.parse(text) : ({} as T);
 	}
 
 	// Discovery
-	getCatalog(): Promise<any> { return this.request("/discovery/catalog"); }
+	getCatalog(): Promise<Record<string, any[]>> { return this.request("/discovery/catalog"); }
 	search(q: string): Promise<any[]> { return this.request(`/discovery/search?q=${encodeURIComponent(q)}`); }
-	getNamespaces(): Promise<{name: string, icon?: string}[]> {
+	getNamespaces(): Promise<ApiNamespace[]> {
 		return this.request("/discovery/entities");
 	}
 	getNamespaceTypes(namespace: string): Promise<string[]> {
 		return this.request(`/discovery/entities/${namespace}`);
 	}
-	getEntities(namespace: string, type: string): Promise<any[]> {
+	getEntities(namespace: string, type: string): Promise<ApiEntity[]> {
 		return this.request(`/discovery/entities/${namespace}/${type}`);
 	}
-	getEntityTraits(namespace: string, type: string, id: string): Promise<Record<string, any>> {
+	getEntityTraits(namespace: string, type: string, id: string): Promise<{ traits: Record<string, JsonValue>, relationships: any[] }> {
 		return this.request(`/discovery/entities/${namespace}/${type}/${encodeURIComponent(id)}/traits`);
 	}
-	getEvent(id: string): Promise<any> {
+	getEvent(id: string): Promise<Event> {
 		return this.request(`/data/id/${id}`);
 	}
-	getEntityEvents(namespace: string, type: string, id: string): Promise<any[]> {
+	getEntityEvents(namespace: string, type: string, id: string): Promise<Event[]> {
 		return this.request(`/data/entity/${namespace}/${type}/${encodeURIComponent(id)}`);
 	}
 
 	// Data
-	getData(path: string, limit = 50, offset = 0): Promise<any[]> {
+	getData(path: string, limit = 50, offset = 0): Promise<Event[]> {
 		const separator = path.includes("?") ? "&" : "?";
 		return this.request(`/data/${path}${separator}limit=${limit}&offset=${offset}`);
 	}
 
 	// Streams
-	getTimeline(limit = 20, category?: string): Promise<any[]> { 
+	getTimeline(limit = 20, category?: string): Promise<Event[]> { 
 		const catParam = category ? `&category=${category}` : "";
 		return this.request(`/streams/timeline?limit=${limit}${catParam}`); 
 	}
@@ -72,25 +80,33 @@ class ScryAPI {
 		const intervalParam = interval ? `&interval=${interval}` : "";
 		return this.request(`/analytics/semantic/series?semantic_type=${type}&days=${days}${intervalParam}`);
 	}
+    correlateEvents(params: { base_semantic?: string, join_semantic?: string, base_category?: string, join_category?: string, limit?: number }): Promise<CorrelationResult[]> {
+        const query = new URLSearchParams(params as any).toString();
+        return this.request(`/analytics/correlations?${query}`);
+    }
+    getSemanticStats(params: { base_semantic: string, join_semantic: string, limit?: number }): Promise<SemanticStats> {
+        const query = new URLSearchParams(params as any).toString();
+        return this.request(`/analytics/stats?${query}`);
+    }
 
 	// System & Dashboards
-	getStatus(): Promise<any> { return this.request("/system/status"); }
-	getPlugins(): Promise<any[]> { return this.request("/system/plugins"); }
-	getProfile(): Promise<Record<string, string>> { return this.request("/system/profile"); }
-	updateProfile(data: Record<string, string>): Promise<void> { 
+	getStatus(): Promise<{ status: string, multi_tenant: boolean }> { return this.request("/system/status"); }
+	getPlugins(): Promise<PluginStatus[]> { return this.request("/system/plugins"); }
+	getProfile(): Promise<Record<string, JsonValue>> { return this.request("/system/profile"); }
+	updateProfile(data: Record<string, JsonValue>): Promise<void> { 
 		return this.request("/system/profile", { method: "POST", body: JSON.stringify(data) }); 
 	}
-	updatePluginConfig(id: string, data: Record<string, string>): Promise<void> { 
+	updatePluginConfig(id: string, data: Record<string, JsonValue>): Promise<void> { 
 		return this.request(`/system/plugins/${id}/config`, { method: "POST", body: JSON.stringify(data) }); 
 	}
-	getPluginReport(pluginId: string, reportId: string): Promise<any> {
-		return this.request(`/analytics/plugins/${pluginId}/reports/${reportId}`);
+	getPluginReport(pluginId: string, reportId: string): Promise<ApiReportData> {
+		return this.request(`/system/plugins/${pluginId}/reports/${reportId}`);
 	}
-	getDashboards(): Promise<any[]> { return this.request("/system/dashboards"); }
+	getDashboards(): Promise<Dashboard[]> { return this.request("/system/dashboards"); }
 	createDashboard(name: string): Promise<void> {
 		return this.request("/system/dashboards", { method: "POST", body: JSON.stringify({ name }) });
 	}
-	addWidget(dashboardId: string, widget: any): Promise<void> {
+	addWidget(dashboardId: string, widget: { type: string, title?: string, config: JsonValue }): Promise<void> {
 		return this.request(`/system/dashboards/${dashboardId}/widgets`, { method: "POST", body: JSON.stringify(widget) });
 	}
 	deleteWidget(dashboardId: string, widgetId: string): Promise<void> {

@@ -1,9 +1,10 @@
 import { api } from "../api";
 import { auth } from "../auth.svelte";
 import { router } from "../router.svelte";
+import type { Dashboard } from "../types/Dashboard";
 
 class DashboardState {
-    items = $state<any[]>([]);
+    items = $state<Dashboard[]>([]);
     loading = $state(false);
 
     async load() {

@@ -58,8 +58,8 @@ pub async fn get_data_by_type(State(state): State<Arc<AppState>>, Path(path): Pa
     Ok(Json(events))
 }
 
-#[utoipa::path(get, path = "/api/v1/streams/timeline", params(ListParams), responses((status = 200, body = [serde_json::Value])), security(("api_key" = [])))]
-pub async fn get_timeline(State(state): State<Arc<AppState>>, Query(params): Query<ListParams>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<serde_json::Value>>> {
+#[utoipa::path(get, path = "/api/v1/streams/timeline", params(ListParams), responses((status = 200, body = [Event])), security(("api_key" = [])))]
+pub async fn get_timeline(State(state): State<Arc<AppState>>, Query(params): Query<ListParams>, Extension(auth): Extension<AuthContext>) -> Result<Json<Vec<Event>>> {
     let timeline = state.event_service.get_enriched_timeline(auth.user_id, params.category, params.limit.unwrap_or(20), params.offset.unwrap_or(0)).await?;
     Ok(Json(timeline))
 }

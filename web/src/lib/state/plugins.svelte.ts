@@ -1,8 +1,9 @@
 import { api } from "../api";
 import { auth } from "../auth.svelte";
+import type { PluginStatus } from "../types/PluginStatus";
 
 class PluginState {
-    items = $state<any[]>([]);
+    items = $state<PluginStatus[]>([]);
     loading = $state(false);
 
     async load() {

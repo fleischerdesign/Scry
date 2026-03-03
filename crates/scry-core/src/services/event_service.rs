@@ -220,29 +220,14 @@ impl EventService {
         Ok(paged_events)
     }
 
-    pub async fn get_enriched_timeline(&self, user_id: i64, base_category: Option<String>, limit: u32, offset: u32) -> Result<Vec<Value>> {
-        let base_events = self.list_events(user_id, base_category, limit, offset).await?;
-        let mut enriched_timeline = Vec::new();
+    pub async fn get_enriched_timeline(&self, user_id: i64, base_category: Option<String>, limit: u32, offset: u32) -> Result<Vec<Event>> {
+        let mut base_events = self.list_events(user_id, base_category, limit, offset).await?;
 
-        for mut ev in base_events {
-            let _ = self.enrich_event_context(user_id, &mut ev).await;
-
-            let entry = serde_json::json!({
-                "id": ev.id,
-                "timestamp": ev.timestamp.to_rfc3339(),
-                "category": ev.category,
-                "event": ev.payload,
-                "metadata": ev.metadata,
-                "entities": ev.entities,
-                "context": ev.context,
-                "context_info": ev.context_info,
-                "display_title": ev.display_title,
-                "display_subtitle": ev.display_subtitle,
-            });
-            enriched_timeline.push(entry);
+        for ev in &mut base_events {
+            let _ = self.enrich_event_context(user_id, ev).await;
         }
 
-        Ok(enriched_timeline)
+        Ok(base_events)
     }
 
     pub async fn correlate_nearest(&self, user_id: i64, base_category: &str, join_category: &str, limit: u32) -> Result<Vec<Value>> {

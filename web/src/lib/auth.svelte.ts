@@ -1,7 +1,9 @@
+import type { User } from "./types/User";
+
 // Scry Auth State - Svelte 5 Runes Edition
 class AuthState {
     apiKey = $state<string | null>(localStorage.getItem("scry_api_key"));
-    user = $state<{ id: number; username: string } | null>(null);
+    user = $state<User | null>(null);
     isAuthenticated = $derived(this.user !== null && this.apiKey !== null);
 
     constructor() {
@@ -15,7 +17,7 @@ class AuthState {
         }
     }
 
-    login(apiKey: string, user: { id: number; username: string }) {
+    login(apiKey: string, user: User) {
         this.apiKey = apiKey;
         this.user = user;
         localStorage.setItem("scry_api_key", apiKey);

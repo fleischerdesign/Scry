@@ -5,6 +5,7 @@
 	import { router } from "../router.svelte";
 	import { dashboards } from "../state/dashboards.svelte";
 	import { plugins } from "../state/plugins.svelte";
+	import type { ApiWidgetDefinition } from "../types/ApiWidgetDefinition";
 
 	let { onRefresh } = $props();
 
@@ -20,7 +21,7 @@
 	// Collect all suggested widgets from global plugin state
 	const widgetMarketplace = $derived.by(() => {
 		return plugins.items.flatMap((p) =>
-			(p.suggested_widgets || []).map((w: any) => ({
+			(p.suggested_widgets || []).map((w: ApiWidgetDefinition) => ({
 				...w,
 				pluginName: p.name,
 				pluginId: p.id,
@@ -59,7 +60,7 @@
 		}
 	}
 
-	async function addSuggestedWidget(w: any) {
+	async function addSuggestedWidget(w: ApiWidgetDefinition & { pluginName: string }) {
 		if (!activeDashboard) return;
 		try {
 			const config =
@@ -69,7 +70,6 @@
 			await api.addWidget(activeDashboard.id, {
 				type: w.template,
 				title: w.title,
-				width_span: w.template === "Trend" ? 2 : 1,
 				config: config,
 			});
 			ui.notify("Widget Added", w.title, "success");

@@ -1,9 +1,10 @@
 import { api } from "../api";
 import { auth } from "../auth.svelte";
 import { ui } from "../ui.svelte";
+import type { Event } from "../types/Event";
 
 class TimelineState {
-    items = $state<any[]>([]);
+    items = $state<Event[]>([]);
     loading = $state(false);
     private eventSource: EventSource | null = null;
 
@@ -28,19 +29,8 @@ class TimelineState {
         this.eventSource = new EventSource(url);
         
         this.eventSource.onmessage = (e) => {
-            const event = JSON.parse(e.data);
-            const item = { 
-                id: event.id,
-                timestamp: event.timestamp, 
-                category: event.category, 
-                event: event.payload, 
-                metadata: event.metadata,
-                entities: event.entities || [],
-                display_title: event.display_title,
-                display_subtitle: event.display_subtitle,
-                context: {} 
-            };
-            this.items = [item, ...this.items].slice(0, 100);
+            const event: Event = JSON.parse(e.data);
+            this.items = [event, ...this.items].slice(0, 100);
             
             // Agnostische Benachrichtigung
             const label = event.display_title || `New Event: ${event.category}`;

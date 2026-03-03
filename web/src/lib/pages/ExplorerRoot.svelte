@@ -3,8 +3,9 @@
 	import { api } from "../api";
 	import { router } from "../router.svelte";
 	import Icon from "@iconify/svelte";
+	import type { ApiNamespace } from "../types/ApiNamespace";
 
-	let namespaces = $state<{name: string, icon?: string}[]>([]);
+	let namespaces = $state<ApiNamespace[]>([]);
 	let loading = $state(true);
 
 	$effect(() => {

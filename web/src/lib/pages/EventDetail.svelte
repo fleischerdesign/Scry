@@ -3,9 +3,10 @@
 	import { api } from "../api";
 	import { router } from "../router.svelte";
 	import Card from "../components/Card.svelte";
+	import type { Event } from "../types/Event";
 
 	const { id } = router.getParams("/event/:id");
-	let event = $state<any>(null);
+	let event = $state<Event | null>(null);
 	let loading = $state(true);
 
 	$effect(() => {
