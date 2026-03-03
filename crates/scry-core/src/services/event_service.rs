@@ -52,6 +52,19 @@ impl EventService {
             }
         }
 
+        // 1b. Self-Enrichment from Manifests (Populate display_value)
+        for m in manifests.values() {
+            for export in &m.exports {
+                if export.category == event.category {
+                    // If the manifest defines a path for this category, extract the value
+                    let path = export.path.strip_prefix("payload.").unwrap_or(&export.path);
+                    if let Some(val) = event.payload.get(path).and_then(|v| v.as_f64()) {
+                        event.display_value = Some(val);
+                    }
+                }
+            }
+        }
+
         // 2. Entity Traits (Static metadata from the knowledge graph)
         for entity in &event.entities {
             // Use the centralized DRY method to potentially populate display_image if not already set
@@ -238,6 +251,9 @@ impl EventService {
                 }
             }
         }
+
+        // Fallback: If no semantic types match, or explicitly requested, add the query itself as a category
+        target_categories.insert(semantic_query.to_string());
 
         if target_categories.is_empty() { return Ok(vec![]); }
 

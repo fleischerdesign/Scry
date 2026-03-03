@@ -2,4 +2,4 @@
 import type { EntityRef } from "./EntityRef";
 import type { JsonValue } from "./serde_json/JsonValue";
 
-export type Event = { id: string, timestamp: string, category: string, source: string, payload: JsonValue, metadata: JsonValue | null, entities: Array<EntityRef>, context: Array<string>, context_info: JsonValue | null, display_title: string | null, display_subtitle: string | null, display_image: string | null, };
+export type Event = { id: string, timestamp: string, category: string, source: string, payload: JsonValue, metadata: JsonValue | null, entities: Array<EntityRef>, context: Array<string>, context_info: JsonValue | null, display_title: string | null, display_subtitle: string | null, display_image: string | null, display_value: number | null, };

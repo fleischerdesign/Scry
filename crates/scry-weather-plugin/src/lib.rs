@@ -47,7 +47,7 @@ impl ScryPlugin for WeatherPlugin {
                     id: "weather-temp-now".to_string(),
                     title: "Temperature Now".to_string(),
                     template: scry_plugin_sdk::WidgetTemplate::Metric,
-                    config_json: json!({ "category": "weather.current", "path": "temperature", "unit": "°C" }).to_string(),
+                    config_json: json!({ "semantic_type": "environment.temperature", "unit": "°C" }).to_string(),
                 },
                 scry_plugin_sdk::WidgetDefinition {
                     id: "weather-temp-trend".to_string(),
@@ -104,6 +104,7 @@ impl ScryPlugin for WeatherPlugin {
                     context: vec!["alias:self".to_string()],
                     context_info: None,
                     display_image: None,
+                    display_value: None,
                     display_title: Some(format!("Temperature: {}°C", temp)),
                     display_subtitle: Some(format!("Weather in {}", city)),
                 }]

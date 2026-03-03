@@ -170,6 +170,7 @@ macro_rules! scry_plugin {
                     display_title: ev.display_title,
                     display_subtitle: ev.display_subtitle,
                     display_image: ev.display_image,
+                    display_value: ev.display_value,
                 };
                 match plugin.on_ingest(sdk_ev).await {
                     Ok(res) => Ok(scry::plugin::types::Event {
@@ -185,6 +186,7 @@ macro_rules! scry_plugin {
                         display_title: res.display_title,
                         display_subtitle: res.display_subtitle,
                         display_image: res.display_image,
+                        display_value: res.display_value,
                     }),
                     Err(e) => Err(e),
                 }
@@ -227,6 +229,7 @@ macro_rules! scry_plugin {
                         display_title: result.display_title,
                         display_subtitle: result.display_subtitle,
                         display_image: result.display_image,
+                        display_value: result.display_value,
                     }
                 }).collect()
             }

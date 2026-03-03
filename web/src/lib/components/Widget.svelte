@@ -7,6 +7,8 @@
     Chart.register(...registerables);
 
     let { widget } = $props();
+    const parsedConfig = $derived(typeof widget.config === 'string' ? JSON.parse(widget.config) : widget.config);
+    
     let canvas = $state<HTMLCanvasElement>();
     let chart: Chart | undefined;
     let loading = $state(true);
@@ -14,11 +16,22 @@
     let latestValue = $state<any>(null);
     let pluginsStatus = $state<any[]>([]);
 
+    function resolvePath(obj: any, path: string) {
+        // Try direct path first (e.g. "payload.temperature")
+        let val = path.split('.').reduce((acc, part) => acc && acc[part], obj);
+        
+        // If not found, try prepending "payload." (e.g. "temperature" -> "payload.temperature")
+        if (val === undefined && !path.startsWith('payload.')) {
+            val = path.split('.').reduce((acc, part) => acc && acc[part], obj.payload);
+        }
+        
+        return val;
+    }
+
     async function loadWidgetData() {
         loading = true;
         try {
-            const config = typeof widget.config === 'string' ? JSON.parse(widget.config) : widget.config;
-            const { semantic_type, category, path, days = 7 } = config;
+            const { semantic_type, category, path, days = 7 } = parsedConfig;
 
             if (widget.type === 'Status') {
                 pluginsStatus = await api.getPlugins();
@@ -33,9 +46,18 @@
             } else if (widget.type === 'TopList' || widget.type === 'semantic_top') {
                 data = await api.getSemanticTop(semantic_type, 10, days);
             } else if (widget.type === 'Metric' || widget.type === 'stat') {
-                const latest = await api.getData(category, 1);
+                const queryPath = semantic_type || category;
+                if (!queryPath) return;
+                
+                const latest = await api.getData(queryPath, 1);
                 if (latest && latest.length > 0) {
-                    latestValue = path ? (latest[0] as any)[path] : latest[0];
+                    // Use the pre-enriched display_value from the backend
+                    latestValue = latest[0].display_value;
+                    
+                    // Fallback for legacy events or explicit overrides
+                    if (latestValue === undefined || latestValue === null) {
+                        latestValue = path ? resolvePath(latest[0], path) : null;
+                    }
                 }
             }
         } catch (e) {
@@ -49,7 +71,7 @@
         if (plotData.length === 0) return;
         if (chart) chart.destroy();
 
-        const labels = plotData.map(d => d.label || d.key);
+        const labels = plotData.map(d => d.display_title || d.label || d.key);
         const values = plotData.map(d => d.value !== undefined ? d.value : d.count);
 
         chart = new Chart(node, {
@@ -92,10 +114,10 @@
             {:else if widget.type === 'Metric' || widget.type === 'stat'}
                 <div class="flex flex-col items-center">
                     <span class="text-5xl font-black tracking-tighter text-primary">
-                        {latestValue !== null ? latestValue : '---'}
+                        {latestValue !== null ? (typeof latestValue === 'number' ? latestValue.toFixed(1) : latestValue) : '---'}
                     </span>
-                    {#if (widget.config?.unit)}
-                        <span class="text-xs font-mono opacity-30 mt-1 uppercase tracking-widest">{widget.config.unit}</span>
+                    {#if (parsedConfig?.unit)}
+                        <span class="text-xs font-mono opacity-30 mt-1 uppercase tracking-widest">{parsedConfig.unit}</span>
                     {/if}
                 </div>
             {:else if widget.type === 'Status'}
@@ -113,8 +135,19 @@
             {:else if (widget.type === 'TopList' || widget.type === 'semantic_top') && data.length > 0}
                 <div class="space-y-2 overflow-y-auto max-h-full px-2">
                     {#each data.slice(0, 5) as item}
-                        <div class="flex justify-between items-center text-[11px]">
-                            <span class="font-bold truncate max-w-[70%]">{item.key}</span>
+                        <div class="flex justify-between items-center text-[11px] gap-2">
+                            <div class="flex items-center gap-2 flex-1 min-w-0">
+                                {#if item.display_image}
+                                    <div class="w-5 h-5 rounded-md overflow-hidden bg-base-300 shrink-0">
+                                        <img src={item.display_image} alt="" class="object-cover w-full h-full" />
+                                    </div>
+                                {:else}
+                                    <div class="w-5 h-5 rounded-md bg-base-300 flex items-center justify-center text-[8px] font-bold opacity-40 shrink-0">
+                                        {(item.display_title || item.key).charAt(0).toUpperCase()}
+                                    </div>
+                                {/if}
+                                <span class="font-bold truncate">{item.display_title || item.key}</span>
+                            </div>
                             <div class="flex items-center gap-2">
                                 <div class="w-12 h-1 bg-base-300 rounded-full overflow-hidden">
                                     <div class="bg-secondary h-full" style="width: {(item.count / data[0].count) * 100}%"></div>

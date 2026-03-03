@@ -15,6 +15,7 @@ pub struct DbEvent {
     pub display_title: Option<String>,
     pub display_subtitle: Option<String>,
     pub display_image: Option<String>,
+    pub display_value: Option<f64>,
 }
 
 impl TryFrom<DbEvent> for Event {
@@ -34,6 +35,7 @@ impl TryFrom<DbEvent> for Event {
             display_title: db_ev.display_title,
             display_subtitle: db_ev.display_subtitle,
             display_image: db_ev.display_image,
+            display_value: db_ev.display_value,
         })
     }
 }
@@ -50,10 +52,10 @@ impl<'a> EventRepository<'a> {
 
     pub async fn list(&self, category: Option<String>, limit: u32, offset: u32) -> Result<Vec<Event>> {
         let db_events = if let Some(cat) = category {
-            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image FROM events WHERE user_id = ? AND category = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
+            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image, display_value FROM events WHERE user_id = ? AND category = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
                 .bind(self.user_id).bind(cat).bind(limit).bind(offset)
         } else {
-            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image FROM events WHERE user_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
+            sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image, display_value FROM events WHERE user_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
                 .bind(self.user_id).bind(limit).bind(offset)
         }.fetch_all(self.pool).await?;
 
@@ -61,7 +63,7 @@ impl<'a> EventRepository<'a> {
     }
 
     pub async fn get_by_id(&self, id: &str) -> Result<Option<Event>> {
-        let db_event = sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image FROM events WHERE user_id = ? AND id = ?")
+        let db_event = sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image, display_value FROM events WHERE user_id = ? AND id = ?")
             .bind(self.user_id).bind(id).fetch_optional(self.pool).await?;
 
         Ok(db_event.and_then(|e| Event::try_from(e).ok()))
@@ -69,7 +71,7 @@ impl<'a> EventRepository<'a> {
 
     pub async fn get_by_entity(&self, namespace: &str, typ: &str, id: &str) -> Result<Vec<Event>> {
         let rows = sqlx::query_as::<_, DbEvent>(
-            "SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image FROM events 
+            "SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image, display_value FROM events 
              WHERE user_id = ? AND EXISTS (
                 SELECT 1 FROM json_each(entities) WHERE json_extract(value, '$.namespace') = ? AND json_extract(value, '$.typ') = ? AND json_extract(value, '$.id') = ?
              ) ORDER BY timestamp DESC LIMIT 100"
@@ -80,7 +82,7 @@ impl<'a> EventRepository<'a> {
     }
 
     pub async fn insert(&self, event: &Event) -> Result<()> {
-        sqlx::query("INSERT INTO events (id, user_id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        sqlx::query("INSERT INTO events (id, user_id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image, display_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
             .bind(event.id.to_string())
             .bind(self.user_id)
             .bind(event.timestamp.to_rfc3339())
@@ -93,6 +95,7 @@ impl<'a> EventRepository<'a> {
             .bind(&event.display_title)
             .bind(&event.display_subtitle)
             .bind(&event.display_image)
+            .bind(event.display_value)
             .execute(self.pool)
             .await?;
         Ok(())

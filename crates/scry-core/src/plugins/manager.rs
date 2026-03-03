@@ -175,6 +175,7 @@ impl PluginManager {
                         display_title: event.display_title.clone(),
                         display_subtitle: event.display_subtitle.clone(),
                         display_image: event.display_image.clone(),
+                        display_value: event.display_value,
                     };
                     let processed = instance.call_on_ingest(&mut store, &ev).await?.map_err(|e| anyhow::anyhow!(e))?;
                     
@@ -193,6 +194,7 @@ impl PluginManager {
                         display_title: processed.display_title,
                         display_subtitle: processed.display_subtitle,
                         display_image: processed.display_image,
+                        display_value: processed.display_value,
                     };
                     Ok((mapped, store))
                 }).await?;
@@ -227,6 +229,7 @@ impl PluginManager {
                                                     display_title: ev.display_title,
                                                     display_subtitle: ev.display_subtitle,
                                                     display_image: ev.display_image,
+                                                    display_value: ev.display_value,
                                                 })            }).collect::<Result<Vec<_>>>()?;
             Ok((mapped, store))
         }).await

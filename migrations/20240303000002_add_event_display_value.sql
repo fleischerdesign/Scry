@@ -1,0 +1,1 @@
+ALTER TABLE events ADD COLUMN display_value REAL;
