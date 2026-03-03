@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 use uuid::Uuid;
-use crate::models::Dashboard;
+use crate::domain::Dashboard;
 use crate::error::Result;
 use crate::repository::DashboardRepository;
 

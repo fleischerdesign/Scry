@@ -1,12 +1,15 @@
 mod plugins;
 mod event_service;
-mod models;
+mod domain;
+mod state;
 mod handlers;
 mod error;
 mod repository;
 mod services;
 
 use services::{AuthService, DashboardService, GraphService, AnalyticsService, PluginService, SystemService};
+use state::AppState;
+use domain::*;
 
 use axum::{
     extract::State,
@@ -26,7 +29,6 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use crate::plugins::PluginManager;
 use crate::event_service::EventService;
-use crate::models::*;
 use crate::handlers::*;
 use tokio::time::{sleep, Duration};
 use notify::{Watcher, RecursiveMode};

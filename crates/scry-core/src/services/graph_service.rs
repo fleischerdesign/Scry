@@ -1,7 +1,7 @@
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use serde_json::json;
-use crate::models::*;
+use crate::domain::*;
 use crate::error::Result;
 use crate::repository::EntityRepository;
 use crate::plugins::PluginManager;

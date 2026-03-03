@@ -5,8 +5,9 @@ use axum::{
 use serde_json::json;
 use std::sync::Arc;
 
-use crate::models::*;
+use crate::domain::*;
 use crate::error::{Error, Result};
+use crate::state::AppState;
 use super::*;
 
 #[utoipa::path(post, path = "/api/v1/analytics/discover", responses((status = 200)), security(("api_key" = [])))]

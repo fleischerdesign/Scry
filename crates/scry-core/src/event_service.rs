@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use crate::plugins::PluginManager;
 use scry_proto::Event;
+use crate::domain::*;
 use crate::error::{Error, Result};
 use crate::repository::{EventRepository, ConfigRepository, EntityRepository, AnalyticsRepository};
 use serde_json::Value;
@@ -274,7 +275,7 @@ impl EventService {
         repo.get_semantic_series(&category, &path, days, interval).await
     }
 
-    pub async fn calculate_semantic_stats(&self, user_id: i64, base_semantic: &str, join_semantic: &str, limit: u32) -> Result<crate::models::SemanticStats> {
+    pub async fn calculate_semantic_stats(&self, user_id: i64, base_semantic: &str, join_semantic: &str, limit: u32) -> Result<SemanticStats> {
         let correlations = self.correlate_semantic(user_id, base_semantic, join_semantic, limit).await?;
         let sample_size = correlations.len();
         let mut distribution = std::collections::HashMap::new();
@@ -286,7 +287,7 @@ impl EventService {
             *entry.entry(join_val).or_insert(0) += 1;
         }
 
-        Ok(crate::models::SemanticStats {
+        Ok(SemanticStats {
             base_type: base_semantic.to_string(), join_type: join_semantic.to_string(),
             sample_size, correlations: serde_json::to_value(distribution).map_err(|_e| Error::Internal)?,
         })

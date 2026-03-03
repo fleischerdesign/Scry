@@ -4,8 +4,9 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::models::*;
+use crate::domain::*;
 use crate::error::Result;
+use crate::state::AppState;
 
 #[utoipa::path(get, path = "/api/v1/discovery/entities", responses((status = 200, body = [ApiNamespace])), security(("api_key" = [])))]
 pub async fn get_namespaces(

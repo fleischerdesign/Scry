@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 use crate::error::Result;
-use crate::models::{Dashboard, DashboardWidget};
+use crate::domain::{Dashboard, DashboardWidget};
 use serde_json::json;
 
 pub struct DashboardRepository<'a> {

@@ -8,8 +8,9 @@ use std::sync::Arc;
 use futures::stream::Stream;
 use std::convert::Infallible;
 
-use crate::models::*;
+use crate::domain::*;
 use crate::error::{Error, Result};
+use crate::state::AppState;
 use super::*;
 
 pub async fn stream_live_events(

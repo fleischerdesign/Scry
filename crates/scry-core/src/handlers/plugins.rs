@@ -6,8 +6,9 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::models::*;
+use crate::domain::*;
 use crate::error::Result;
+use crate::state::AppState;
 
 #[utoipa::path(get, path = "/api/v1/system/plugins/{id}/reports/{report_id}", responses((status = 200, body = ApiReportData)), security(("api_key" = [])))]
 pub async fn run_plugin_report(

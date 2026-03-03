@@ -4,7 +4,7 @@ use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use password_hash::{PasswordHash, SaltString, rand_core::OsRng};
 use serde_json::json;
 
-use crate::models::*;
+use crate::domain::*;
 use crate::error::{Error, Result};
 use crate::repository::{UserRepository, ProfileRepository, EntityRepository};
 

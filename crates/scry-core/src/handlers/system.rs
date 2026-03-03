@@ -6,7 +6,7 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::models::*;
+use crate::state::AppState;
 
 #[utoipa::path(get, path = "/api/v1/system/status", responses((status = 200, description = "Status")))]
 pub async fn get_system_status(State(state): State<Arc<AppState>>) -> impl IntoResponse {

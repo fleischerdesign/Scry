@@ -6,8 +6,9 @@ use axum::{
 use std::sync::Arc;
 use validator::Validate;
 
-use crate::models::*;
+use crate::domain::*;
 use crate::error::Result;
+use crate::state::AppState;
 
 #[utoipa::path(post, path = "/api/v1/auth/register", request_body = RegisterRequest, responses((status = 200, body = AuthResponse)))]
 pub async fn register_user(State(state): State<Arc<AppState>>, Json(req): Json<RegisterRequest>) -> Result<Json<AuthResponse>> {

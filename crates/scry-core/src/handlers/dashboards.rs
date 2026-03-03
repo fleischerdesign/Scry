@@ -6,8 +6,9 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::models::*;
+use crate::domain::*;
 use crate::error::{Error, Result};
+use crate::state::AppState;
 
 #[utoipa::path(post, path = "/api/v1/system/dashboards", responses((status = 200)), security(("api_key" = [])))]
 pub async fn create_dashboard(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(req): Json<serde_json::Value>) -> Result<impl IntoResponse> {
