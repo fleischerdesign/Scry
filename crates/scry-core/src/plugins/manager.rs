@@ -28,6 +28,7 @@ impl PluginManager {
         let mut config = Config::new();
         config.wasm_component_model(true);
         config.wasm_component_model_async(true);
+        config.consume_fuel(true); // Erlaubt das Limitieren von CPU-Zyklen
         let engine = Engine::new(&config)?;
 
         Ok(Self {
@@ -70,6 +71,7 @@ impl PluginManager {
         };
 
         let mut store = Store::new(&self.engine, ctx);
+        store.set_fuel(1_000_000)?; // Max 1M CPU-Zyklen pro Plugin-Ausführung
         let instance = crate::plugins::Plugin::instantiate_async(&mut store, &plugin.component, &linker).await?;
         
         let (res, _store) = f(instance, store).await?;
@@ -119,6 +121,7 @@ impl PluginManager {
         };
 
         let mut store = Store::new(&self.engine, ctx);
+        store.set_fuel(1_000_000)?; // 1M Fuel für Init
         let instance_raw = crate::plugins::Plugin::instantiate_async(&mut store, &component, &linker).await?;
         let manifest = instance_raw.call_get_manifest(&mut store).await?;
         
