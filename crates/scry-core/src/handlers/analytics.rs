@@ -8,7 +8,6 @@ use std::sync::Arc;
 use crate::domain::*;
 use crate::error::{Error, Result};
 use crate::state::AppState;
-use super::*;
 
 #[utoipa::path(post, path = "/api/v1/analytics/discover", responses((status = 200)), security(("api_key" = [])))]
 pub async fn trigger_discovery(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<Json<serde_json::Value>> {

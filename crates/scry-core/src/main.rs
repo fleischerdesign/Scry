@@ -8,18 +8,11 @@ mod services;
 
 use services::{AuthService, DashboardService, GraphService, AnalyticsService, PluginService, SystemService, EventService};
 use state::AppState;
-use domain::*;
 
 use axum::{
-    extract::State,
-    http::StatusCode,
-    middleware::{self, Next},
-    response::{Response},
-    routing::{get, post, delete},
+    http::HeaderName,
     Router,
-    http::Request,
 };
-use scry_proto::Event;
 use sqlx::sqlite::{SqlitePool, SqliteConnectOptions};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -27,39 +20,41 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use crate::plugins::PluginManager;
-use crate::handlers::*;
-use tokio::time::{sleep, Duration};
 use notify::{Watcher, RecursiveMode};
-use tower_http::cors::Any;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 use tokio_util::sync::CancellationToken;
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        handlers::register_user, handlers::login_user,
-        handlers::get_catalog, handlers::search_events, 
-        handlers::get_data_by_type, 
-        handlers::get_timeline, 
-        handlers::get_daily_summary,
-        handlers::get_semantic_top,
-        handlers::get_semantic_series,
-        handlers::correlate_events,
-        handlers::get_system_status, handlers::get_system_plugins, handlers::poll_plugin_manually,
-        handlers::update_plugin_config, handlers::get_plugin_config, handlers::get_profile, handlers::update_profile,
-        handlers::get_dashboards, handlers::add_widget,
-        handlers::create_dashboard, handlers::delete_widget,
-        handlers::ingest_event,
-        handlers::get_namespaces,
-        handlers::get_namespace_types,
-        handlers::get_entities,
-        handlers::get_entity_traits,
-        handlers::get_event_by_id,
-        handlers::get_events_by_entity,
-        handlers::run_plugin_report,
-        handlers::health_check
+        handlers::auth::register_user, handlers::auth::login_user,
+        handlers::plugins::get_catalog, handlers::analytics::search_events, 
+        handlers::events::get_data_by_type, 
+        handlers::events::get_timeline, 
+        handlers::events::get_daily_summary,
+        handlers::analytics::get_semantic_top,
+        handlers::analytics::get_semantic_series,
+        handlers::analytics::correlate_events,
+        handlers::system::get_system_status, handlers::plugins::get_system_plugins, handlers::plugins::poll_plugin_manually,
+        handlers::plugins::update_plugin_config, handlers::plugins::get_plugin_config, handlers::auth::get_profile, handlers::auth::update_profile,
+        handlers::dashboards::get_dashboards, handlers::dashboards::add_widget,
+        handlers::dashboards::create_dashboard, handlers::dashboards::delete_widget,
+        handlers::events::ingest_event,
+        handlers::entities::get_namespaces,
+        handlers::entities::get_namespace_types,
+        handlers::entities::get_entities,
+        handlers::entities::get_entity_traits,
+        handlers::events::get_event_by_id,
+        handlers::events::get_events_by_entity,
+        handlers::plugins::run_plugin_report,
+        handlers::system::health_check
     ),
-    components(schemas(Event, User, RegisterRequest, LoginRequest, AuthResponse, ApiReportMetadata, ApiReportData, PluginReports, CorrelationResult, SemanticStats, PluginStatus, SemanticParams, Dashboard, DashboardWidget, ApiEntity, ApiNamespace)),
+    components(schemas(
+        scry_proto::Event, domain::User, domain::RegisterRequest, domain::LoginRequest, domain::AuthResponse, 
+        domain::ApiReportMetadata, domain::ApiReportData, domain::PluginReports, domain::CorrelationResult, 
+        domain::SemanticStats, domain::PluginStatus, domain::SemanticParams, domain::Dashboard, 
+        domain::DashboardWidget, domain::ApiEntity, domain::ApiNamespace
+    )),
     modifiers(&SecurityAddon),
     tags((name = "scry", description = "Scry Multi-Tenant Platform API"))
 )]
@@ -83,7 +78,6 @@ impl utoipa::Modify for SecurityAddon {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Lade Umgebungsvariablen aus .env Datei
     dotenvy::dotenv().ok();
 
     tracing_subscriber::registry()
@@ -92,11 +86,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:scry.db".to_string());
-    let db_filename = database_url
-        .trim_start_matches("sqlite:")
-        .split('?')
-        .next()
-        .unwrap_or("scry.db");
+    let db_filename = database_url.trim_start_matches("sqlite:").split('?').next().unwrap_or("scry.db");
 
     let pool_options = SqliteConnectOptions::new()
         .filename(db_filename)
@@ -113,165 +103,68 @@ async fn main() -> anyhow::Result<()> {
     let pm_for_watcher = plugin_manager.clone();
     let rt_handle = tokio::runtime::Handle::current();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-        match res {
-            Ok(event) => {
-                if event.kind.is_modify() || event.kind.is_create() {
-                    let pm = pm_for_watcher.clone();
-                    rt_handle.spawn(async move {
-                        for path in event.paths {
-                            if let Err(e) = pm.reload_plugin(&path).await {
-                                tracing::error!("Failed to hot-reload plugin {:?}: {}", path, e);
-                            }
+        if let Ok(event) = res {
+            if event.kind.is_modify() || event.kind.is_create() {
+                let pm = pm_for_watcher.clone();
+                rt_handle.spawn(async move {
+                    for path in event.paths {
+                        if let Err(e) = pm.reload_plugin(&path).await {
+                            tracing::error!("Failed to hot-reload plugin {:?}: {}", path, e);
                         }
-                    });
-                }
-            },
-            Err(e) => tracing::error!("Watcher error: {}", e),
+                    }
+                });
+            }
         }
     })?;
     watcher.watch(std::path::Path::new("./plugins"), RecursiveMode::NonRecursive)?;
 
     let cancel_token = CancellationToken::new();
     let mut event_service = EventService::new(db.clone(), plugin_manager.clone());
-    let analytics_service = AnalyticsService::new(db.clone(), plugin_manager.clone());
-    let auth_service = AuthService::new(db.clone());
-    let dashboard_service = DashboardService::new(db.clone());
-    let graph_service = GraphService::new(db.clone(), plugin_manager.clone());
     let (event_sender, _rx) = tokio::sync::broadcast::channel(1024);
     event_service.set_event_sender(event_sender.clone());
     
-    let plugin_service = PluginService::new(db.clone(), plugin_manager.clone(), event_service.clone());
-    let system_service = SystemService::new(db.clone());
-
     let shared_state = Arc::new(AppState { 
-        event_service, 
-        analytics_service,
-        auth_service,
-        dashboard_service,
-        graph_service,
-        plugin_service,
-        system_service,
+        event_service: event_service.clone(), 
+        analytics_service: AnalyticsService::new(db.clone(), plugin_manager.clone()),
+        auth_service: AuthService::new(db.clone()),
+        dashboard_service: DashboardService::new(db.clone()),
+        graph_service: GraphService::new(db.clone(), plugin_manager.clone()),
+        plugin_service: PluginService::new(db.clone(), plugin_manager.clone(), event_service),
+        system_service: SystemService::new(db.clone()),
         event_sender,
         cancel_token: cancel_token.clone()
     });
 
-    // Background Scheduler Task (Multi-Tenant aware)
-    let scheduler_state = shared_state.clone();
-    let scheduler_token = cancel_token.clone();
+    // Start Background Tasks via SystemService
+    let background_state = shared_state.clone();
+    let background_token = cancel_token.clone();
     tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                _ = scheduler_token.cancelled() => {
-                    tracing::info!("Scheduler shutting down...");
-                    break;
-                }
-                _ = async {
-                    let user_ids = match scheduler_state.auth_service.get_all_user_ids().await {
-                        Ok(ids) => ids,
-                        Err(e) => {
-                            tracing::error!("Failed to fetch users for scheduler: {}", e);
-                            vec![]
-                        }
-                    };
-
-                    let manifests: std::collections::HashMap<String, crate::plugins::scry::plugin::types::Manifest> = scheduler_state.event_service.plugin_manager().get_plugin_manifests().await;
-                    
-                    for user_id in user_ids {
-                        for (name, _) in &manifests {
-                            let svc = scheduler_state.event_service.clone();
-                            let plugin_name: String = name.clone();
-                            tokio::spawn(async move {
-                                if let Err(e) = svc.poll_and_save_plugin(user_id, &plugin_name).await {
-                                    tracing::warn!(user_id = %user_id, plugin = %plugin_name, "Scheduler poll failed: {}", e);
-                                }
-                            });
-                        }
-                    }
-                    sleep(Duration::from_secs(60)).await;
-                } => {}
-            }
-        }
+        background_state.system_service.run_background_tasks(background_state.clone(), background_token).await;
     });
-
-    let auth_routes = Router::new()
-        .route("/register", post(register_user))
-        .route("/login", post(login_user));
-
-    let api_v1 = Router::new()
-        .nest("/auth", auth_routes)
-        .merge(Router::new()
-            .nest("/discovery", Router::new()
-                .route("/catalog", get(get_catalog))
-                .route("/search", get(search_events))
-                .route("/entities", get(get_namespaces))
-                .route("/entities/:namespace", get(get_namespace_types))
-                .route("/entities/:namespace/:typ", get(get_entities))
-                .route("/entities/:namespace/:typ/:id/traits", get(get_entity_traits)))
-            .nest("/data", Router::new()
-                .route("/id/:id", get(get_event_by_id))
-                .route("/entity/:namespace/:typ/:id", get(get_events_by_entity))
-                .route("/*path", get(get_data_by_type)))
-            .nest("/streams", Router::new()
-                .route("/timeline", get(get_timeline))
-                .route("/summary", get(get_daily_summary))
-                .route("/live", get(stream_live_events)))
-            .nest("/analytics", Router::new()
-                .route("/discover", post(trigger_discovery))
-                .route("/discoveries", get(get_discoveries))
-                .route("/correlations", get(correlate_events))
-                .route("/stats", get(get_semantic_stats))
-                .route("/semantic/top", get(get_semantic_top))
-                .route("/semantic/series", get(get_semantic_series))
-                .route("/plugins/:id/reports/:report_id", get(run_plugin_report)))
-            .nest("/system", Router::new()
-                .route("/status", get(get_system_status))
-                .route("/plugins", get(get_system_plugins))
-                .route("/plugins/:id/poll", post(poll_plugin_manually))
-                .route("/plugins/:id/config", get(get_plugin_config).post(update_plugin_config))
-                .route("/dashboards", get(get_dashboards).post(create_dashboard))
-                .route("/dashboards/:id/widgets", post(add_widget))
-                .route("/dashboards/:id/widgets/:widget_id", delete(delete_widget))
-                .route("/profile", get(get_profile).post(update_profile)))
-            .route("/ingest", post(ingest_event))
-            .layer(middleware::from_fn_with_state(shared_state.clone(), auth_middleware)));
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
-        .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::HeaderName::from_static("x-api-key")]);
+        .allow_headers([axum::http::header::CONTENT_TYPE, HeaderName::from_static("x-api-key")]);
 
     let app = Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        .route("/health", get(health_check))
-        .nest("/api/v1", api_v1)
+        .merge(handlers::app_router(shared_state.clone()))
         .fallback_service(
             tower_http::services::ServeDir::new("web/dist")
                 .fallback(tower_http::services::ServeFile::new("web/dist/index.html"))
         )
-        .layer(cors)
-        .with_state(shared_state);
+        .layer(cors);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::info!("Scry Multi-Tenant Platform on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     
-    // Graceful Shutdown Signal Handler
     let final_cancel_token = cancel_token.clone();
     let shutdown = async move {
-        let ctrl_c = async {
-            tokio::signal::ctrl_c()
-                .await
-                .expect("failed to install Ctrl+C handler");
-        };
-
+        let ctrl_c = async { tokio::signal::ctrl_c().await.expect("failed to install Ctrl+C handler"); };
         #[cfg(unix)]
-        let terminate = async {
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("failed to install signal handler")
-                .recv()
-                .await;
-        };
-
+        let terminate = async { tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).expect("failed to install signal handler").recv().await; };
         #[cfg(not(unix))]
         let terminate = std::future::pending::<()>();
 
@@ -283,42 +176,7 @@ async fn main() -> anyhow::Result<()> {
         final_cancel_token.cancel();
     };
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
-        .await?;
-
+    axum::serve(listener, app).with_graceful_shutdown(shutdown).await?;
     tracing::info!("Scry shutdown complete.");
     Ok(())
-}
-
-async fn auth_middleware(State(state): State<Arc<AppState>>, mut req: Request<axum::body::Body>, next: Next) -> Result<Response, StatusCode> {
-    if req.method() == axum::http::Method::OPTIONS {
-        return Ok(next.run(req).await);
-    }
-
-    let auth_header = req.headers().get("X-API-Key").and_then(|h| h.to_str().ok());
-    let query_key = req.uri().query()
-        .and_then(|q| serde_urlencoded::from_str::<std::collections::HashMap<String, String>>(q).ok())
-        .and_then(|m| m.get("api_key").cloned());
-
-    let key_to_check = auth_header.map(|s| s.to_string()).or(query_key);
-    
-    if let Some(key) = key_to_check {
-        let auth = state.auth_service.verify_api_key(&key).await.map_err(|e| {
-            tracing::error!("Auth Service Error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-        
-        if let Some((user_id, scopes)) = auth {
-            let ctx = AuthContext {
-                user_id,
-                scopes,
-            };
-            req.extensions_mut().insert(ctx);
-            return Ok(next.run(req).await);
-        } else {
-            tracing::warn!("Invalid API Key provided: {}", key);
-        }
-    }
-    Err(StatusCode::UNAUTHORIZED)
 }

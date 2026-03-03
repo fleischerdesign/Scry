@@ -11,7 +11,6 @@ use std::convert::Infallible;
 use crate::domain::*;
 use crate::error::{Error, Result};
 use crate::state::AppState;
-use super::*;
 
 pub async fn stream_live_events(
     State(state): State<Arc<AppState>>,
