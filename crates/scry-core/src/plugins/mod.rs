@@ -1,11 +1,14 @@
 pub mod context;
 pub mod host_impl;
 pub mod manager;
+pub mod mapper;
 
 #[allow(unused_imports)]
 pub use manager::PluginManager;
 #[allow(unused_imports)]
 pub use context::MyCtx;
+#[allow(unused_imports)]
+pub use mapper::{EventMapper, EntityMapper, ManifestMapper, ReportMapper, ConversionError};
 
 wasmtime::component::bindgen!({
     world: "plugin",

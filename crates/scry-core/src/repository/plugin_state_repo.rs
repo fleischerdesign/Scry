@@ -2,41 +2,41 @@ use sqlx::SqlitePool;
 use crate::error::Result;
 use crate::plugins::scry::plugin::host::{Relationship, QueryParam};
 
-pub struct PluginStateRepository<'a> {
-    pool: &'a SqlitePool,
+pub struct PluginStateRepository {
+    pool: SqlitePool,
     user_id: i64,
     plugin_name: String,
 }
 
-impl<'a> PluginStateRepository<'a> {
-    pub fn new(pool: &'a SqlitePool, user_id: i64, plugin_name: &str) -> Self {
-        Self { pool, user_id, plugin_name: plugin_name.to_string() }
+impl PluginStateRepository {
+    pub fn new(pool: &SqlitePool, user_id: i64, plugin_name: &str) -> Self {
+        Self { pool: pool.clone(), user_id, plugin_name: plugin_name.to_string() }
     }
 
     pub async fn set_state(&self, key: &str, value: &str) -> Result<()> {
         sqlx::query("INSERT INTO plugin_state (user_id, plugin_name, key, value) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, plugin_name, key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP")
-            .bind(self.user_id).bind(&self.plugin_name).bind(key).bind(value).execute(self.pool).await?;
+            .bind(self.user_id).bind(&self.plugin_name).bind(key).bind(value).execute(&self.pool).await?;
         Ok(())
     }
 
     pub async fn get_state(&self, key: &str) -> Result<Option<String>> {
         let row = sqlx::query_scalar::<_, String>("SELECT value FROM plugin_state WHERE user_id = ? AND plugin_name = ? AND key = ?")
-            .bind(self.user_id).bind(&self.plugin_name).bind(key).fetch_optional(self.pool).await?;
+            .bind(self.user_id).bind(&self.plugin_name).bind(key).fetch_optional(&self.pool).await?;
         Ok(row)
     }
 
     pub async fn get_config(&self, key: &str) -> Result<Option<String>> {
         let res = sqlx::query_scalar::<_, String>("SELECT value FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ?")
-            .bind(self.user_id).bind(&self.plugin_name).bind(key).fetch_optional(self.pool).await?;
+            .bind(self.user_id).bind(&self.plugin_name).bind(key).fetch_optional(&self.pool).await?;
         Ok(res)
     }
 
     pub async fn set_trait(&self, namespace: &str, typ: &str, id: &str, trait_id: &str, value_json: &str) -> Result<()> {
         sqlx::query("INSERT INTO entities (user_id, namespace, typ, id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
-            .bind(self.user_id).bind(namespace).bind(typ).bind(id).execute(self.pool).await?;
+            .bind(self.user_id).bind(namespace).bind(typ).bind(id).execute(&self.pool).await?;
 
         sqlx::query("INSERT INTO entity_traits (user_id, plugin_id, namespace, entity_type, entity_id, trait_id, value_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, plugin_id, namespace, entity_type, entity_id, trait_id) DO UPDATE SET value_json = EXCLUDED.value_json, updated_at = CURRENT_TIMESTAMP")
-            .bind(self.user_id).bind(&self.plugin_name).bind(namespace).bind(typ).bind(id).bind(trait_id).bind(value_json).execute(self.pool).await?;
+            .bind(self.user_id).bind(&self.plugin_name).bind(namespace).bind(typ).bind(id).bind(trait_id).bind(value_json).execute(&self.pool).await?;
         Ok(())
     }
 
@@ -45,7 +45,7 @@ impl<'a> PluginStateRepository<'a> {
             "SELECT value_json FROM entity_traits WHERE user_id = ? AND namespace = ? AND entity_type = ? AND entity_id = ? AND trait_id = ? ORDER BY updated_at DESC LIMIT 1"
         )
         .bind(self.user_id).bind(namespace).bind(typ).bind(id).bind(trait_id)
-        .fetch_optional(self.pool).await?;
+        .fetch_optional(&self.pool).await?;
         Ok(row)
     }
 
@@ -60,7 +60,7 @@ impl<'a> PluginStateRepository<'a> {
             .bind(rel.target_namespace)
             .bind(rel.target_type)
             .bind(rel.target_id)
-            .execute(self.pool).await?;
+            .execute(&self.pool).await?;
         Ok(())
     }
 
@@ -73,7 +73,7 @@ impl<'a> PluginStateRepository<'a> {
 
         let rows = sqlx::query_as::<_, (String, String, String, String, String, String, String)>(sql)
             .bind(self.user_id).bind(namespace).bind(typ).bind(id)
-            .fetch_all(self.pool).await?;
+            .fetch_all(&self.pool).await?;
 
         Ok(rows.into_iter().map(|(sn, st, si, p, tn, tt, ti)| Relationship {
             source_namespace: sn, source_type: st, source_id: si,
@@ -97,7 +97,7 @@ impl<'a> PluginStateRepository<'a> {
             };
         }
 
-        let rows = query.fetch_all(self.pool).await?;
+        let rows = query.fetch_all(&self.pool).await?;
         Ok(rows)
     }
 }

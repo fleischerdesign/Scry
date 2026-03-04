@@ -1,6 +1,6 @@
 use crate::plugins::scry::plugin::host::{Host, QueryParam, Relationship};
 use crate::plugins::context::MyCtx;
-use crate::repository::{PluginStateRepository, ProfileRepository};
+use crate::repository::ProfileRepository;
 use anyhow::Result;
 use sqlx::{Column, Row, ValueRef};
 
@@ -13,7 +13,7 @@ impl Host for MyCtx {
             return Ok(Err("Only SELECT queries are allowed".to_string()));
         }
 
-        let repo = PluginStateRepository::new(&self.db, self.user_id, &self.plugin_name);
+        let repo = self.state_repo();
         let rows = match repo.raw_query(&sql, self.user_id, params).await {
             Ok(r) => r,
             Err(e) => return Ok(Err(e.to_string())),
@@ -60,19 +60,15 @@ impl Host for MyCtx {
     }
 
     async fn set_state(&mut self, key: String, value: String) -> Result<()> {
-        let repo = PluginStateRepository::new(&self.db, self.user_id, &self.plugin_name);
-        repo.set_state(&key, &value).await.map_err(|e| anyhow::anyhow!(e))?;
-        Ok(())
+        self.state_repo().set_state(&key, &value).await.map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn get_state(&mut self, key: String) -> Result<Option<String>> {
-        let repo = PluginStateRepository::new(&self.db, self.user_id, &self.plugin_name);
-        repo.get_state(&key).await.map_err(|e| anyhow::anyhow!(e))
+        self.state_repo().get_state(&key).await.map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn get_config(&mut self, key: String) -> Result<Option<String>> {
-        let repo = PluginStateRepository::new(&self.db, self.user_id, &self.plugin_name);
-        repo.get_config(&key).await.map_err(|e| anyhow::anyhow!(e))
+        self.state_repo().get_config(&key).await.map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn get_profile_value(&mut self, key: String) -> Result<Option<String>> {
@@ -92,23 +88,18 @@ impl Host for MyCtx {
     }
 
     async fn set_entity_trait(&mut self, namespace: String, typ: String, id: String, trait_id: String, value_json: String) -> Result<()> {
-        let repo = PluginStateRepository::new(&self.db, self.user_id, &self.plugin_name);
-        repo.set_trait(&namespace, &typ, &id, &trait_id, &value_json).await.map_err(|e| anyhow::anyhow!(e))?;
-        Ok(())
+        self.state_repo().set_trait(&namespace, &typ, &id, &trait_id, &value_json).await.map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn get_entity_trait(&mut self, namespace: String, typ: String, id: String, trait_id: String) -> Result<Option<String>> {
-        let repo = PluginStateRepository::new(&self.db, self.user_id, &self.plugin_name);
-        repo.get_trait(&namespace, &typ, &id, &trait_id).await.map_err(|e| anyhow::anyhow!(e))
+        self.state_repo().get_trait(&namespace, &typ, &id, &trait_id).await.map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn set_relationship(&mut self, rel: Relationship) -> Result<()> {
-        let repo = PluginStateRepository::new(&self.db, self.user_id, &self.plugin_name);
-        repo.set_relationship(rel).await.map_err(|e| anyhow::anyhow!(e))
+        self.state_repo().set_relationship(rel).await.map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn get_relationships(&mut self, namespace: String, typ: String, id: String, direction: String) -> Result<Vec<Relationship>> {
-        let repo = PluginStateRepository::new(&self.db, self.user_id, &self.plugin_name);
-        repo.get_relationships(&namespace, &typ, &id, &direction).await.map_err(|e| anyhow::anyhow!(e))
+        self.state_repo().get_relationships(&namespace, &typ, &id, &direction).await.map_err(|e| anyhow::anyhow!(e))
     }
 }

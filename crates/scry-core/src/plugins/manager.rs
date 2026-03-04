@@ -8,7 +8,27 @@ use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
 use anyhow::Result;
 use scry_proto::Event as ScryEvent;
 use crate::plugins::context::MyCtx;
-use crate::plugins::scry::plugin::types::{Event as PluginEvent, Manifest, ReportMetadata, ReportData, EntityRef as PluginEntityRef};
+use crate::plugins::mapper::{EventMapper, ReportMapper, ConversionError};
+use crate::plugins::scry::plugin::types::{Event as WitEvent, Manifest, ReportMetadata, ReportData, EntityRef as WitEntityRef};
+
+#[derive(Clone)]
+pub struct PluginConfig {
+    pub max_memory_bytes: usize,
+    pub max_table_entries: usize,
+    pub max_fuel: u64,
+    pub storage_base_path: String,
+}
+
+impl Default for PluginConfig {
+    fn default() -> Self {
+        Self {
+            max_memory_bytes: 256 * 1024 * 1024,
+            max_table_entries: 1000,
+            max_fuel: 1_000_000,
+            storage_base_path: "./storage".to_string(),
+        }
+    }
+}
 
 pub struct PluginInstance {
     pub name: String,
@@ -21,22 +41,70 @@ pub struct PluginManager {
     plugins: Arc<RwLock<HashMap<String, PluginInstance>>>,
     plugin_dir: String,
     db: sqlx::SqlitePool,
+    config: PluginConfig,
 }
 
 impl PluginManager {
     pub fn new(plugin_dir: &str, db: sqlx::SqlitePool) -> Result<Self> {
-        let mut config = Config::new();
-        config.wasm_component_model(true);
-        config.wasm_component_model_async(true);
-        config.consume_fuel(true); // Erlaubt das Limitieren von CPU-Zyklen
-        let engine = Engine::new(&config)?;
+        Self::with_config(plugin_dir, db, PluginConfig::default())
+    }
+
+    pub fn with_config(plugin_dir: &str, db: sqlx::SqlitePool, config: PluginConfig) -> Result<Self> {
+        let mut cfg = Config::new();
+        cfg.wasm_component_model(true);
+        cfg.wasm_component_model_async(true);
+        cfg.consume_fuel(true);
+        let engine = Engine::new(&cfg)?;
 
         Ok(Self {
             engine,
             plugins: Arc::new(RwLock::new(HashMap::new())),
             plugin_dir: plugin_dir.to_string(),
             db,
+            config,
         })
+    }
+
+    async fn build_store(&self, user_id: i64, name: &str) -> Result<Store<MyCtx>> {
+        let storage_path = format!("{}/u{}/p{}", self.config.storage_base_path, user_id, name);
+        tokio::fs::create_dir_all(&storage_path).await?;
+
+        let table = ResourceTable::new();
+        let wasi = WasiCtxBuilder::new()
+            .inherit_stdout()
+            .inherit_stderr()
+            .preopened_dir(&storage_path, "/", DirPerms::all(), FilePerms::all())?
+            .build();
+
+        let ctx = MyCtx::new(self.db.clone(), user_id, name.to_string());
+
+        let mut store = Store::new(&self.engine, ctx);
+        store.limiter(|ctx| ctx);
+        store.set_fuel(self.config.max_fuel)?;
+        Ok(store)
+    }
+
+    fn setup_linker(&self) -> Result<Linker<MyCtx>> {
+        let mut linker = Linker::new(&self.engine);
+        wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
+        crate::plugins::Plugin::add_to_linker::<MyCtx, wasmtime::component::HasSelf<MyCtx>>(&mut linker, |state| state)?;
+        Ok(linker)
+    }
+
+    fn matches_subscription(subscription: &str, category: &str) -> bool {
+        if subscription.ends_with('*') {
+            category.starts_with(&subscription[..subscription.len() - 1])
+        } else {
+            category == subscription
+        }
+    }
+
+    async fn get_matching_plugins(&self, category: &str) -> Vec<String> {
+        let plugins = self.plugins.read().await;
+        plugins.iter()
+            .filter(|(_, p)| p.manifest.subscriptions.iter().any(|s| Self::matches_subscription(s, category)))
+            .map(|(name, _)| name.clone())
+            .collect()
     }
 
     async fn with_instance<F, Fut, T>(&self, name: &str, user_id: i64, f: F) -> Result<T>
@@ -47,32 +115,8 @@ impl PluginManager {
         let plugins = self.plugins.read().await;
         let plugin = plugins.get(name).ok_or_else(|| anyhow::anyhow!("Plugin not found"))?;
 
-        let mut linker = Linker::new(&self.engine);
-        wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
-        crate::plugins::Plugin::add_to_linker::<MyCtx, wasmtime::component::HasSelf<MyCtx>>(&mut linker, |state| state)?;
-
-        let storage_path = format!("./storage/u{}/p{}", user_id, name);
-        std::fs::create_dir_all(&storage_path)?;
-
-        let table = ResourceTable::new();
-        let wasi = WasiCtxBuilder::new()
-            .inherit_stdout()
-            .inherit_stderr()
-            .preopened_dir(&storage_path, "/", DirPerms::all(), FilePerms::all())?
-            .build();
-
-        let ctx = MyCtx {
-            user_id,
-            plugin_name: name.to_string(),
-            db: self.db.clone(),
-            http_client: reqwest::Client::new(),
-            table,
-            wasi,
-        };
-
-        let mut store = Store::new(&self.engine, ctx);
-        store.limiter(|ctx| ctx); // Aktiviert den ResourceLimiter (Memory Limits)
-        store.set_fuel(1_000_000)?; // Max 1M CPU-Zyklen pro Plugin-Ausführung
+        let linker = self.setup_linker()?;
+        let mut store = self.build_store(user_id, name).await?;
         let instance = crate::plugins::Plugin::instantiate_async(&mut store, &plugin.component, &linker).await?;
         
         let (res, _store) = f(instance, store).await?;
@@ -84,11 +128,11 @@ impl PluginManager {
         plugins.clear();
 
         if !Path::new(&self.plugin_dir).exists() {
-            std::fs::create_dir_all(&self.plugin_dir)?;
+            tokio::fs::create_dir_all(&self.plugin_dir).await?;
         }
 
-        for entry in std::fs::read_dir(&self.plugin_dir)? {
-            let entry = entry?;
+        let mut dir = tokio::fs::read_dir(&self.plugin_dir).await?;
+        while let Some(entry) = dir.next_entry().await? {
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("wasm") {
                 self.load_plugin_internal(&mut plugins, &path).await?;
@@ -106,24 +150,9 @@ impl PluginManager {
         let name = path.file_stem().unwrap().to_str().unwrap().to_string();
         let component = Component::from_file(&self.engine, path)?;
 
-        let mut linker = Linker::new(&self.engine);
-        wasmtime_wasi::p2::add_to_linker_async(&mut linker)?;
-        crate::plugins::Plugin::add_to_linker::<MyCtx, wasmtime::component::HasSelf<MyCtx>>(&mut linker, |state| state)?;
-
-        let table = ResourceTable::new();
-        let wasi = WasiCtxBuilder::new().build();
-        let ctx = MyCtx {
-            user_id: 0,
-            plugin_name: name.clone(),
-            db: self.db.clone(),
-            http_client: reqwest::Client::new(),
-            table,
-            wasi,
-        };
-
-        let mut store = Store::new(&self.engine, ctx);
-        store.limiter(|ctx| ctx); // Aktiviert den ResourceLimiter
-        store.set_fuel(1_000_000)?; // 1M Fuel für Init
+        let linker = self.setup_linker()?;
+        let mut store = self.build_store(0, &name).await?;
+        
         let instance_raw = crate::plugins::Plugin::instantiate_async(&mut store, &component, &linker).await?;
         let manifest = instance_raw.call_get_manifest(&mut store).await?;
         
@@ -137,71 +166,17 @@ impl PluginManager {
     }
 
     pub async fn run_ingest_pipeline(&self, user_id: i64, mut event: ScryEvent) -> Result<ScryEvent> {
-        let plugin_names: Vec<String> = {
-            let plugins = self.plugins.read().await;
-            plugins.keys().cloned().collect()
-        };
+        let plugin_names = self.get_matching_plugins(&event.category).await;
 
         for name in plugin_names {
-            let should_run = {
-                let plugins = self.plugins.read().await;
-                if let Some(plugin) = plugins.get(&name) {
-                    plugin.manifest.subscriptions.iter().any(|sub| {
-                        if sub.ends_with('*') {
-                            event.category.starts_with(&sub[..sub.len() - 1])
-                        } else {
-                            &event.category == sub
-                        }
-                    })
-                } else {
-                    false
-                }
-            };
-
-            if should_run {
-                let res = self.with_instance(&name, user_id, |instance, mut store| async move {
-                    let ev = PluginEvent {
-                        id: event.id.to_string(),
-                        timestamp: event.timestamp.to_rfc3339(),
-                        category: event.category.clone(),
-                        source: event.source.clone(),
-                        payload: serde_json::to_string(&event.payload)?,
-                        metadata: event.metadata.as_ref().and_then(|m| serde_json::to_string(m).ok()),
-                        entities: event.entities.iter().map(|e| PluginEntityRef {
-                            path: e.path.clone(), namespace: e.namespace.clone(), typ: e.typ.clone(), id: e.id.clone()
-                        }).collect(),
-                        context: event.context.clone(),
-                        context_info: event.context_info.as_ref().map(|c| serde_json::to_string(c).unwrap()),
-                        display_title: event.display_title.clone(),
-                        display_subtitle: event.display_subtitle.clone(),
-                        display_image: event.display_image.clone(),
-                        display_value: event.display_value,
-                        confidence: event.confidence,
-                    };
-                    let processed = instance.call_on_ingest(&mut store, &ev).await?.map_err(|e| anyhow::anyhow!(e))?;
-                    
-                    let mapped = ScryEvent {
-                        id: uuid::Uuid::parse_str(&processed.id)?,
-                        timestamp: chrono::DateTime::parse_from_rfc3339(&processed.timestamp)?.with_timezone(&chrono::Utc),
-                        category: processed.category,
-                        source: processed.source,
-                        payload: serde_json::from_str(&processed.payload)?,
-                        metadata: processed.metadata.as_ref().and_then(|m| serde_json::from_str(m).ok()),
-                        entities: processed.entities.into_iter().map(|e| scry_proto::EntityRef {
-                            path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
-                        }).collect(),
-                        context: processed.context,
-                        context_info: processed.context_info.as_ref().and_then(|c| serde_json::from_str(c).ok()),
-                        display_title: processed.display_title,
-                        display_subtitle: processed.display_subtitle,
-                        display_image: processed.display_image,
-                        display_value: processed.display_value,
-                        confidence: processed.confidence,
-                    };
-                    Ok((mapped, store))
-                }).await?;
-                event = res;
-            }
+            let res = self.with_instance(&name, user_id, |instance, mut store| async move {
+                let wit_event = EventMapper::to_wit(&event);
+                let processed = instance.call_on_ingest(&mut store, &wit_event).await?
+                    .map_err(|e| anyhow::anyhow!(e))?;
+                let mapped = EventMapper::from_wit(processed).map_err(|e| anyhow::anyhow!(e))?;
+                Ok((mapped, store))
+            }).await?;
+            event = res;
         }
         Ok(event)
     }
@@ -209,32 +184,9 @@ impl PluginManager {
     pub async fn poll_plugin(&self, user_id: i64, name: &str) -> Result<Vec<ScryEvent>> {
         self.with_instance(name, user_id, |instance, mut store| async move {
             let res = instance.call_on_poll(&mut store).await?;
-            let mapped = res.into_iter().map(|ev| {
-                                                Ok(ScryEvent {
-                                                    id: uuid::Uuid::parse_str(&ev.id)?,
-                                                    timestamp: chrono::DateTime::parse_from_rfc3339(&ev.timestamp)?.with_timezone(&chrono::Utc),
-                                                    category: ev.category,
-                                                    source: ev.source,
-                                                    payload: serde_json::from_str(&ev.payload)?,
-                                                    metadata: {
-                                                        let mut m = ev.metadata.as_ref().and_then(|m| serde_json::from_str(m).ok()).unwrap_or_else(|| serde_json::json!({}));
-                                                        if let Some(obj) = m.as_object_mut() {
-                                                            obj.insert("processor".to_string(), serde_json::json!(name));
-                                                        }
-                                                        Some(m)
-                                                    },
-                                                    entities: ev.entities.into_iter().map(|e| scry_proto::EntityRef {
-                                                        path: e.path, namespace: e.namespace, typ: e.typ, id: e.id
-                                                    }).collect(),
-                                                    context: ev.context,
-                                                    context_info: ev.context_info.as_ref().and_then(|c| serde_json::from_str(c).ok()),
-                                                    display_title: ev.display_title,
-                                                                            display_subtitle: ev.display_subtitle,
-                                                                            display_image: ev.display_image,
-                                                                            display_value: ev.display_value,
-                                                                            confidence: ev.confidence,
-                                                                        })
-                                                                }).collect::<Result<Vec<_>>>()?;
+            let mapped: Vec<ScryEvent> = res.into_iter()
+                .map(|ev| EventMapper::from_wit(ev).map_err(|e| anyhow::anyhow!(e)))
+                .collect::<Result<Vec<_>, _>>()?;
             Ok((mapped, store))
         }).await
     }
@@ -258,7 +210,8 @@ impl PluginManager {
 
     pub async fn run_plugin_report(&self, user_id: i64, plugin_name: &str, report_id: String) -> Result<ReportData> {
         self.with_instance(plugin_name, user_id, |instance, mut store| async move {
-            let res = instance.call_run_report(&mut store, &report_id).await?.map_err(|e| anyhow::anyhow!(e))?;
+            let res = instance.call_run_report(&mut store, &report_id).await?
+                .map_err(|e| anyhow::anyhow!(e))?;
             Ok((res, store))
         }).await
     }
@@ -272,7 +225,8 @@ impl PluginManager {
 
     pub async fn resolve_plugin_trait(&self, user_id: i64, plugin_name: &str, namespace: String, typ: String, id: String, trait_id: String) -> Result<Option<String>> {
         self.with_instance(plugin_name, user_id, |instance, mut store| async move {
-            let res = instance.call_resolve_trait(&mut store, &namespace, &typ, &id, &trait_id).await?.map_err(|e| anyhow::anyhow!(e))?;
+            let res = instance.call_resolve_trait(&mut store, &namespace, &typ, &id, &trait_id).await?
+                .map_err(|e| anyhow::anyhow!(e))?;
             Ok((res, store))
         }).await
     }

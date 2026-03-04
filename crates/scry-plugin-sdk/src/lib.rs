@@ -23,7 +23,6 @@ pub trait ScryPlugin: Default {
     async fn on_poll(&self) -> Vec<Event> { vec![] }
     async fn get_summary(&self, _start: &str, _end: &str) -> String { String::new() }
 
-    // Semantic Trait Hooks
     async fn resolve_trait(&self, _namespace: &str, _typ: &str, _id: &str, _trait_id: &str) -> Result<Option<String>, String> { Ok(None) }
     async fn on_entity_discovered(&self, _namespace: &str, _typ: &str, _id: &str) {}
 }
@@ -158,8 +157,7 @@ macro_rules! scry_plugin {
             }
 
             async fn on_init() -> Result<(), String> {
-                let plugin = <$plugin_type>::default();
-                plugin.on_init().await
+                <$plugin_type>::default().on_init().await
             }
 
             async fn on_ingest(ev: scry::plugin::types::Event) -> Result<scry::plugin::types::Event, String> {
@@ -203,8 +201,7 @@ macro_rules! scry_plugin {
             }
 
             async fn get_reports() -> Vec<scry::plugin::types::ReportMetadata> {
-                let plugin = <$plugin_type>::default();
-                plugin.get_reports().await.into_iter().map(|m| scry::plugin::types::ReportMetadata {
+                <$plugin_type>::default().get_reports().await.into_iter().map(|m| scry::plugin::types::ReportMetadata {
                     id: m.id, name: m.name, description: m.description,
                     viz: match m.viz {
                         $crate::Visualization::Table => scry::plugin::types::Visualization::Table,
@@ -216,16 +213,11 @@ macro_rules! scry_plugin {
             }
 
             async fn run_report(id: String) -> Result<scry::plugin::types::ReportData, String> {
-                let plugin = <$plugin_type>::default();
-                match plugin.run_report(&id).await {
-                    Ok(res) => Ok(scry::plugin::types::ReportData { columns: res.columns, data_json: res.data_json }),
-                    Err(e) => Err(e),
-                }
+                <$plugin_type>::default().run_report(&id).await.map(|res| scry::plugin::types::ReportData { columns: res.columns, data_json: res.data_json })
             }
 
             async fn on_poll() -> Vec<scry::plugin::types::Event> {
-                let plugin = <$plugin_type>::default();
-                plugin.on_poll().await.into_iter().map(|result| {
+                <$plugin_type>::default().on_poll().await.into_iter().map(|result| {
                     scry::plugin::types::Event {
                         id: result.id.to_string(), timestamp: result.timestamp.to_rfc3339(),
                         category: result.category, source: result.source,
@@ -246,18 +238,15 @@ macro_rules! scry_plugin {
             }
 
             async fn get_summary(start: String, end: String) -> String {
-                let plugin = <$plugin_type>::default();
-                plugin.get_summary(&start, &end).await
+                <$plugin_type>::default().get_summary(&start, &end).await
             }
 
             async fn resolve_trait(namespace: String, typ: String, id: String, trait_id: String) -> Result<Option<String>, String> {
-                let plugin = <$plugin_type>::default();
-                plugin.resolve_trait(&namespace, &typ, &id, &trait_id).await
+                <$plugin_type>::default().resolve_trait(&namespace, &typ, &id, &trait_id).await
             }
 
             async fn on_entity_discovered(namespace: String, typ: String, id: String) {
-                let plugin = <$plugin_type>::default();
-                plugin.on_entity_discovered(&namespace, &typ, &id).await
+                <$plugin_type>::default().on_entity_discovered(&namespace, &typ, &id).await
             }
         }
 
@@ -266,7 +255,6 @@ macro_rules! scry_plugin {
         mod host {
             use $crate::serde_json::json;
             
-            // Explicit imports to avoid ambiguity
             use super::scry::plugin::host as wit_host;
             use super::scry::plugin::types as wit_types;
 
