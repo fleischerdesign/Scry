@@ -416,9 +416,15 @@ impl SpotifyPlugin {
             format!("Bearer {}", access_token),
         )];
 
+        let last_played_at = host::get_state("last_played_at");
+        let mut url = "https://api.spotify.com/v1/me/player/recently-played?limit=50".to_string();
+        if let Some(ts) = &last_played_at {
+            url = format!("{}&after={}", url, ts);
+        }
+
         let response = match host::http_request(
             "GET",
-            "https://api.spotify.com/v1/me/player/recently-played?limit=10",
+            &url,
             None,
             headers,
         ) {
@@ -437,8 +443,6 @@ impl SpotifyPlugin {
             return vec![];
         }
 
-        host::log_info(&format!("Spotify: Raw response body: {}", response.body));
-
         let recent: SpotifyRecentTracks = match serde_json::from_str(&response.body) {
             Ok(t) => t,
             Err(e) => {
@@ -448,8 +452,25 @@ impl SpotifyPlugin {
         };
 
         let mut events = Vec::new();
+        let mut max_timestamp_ms: i64 = last_played_at
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0);
+
         for item in recent.items {
             if let Some(track) = item.track {
+                let played_at = item
+                    .played_at
+                    .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+
+                let dt = chrono::DateTime::parse_from_rfc3339(&played_at)
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+                    .unwrap_or_else(|_| chrono::Utc::now());
+
+                let ts_ms = dt.timestamp_millis();
+                if ts_ms > max_timestamp_ms {
+                    max_timestamp_ms = ts_ms;
+                }
+
                 let (artist_names, artist_ids) = Self::extract_artists(&track);
                 let payload = Self::build_track_payload(&track, &artist_names, &artist_ids);
                 let display_image = track
@@ -459,15 +480,9 @@ impl SpotifyPlugin {
                     .and_then(|imgs| imgs.first())
                     .and_then(|i| i.url.clone());
 
-                let played_at = item
-                    .played_at
-                    .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
-
                 events.push(SdkEvent {
                     id: uuid::Uuid::new_v4(),
-                    timestamp: chrono::DateTime::parse_from_rfc3339(&played_at)
-                        .map(|dt| dt.with_timezone(&chrono::Utc))
-                        .unwrap_or_else(|_| chrono::Utc::now()),
+                    timestamp: dt,
                     category: "spotify.playback".to_string(),
                     source: "spotify".to_string(),
                     payload,
@@ -482,6 +497,10 @@ impl SpotifyPlugin {
                     confidence: Some(1.0),
                 });
             }
+        }
+
+        if max_timestamp_ms > 0 {
+            host::set_state("last_played_at", &max_timestamp_ms.to_string());
         }
 
         events
