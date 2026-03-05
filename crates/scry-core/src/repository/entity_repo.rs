@@ -50,6 +50,48 @@ impl<'a> EntityRepository<'a> {
         Ok(())
     }
 
+    pub async fn get_entities_batch(&self, refs: Vec<(String, String, String)>) -> Result<Vec<(String, String, String, Option<String>, Option<String>)>> {
+        if refs.is_empty() { return Ok(vec![]); }
+
+        let name_trait = scry_plugin_sdk::schema::traits::NAME;
+        let photo_trait = scry_plugin_sdk::schema::traits::PHOTO;
+        let avatar_trait = scry_plugin_sdk::schema::traits::AVATAR;
+
+        let mut results = Vec::new();
+        for (ns, typ, id) in refs {
+            let row = sqlx::query_as::<_, (String, Option<String>, Option<String>)>("
+                SELECT e.id, (
+                    SELECT value_json FROM entity_traits t 
+                    WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
+                    AND t.trait_id = ?
+                    LIMIT 1
+                ) as display_title,
+                (
+                    SELECT value_json FROM entity_traits t 
+                    WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
+                    AND (t.trait_id = ? OR t.trait_id = ?)
+                    LIMIT 1
+                ) as display_image
+                FROM entities e
+                WHERE e.user_id = ? AND e.namespace = ? AND e.typ = ? AND e.id = ?
+            ")
+            .bind(name_trait)
+            .bind(photo_trait)
+            .bind(avatar_trait)
+            .bind(self.user_id)
+            .bind(&ns)
+            .bind(&typ)
+            .bind(&id)
+            .fetch_optional(self.pool)
+            .await?;
+
+            if let Some((id, title, photo)) = row {
+                results.push((ns, typ, id, title, photo));
+            }
+        }
+        Ok(results)
+    }
+
     pub async fn get_namespaces(&self) -> Result<Vec<String>> {
         let names = sqlx::query_scalar::<_, String>("SELECT DISTINCT namespace FROM entities WHERE user_id = ?")
             .bind(self.user_id)

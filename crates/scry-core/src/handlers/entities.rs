@@ -46,3 +46,13 @@ pub async fn get_entity_traits(
     let res = state.graph_service.get_entity_details(auth.user_id, &namespace, &typ, &id).await?;
     Ok(Json(res))
 }
+
+#[utoipa::path(post, path = "/api/v1/discovery/resolve", responses((status = 200, body = [ApiEntity])), security(("api_key" = [])))]
+pub async fn resolve_entities(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>,
+    Json(refs): Json<Vec<ApiEntityRef>>,
+) -> Result<Json<Vec<ApiEntity>>> {
+    let res = state.graph_service.resolve_entities(auth.user_id, refs).await?;
+    Ok(Json(res))
+}

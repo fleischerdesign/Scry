@@ -6,9 +6,11 @@ pub use uuid;
 pub use wit_bindgen;
 
 pub mod schema;
+pub mod identity;
 
 pub mod prelude {
     pub use crate::schema;
+    pub use crate::identity;
     pub use crate::Event as SdkEvent;
     pub use crate::{
         scry_plugin, DataField, EntityRef, Manifest, Relationship, ReportData, ReportMetadata,

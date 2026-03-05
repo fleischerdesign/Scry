@@ -1,6 +1,7 @@
 <script lang="ts">
     import { router } from "../router.svelte";
     import { semanticService } from "../services/semantic.svelte";
+    import EntityLabel from "./EntityLabel.svelte";
     import type { Event } from "../types/Event";
 
     let { item, isFirst = false, isLast = false }: { item: Event, isFirst?: boolean, isLast?: boolean } = $props();
@@ -82,16 +83,7 @@
                         {#each item.entities as ent}
                             <!-- Wir überspringen 'self' in der Entity-Liste, da es schon im Context steht -->
                             {#if ent.id !== 'self'}
-                                <div 
-                                    role="button"
-                                    tabindex="0"
-                                    onclick={(e) => { e.stopPropagation(); router.navigate(`/entity/${ent.namespace}/${ent.typ}/${ent.id}`); }}
-                                    onkeydown={(e) => e.key === 'Enter' && router.navigate(`/entity/${ent.namespace}/${ent.typ}/${ent.id}`)}
-                                    class="badge badge-secondary/10 text-secondary border-secondary/20 badge-xs gap-1 font-mono hover:bg-secondary/20 transition-colors cursor-pointer"
-                                >
-                                    <span class="opacity-40">{ent.typ}:</span>
-                                    <span class="font-bold">{ent.id}</span>
-                                </div>
+                                <EntityLabel namespace={ent.namespace} typ={ent.typ} id={ent.id} inline={true} />
                             {/if}
                         {/each}
                     {/if}

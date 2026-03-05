@@ -73,6 +73,35 @@ impl GraphService {
         Ok(entities)
     }
 
+    pub async fn resolve_entities(&self, user_id: i64, refs: Vec<ApiEntityRef>) -> Result<Vec<ApiEntity>> {
+        let repo = EntityRepository::new(&self.db, user_id);
+        
+        let batch_refs = refs.into_iter().map(|r| (r.namespace, r.typ, r.id)).collect();
+        let rows = repo.get_entities_batch(batch_refs).await?;
+
+        let entities = rows.into_iter().map(|(ns, typ, id, title_json, photo_json)| {
+            let display_title = title_json.and_then(|json| {
+                serde_json::from_str::<serde_json::Value>(&json).ok()
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+            }).unwrap_or_else(|| id.clone());
+
+            let display_image = photo_json.and_then(|json| {
+                serde_json::from_str::<serde_json::Value>(&json).ok()
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+            });
+
+            ApiEntity {
+                namespace: ns,
+                typ: typ,
+                id: id,
+                display_title,
+                display_image,
+            }
+        }).collect();
+
+        Ok(entities)
+    }
+
     pub async fn get_entity_details(&self, user_id: i64, namespace: &str, typ: &str, id: &str) -> Result<serde_json::Value> {
         let repo = EntityRepository::new(&self.db, user_id);
         

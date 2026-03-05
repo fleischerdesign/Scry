@@ -3,6 +3,7 @@
 	import { router } from "../router.svelte";
 	import { semanticService } from "../services/semantic.svelte";
 	import Card from "../components/Card.svelte";
+	import EntityLabel from "../components/EntityLabel.svelte";
 	import type { Event } from "../types/Event";
 
 	const params = $derived(router.getParams("/event/:id"));
@@ -164,54 +165,11 @@
 
 				{#if event.entities && event.entities.length > 0}
 					<Card title="Linked Entities" subtitle="SEMANTIC_GRAPH">
-						<div class="space-y-2">
+						<div class="space-y-4">
 							{#each event.entities as ent}
-								<button
-									onclick={() =>
-										router.navigate(
-											`/entity/${ent.namespace}/${ent.typ}/${ent.id}`,
-										)}
-									class="w-full flex items-center gap-3 p-3 bg-base-200 hover:bg-base-300 transition-all rounded-xl border border-base-300/50 group text-left"
-								>
-									<div
-										class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary"
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-4 w-4"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor"
-											><path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M13 10V3L4 14h7v7l9-11h-7z"
-											/></svg
-										>
-									</div>
-									<div class="flex-1 overflow-hidden">
-										<span class="font-bold text-xs block truncate"
-											>{ent.id}</span
-										>
-										<span class="text-[9px] opacity-40 uppercase truncate"
-											>{ent.namespace}/{ent.typ}</span
-										>
-									</div>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										class="h-3 w-3 opacity-0 group-hover:opacity-40 transition-opacity"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										><path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M9 5l7 7-7 7"
-										/></svg
-									>
-								</button>
+								<div class="p-3 bg-base-200 hover:bg-base-300 transition-all rounded-xl border border-base-300/50">
+									<EntityLabel namespace={ent.namespace} typ={ent.typ} id={ent.id} />
+								</div>
 							{/each}
 						</div>
 					</Card>

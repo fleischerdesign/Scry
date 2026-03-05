@@ -1,5 +1,6 @@
 use base64::Engine;
 use scry_plugin_sdk::prelude::*;
+use scry_plugin_sdk::schema::{namespaces, traits};
 use serde::Deserialize;
 
 #[derive(Default)]
@@ -61,9 +62,9 @@ impl ScryPlugin for SpotifyPlugin {
         scry_plugin_sdk::Manifest {
             id: "scry-spotify-plugin".to_string(),
             name: "Spotify".to_string(),
-            version: "0.1.0".to_string(),
+            version: "0.2.0".to_string(),
             description:
-                "Importiert deine Spotify Playback History und aktuellen Wiedergabestatus."
+                "Importiert Spotify Playback History mit deterministischen UUIDs für Musik-Entitäten."
                     .to_string(),
             subscriptions: vec!["spotify.playback".to_string()],
             capabilities: vec![
@@ -123,11 +124,11 @@ impl ScryPlugin for SpotifyPlugin {
                 },
             ],
             domain_info: vec![scry_plugin_sdk::DomainInfo {
-                ns: "scry.spotify".to_string(),
+                ns: namespaces::MUSIC.to_string(),
                 icon: Some("lucide:headphones".to_string()),
             }],
             predicates: vec![scry_plugin_sdk::PredicateDefinition {
-                id: "scry.spotify/played_by".to_string(),
+                id: "scry.music/played_by".to_string(),
                 label: "Played by".to_string(),
                 inverse_label: "Plays".to_string(),
             }],
@@ -165,7 +166,7 @@ impl ScryPlugin for SpotifyPlugin {
     }
 
     fn on_init(&self) -> Result<(), String> {
-        host::log_info("Spotify Plugin initialized");
+        host::log_info("Spotify Plugin (v5 ID) initialized");
         Ok(())
     }
 
@@ -226,82 +227,74 @@ impl ScryPlugin for SpotifyPlugin {
 
     fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
         if ev.category.starts_with("spotify.") {
-            // --- Display fields ---
-            if let Some(track_name) = ev.payload.get("track_name").and_then(|v| v.as_str()) {
-                ev.display_title = Some(track_name.to_string());
-            }
-            // Use the array field for subtitle; fall back to flat string for backward compat
-            let artist_label = ev
-                .payload
-                .get("artist_names")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                })
-                .or_else(|| {
-                    ev.payload
-                        .get("artist_name")
-                        .and_then(|v| v.as_str())
-                        .map(String::from)
-                });
-            if let Some(label) = artist_label {
-                ev.display_subtitle = Some(format!("by {}", label));
-            }
+            // --- Common Data extraction ---
+            let track_name = ev.payload.get("track_name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+            let artist_names: Vec<String> = ev.payload.get("artist_names").and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            let primary_artist = artist_names.first().map(|s| s.as_str()).unwrap_or("Unknown");
+            let album_name = ev.payload.get("album_name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
 
-            // --- Track entity ---
-            let track_id = ev
-                .payload
-                .get("track_name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
+            // --- Display fields ---
+            ev.display_title = Some(track_name.clone());
+            ev.display_subtitle = Some(format!("by {}", artist_names.join(", ")));
+
+            // --- Track Entity (UUID v5) ---
+            let track_id = identity::create_id(namespaces::MUSIC, &["track", primary_artist, &track_name]);
             ev.entities.push(scry_plugin_sdk::EntityRef {
                 path: "payload.track_name".to_string(),
-                namespace: "scry.music".to_string(),
+                namespace: namespaces::MUSIC.to_string(),
                 typ: "track".to_string(),
                 id: track_id.clone(),
             });
+            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::NAME, &json!(track_name).to_string());
+            if let Some(track_id_spotify) = ev.payload.get("track_id").and_then(|v| v.as_str()) {
+                 host::set_entity_trait(namespaces::MUSIC, "track", &track_id, "scry.spotify/track_id", &json!(track_id_spotify).to_string());
+            }
 
-            // --- Artist entities (one per artist) ---
-            let artist_names: Vec<String> = ev
-                .payload
-                .get("artist_names")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str().map(String::from))
-                        .collect()
-                })
-                .or_else(|| {
-                    ev.payload
-                        .get("artist_name")
-                        .and_then(|v| v.as_str())
-                        .map(|s| vec![s.to_string()])
-                })
-                .unwrap_or_default();
-
+            // --- Artist Entities ---
             for artist in &artist_names {
+                let artist_id = identity::create_id(namespaces::MUSIC, &["artist", artist]);
                 ev.entities.push(scry_plugin_sdk::EntityRef {
                     path: "payload.artist_names".to_string(),
-                    namespace: "scry.music".to_string(),
+                    namespace: namespaces::MUSIC.to_string(),
                     typ: "artist".to_string(),
-                    id: artist.clone(),
+                    id: artist_id.clone(),
                 });
+                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::NAME, &json!(artist).to_string());
 
                 // Track → played_by → Artist relationship
                 host::set_relationship(scry_plugin_sdk::Relationship {
-                    source_namespace: "scry.music".to_string(),
+                    source_namespace: namespaces::MUSIC.to_string(),
                     source_type: "track".to_string(),
                     source_id: track_id.clone(),
-                    predicate: "scry.spotify/played_by".to_string(),
-                    target_namespace: "scry.music".to_string(),
+                    predicate: "scry.music/played_by".to_string(),
+                    target_namespace: namespaces::MUSIC.to_string(),
                     target_type: "artist".to_string(),
-                    target_id: artist.clone(),
+                    target_id: artist_id.clone(),
                 });
             }
+
+            // --- Album Entity ---
+            let album_id = identity::create_id(namespaces::MUSIC, &["album", primary_artist, &album_name]);
+            ev.entities.push(scry_plugin_sdk::EntityRef {
+                path: "payload.album_name".to_string(),
+                namespace: namespaces::MUSIC.to_string(),
+                typ: "album".to_string(),
+                id: album_id.clone(),
+            });
+            host::set_entity_trait(namespaces::MUSIC, "album", &album_id, traits::NAME, &json!(album_name).to_string());
+            
+            // Track → belongs_to → Album relationship
+            host::set_relationship(scry_plugin_sdk::Relationship {
+                source_namespace: namespaces::MUSIC.to_string(),
+                source_type: "track".to_string(),
+                source_id: track_id.clone(),
+                predicate: "scry.music/on_album".to_string(),
+                target_namespace: namespaces::MUSIC.to_string(),
+                target_type: "album".to_string(),
+                target_id: album_id.clone(),
+            });
         }
         Ok(ev)
     }

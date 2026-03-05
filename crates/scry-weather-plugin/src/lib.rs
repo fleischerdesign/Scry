@@ -1,5 +1,6 @@
 use scry_plugin_sdk::prelude::*;
-use serde::{Deserialize, Serialize};
+use scry_plugin_sdk::schema::{namespaces, traits};
+use serde::Deserialize;
 
 #[derive(Default)]
 struct WeatherPlugin;
@@ -15,8 +16,8 @@ impl ScryPlugin for WeatherPlugin {
         scry_plugin_sdk::Manifest {
             id: "scry-weather-plugin".to_string(),
             name: "Weather Node".to_string(),
-            version: "0.2.0".to_string(),
-            description: "Abfrage von Wetterdaten basierend auf dem aktuellen Standort des Users.".to_string(),
+            version: "0.3.0".to_string(),
+            description: "Abfrage von Wetterdaten basierend auf dem Standort mit deterministischen Ort-IDs.".to_string(),
             subscriptions: vec!["weather.*".to_string()],
             capabilities: vec!["network".to_string(), "state".to_string(), "config".to_string()],
             exports: vec![
@@ -67,14 +68,12 @@ impl ScryPlugin for WeatherPlugin {
     fn on_poll(&self) -> Vec<SdkEvent> {
         host::log_info("Weather: Polling current conditions...");
 
-        // 1. Versuche Koordinaten aus der lokalen Config zu laden
         let mut lat = host::get_config("latitude").and_then(|v| v.parse::<f64>().ok());
         let mut lon = host::get_config("longitude").and_then(|v| v.parse::<f64>().ok());
 
-        // 2. Fallback: Versuche den aktuellen Standort-Trait vom User 'self' zu lesen
         if lat.is_none() || lon.is_none() {
             if let Some(loc_json) =
-                host::get_entity_trait("scry.core", "user", "self", "scry.geo/location")
+                host::get_entity_trait(namespaces::CORE, "user", "self", "scry.geo/location")
             {
                 if let Ok(loc) = serde_json::from_str::<GeoLocation>(&loc_json) {
                     lat = Some(loc.latitude);
@@ -83,11 +82,9 @@ impl ScryPlugin for WeatherPlugin {
             }
         }
 
-        // 3. Letzter Fallback: Fixe Koordinaten (z.B. Berlin), falls gar nichts gefunden wurde
         let lat = lat.unwrap_or(52.52);
         let lon = lon.unwrap_or(13.41);
 
-        // API Abfrage (Open-Meteo)
         let url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current_weather=true",
             lat, lon
@@ -98,8 +95,7 @@ impl ScryPlugin for WeatherPlugin {
                 let v: serde_json::Value = serde_json::from_str(&resp_json).unwrap_or_default();
                 let temp = v["current_weather"]["temperature"].as_f64().unwrap_or(0.0);
 
-                // Wir versuchen einen Städtenamen aus den Koordinaten zu raten oder nehmen 'Current Location'
-                let city = host::get_entity_trait("scry.core", "user", "self", "scry.core/city")
+                let city = host::get_entity_trait(namespaces::CORE, "user", "self", traits::CITY)
                     .and_then(|v| serde_json::from_str::<String>(&v).ok())
                     .unwrap_or_else(|| "Current Location".to_string());
 
@@ -114,9 +110,9 @@ impl ScryPlugin for WeatherPlugin {
                     context: vec!["alias:self".to_string()],
                     context_info: None,
                     display_image: None,
-                    display_value: None,
-                    display_title: Some(format!("Temperature: {}°C", temp)),
-                    display_subtitle: Some(format!("Weather in {}", city)),
+                    display_value: Some(format!("{}°C", temp)),
+                    display_title: Some(format!("Temperature in {}", city)),
+                    display_subtitle: Some(format!("Currently {}°C", temp)),
                     confidence: Some(1.0),
                 }]
             }
@@ -130,13 +126,14 @@ impl ScryPlugin for WeatherPlugin {
     fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
         if ev.category == "weather.current" {
             if let Some(city) = ev.payload.get("city").and_then(|v| v.as_str()) {
-                // Tagge den Ort als Entität im Knowledge Graph
+                let place_id = identity::create_id(namespaces::PLACE, &["city", city]);
                 ev.entities.push(scry_plugin_sdk::EntityRef {
                     path: "payload.city".to_string(),
-                    namespace: "scry.weather".to_string(),
-                    typ: "location".to_string(),
-                    id: city.to_string(),
+                    namespace: namespaces::PLACE.to_string(),
+                    typ: "city".to_string(),
+                    id: place_id.clone(),
                 });
+                host::set_entity_trait(namespaces::PLACE, "city", &place_id, traits::NAME, &json!(city).to_string());
             }
         }
         Ok(ev)
