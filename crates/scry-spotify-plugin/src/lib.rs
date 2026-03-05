@@ -127,11 +127,18 @@ impl ScryPlugin for SpotifyPlugin {
                 ns: namespaces::MUSIC.to_string(),
                 icon: Some("lucide:headphones".to_string()),
             }],
-            predicates: vec![scry_plugin_sdk::PredicateDefinition {
-                id: "scry.music/played_by".to_string(),
-                label: "Played by".to_string(),
-                inverse_label: "Plays".to_string(),
-            }],
+            predicates: vec![
+                scry_plugin_sdk::PredicateDefinition {
+                    id: predicates::PLAYED_BY.to_string(),
+                    label: "Played by".to_string(),
+                    inverse_label: "Plays".to_string(),
+                },
+                scry_plugin_sdk::PredicateDefinition {
+                    id: predicates::ON_ALBUM.to_string(),
+                    label: "On Album".to_string(),
+                    inverse_label: "Contains Track".to_string(),
+                },
+            ],
             provided_traits: vec![],
             poll_interval: Some(60),
             config_schema: Some(
@@ -253,7 +260,7 @@ impl ScryPlugin for SpotifyPlugin {
                     source_namespace: namespaces::MUSIC.to_string(),
                     source_type: "track".to_string(),
                     source_id: track_id.clone(),
-                    predicate: "scry.music/played_by".to_string(),
+                    predicate: predicates::PLAYED_BY.to_string(),
                     target_namespace: namespaces::MUSIC.to_string(),
                     target_type: "artist".to_string(),
                     target_id: artist_id.clone(),
@@ -275,7 +282,7 @@ impl ScryPlugin for SpotifyPlugin {
                 source_namespace: namespaces::MUSIC.to_string(),
                 source_type: "track".to_string(),
                 source_id: track_id.clone(),
-                predicate: "scry.music/on_album".to_string(),
+                predicate: predicates::ON_ALBUM.to_string(),
                 target_namespace: namespaces::MUSIC.to_string(),
                 target_type: "album".to_string(),
                 target_id: album_id.clone(),
