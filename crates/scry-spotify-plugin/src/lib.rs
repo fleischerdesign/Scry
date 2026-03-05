@@ -172,57 +172,41 @@ impl ScryPlugin for SpotifyPlugin {
 
     fn on_poll(&self) -> Vec<SdkEvent> {
         host::log_info("Spotify: on_poll started");
+        
         let client_id = match host::get_secret("client_id") {
             Some(id) => id,
-            None => {
-                host::log_warn("Spotify: No client_id configured");
-                return vec![];
-            }
+            None => { host::log_warn("Spotify: No client_id configured"); return vec![]; }
         };
 
         let client_secret = match host::get_secret("client_secret") {
             Some(secret) => secret,
-            None => {
-                host::log_warn("Spotify: No client_secret configured");
-                return vec![];
-            }
+            None => { host::log_warn("Spotify: No client_secret configured"); return vec![]; }
         };
 
-        let refresh_token = host::get_secret("oauth_refresh_token");
-
-        let access_token = match refresh_token {
-            Some(token) => {
-                host::log_info("Spotify: Refreshing access token");
-                self.refresh_access_token(&client_id, &client_secret, &token)
-            }
-            None => {
-                host::log_warn("Spotify: No refresh token found");
-                None
-            }
-        };
-
+        // 1. Intelligent Token Management
+        let access_token = self.get_valid_access_token(&client_id, &client_secret);
         let token = match access_token {
             Some(t) => t,
-            None => {
-                host::log_warn("Spotify: Could not obtain access token");
-                return vec![];
-            }
+            None => { host::log_warn("Spotify: Could not obtain access token"); return vec![]; }
         };
 
-        host::log_info("Spotify: Fetching recent tracks");
-        let recent_events = self.fetch_recent_tracks(&token);
-        host::log_info(&format!(
-            "Spotify: Fetched {} recent tracks",
-            recent_events.len()
-        ));
+        // 2. Fetch History (less frequent or delta-based)
+        // We only fetch history if it's been a while (e.g., every 5th poll) to save resources
+        let poll_count = host::get_state("internal_poll_count").and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
+        host::set_state("internal_poll_count", &(poll_count + 1).to_string());
 
-        host::log_info("Spotify: Fetching currently playing");
+        let mut all_events = Vec::new();
+        if poll_count % 5 == 0 {
+            host::log_info("Spotify: Fetching recent tracks (History Sync)");
+            let recent_events = self.fetch_recent_tracks(&token);
+            all_events.extend(recent_events);
+        }
+
+        // 3. Fetch Currently Playing (Every poll, but with delta-check)
         let playing_events = self.fetch_currently_playing(&token);
+        all_events.extend(playing_events);
 
-        let mut events = recent_events;
-        events.extend(playing_events);
-
-        events
+        all_events
     }
 
     fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
@@ -519,23 +503,24 @@ impl SpotifyPlugin {
             Err(_) => return vec![],
         };
 
-        if response.status != 200 {
-            if response.status != 204 {
-                host::log_error(&format!(
-                    "Spotify currently-playing API returned status: {}",
-                    response.status
-                ));
+        if response.status == 204 {
+            let last_id = host::get_state("last_playing_id").unwrap_or_default();
+            if !last_id.is_empty() {
+                host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, "null");
+                host::set_state("last_playing_id", "");
             }
+            return vec![];
+        }
+
+        if response.status != 200 {
+            host::log_error(&format!("Spotify currently-playing API status: {}", response.status));
             return vec![];
         }
 
         let playing: SpotifyCurrentlyPlaying = match serde_json::from_str(&response.body) {
             Ok(p) => p,
             Err(e) => {
-                host::log_error(&format!(
-                    "Failed to parse currently-playing response: {}",
-                    e
-                ));
+                host::log_error(&format!("Failed to parse currently-playing response: {}", e));
                 return vec![];
             }
         };
@@ -544,7 +529,16 @@ impl SpotifyPlugin {
 
         if is_playing && playing.item.is_some() {
             let track = playing.item.unwrap();
-            let (artist_names, artist_ids) = Self::extract_artists(&track);
+            let track_id_spotify = track.id.clone().unwrap_or_default();
+            
+            // Delta Check: Only update if the track has actually changed
+            let last_playing_id = host::get_state("last_playing_id").unwrap_or_default();
+            if track_id_spotify == last_playing_id {
+                return vec![];
+            }
+            host::set_state("last_playing_id", &track_id_spotify);
+
+            let (artist_names, _artist_ids) = Self::extract_artists(&track);
             let track_name = track.name.clone().unwrap_or_default();
             
             // 1. Resolve the deterministic track ID
@@ -579,14 +573,75 @@ impl SpotifyPlugin {
             let ref_link = format!("{}:track:{}", namespaces::MUSIC, track_id);
             host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, &json!(ref_link).to_string());
             
-            host::log_info(&format!("Spotify: User is now playing {}", track_name));
+            host::log_info(&format!("Spotify: Now playing changed to {}", track_name));
         } else {
-            host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, "null");
+            let last_id = host::get_state("last_playing_id").unwrap_or_default();
+            if !last_id.is_empty() {
+                host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, "null");
+                host::set_state("last_playing_id", "");
+            }
         }
 
         // Return NO events for the timeline to keep it clean.
-        // The real playback history is captured by fetch_recent_tracks.
         vec![]
+    }
+
+    fn get_valid_access_token(&self, client_id: &str, client_secret: &str) -> Option<String> {
+        let cached_token = host::get_state("oauth_access_token");
+        let expires_at_str = host::get_state("oauth_token_expires_at");
+        
+        let now = chrono::Utc::now().timestamp();
+        let expires_at = expires_at_str.and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+
+        // If we have a token and it's valid for at least another 60 seconds, use it
+        if let Some(token) = cached_token {
+            if expires_at > now + 60 {
+                return Some(token);
+            }
+        }
+
+        // Otherwise, refresh
+        host::log_info("Spotify: Access token expired or missing, refreshing...");
+        let refresh_token = host::get_secret("oauth_refresh_token")?;
+        
+        let body = format!(
+            "grant_type=refresh_token&refresh_token={}",
+            urlencoding::encode(&refresh_token)
+        );
+
+        let credentials = base64::engine::general_purpose::STANDARD
+            .encode(format!("{}:{}", client_id, client_secret));
+
+        let headers = vec![
+            ("Authorization".to_string(), format!("Basic {}", credentials)),
+            ("Content-Type".to_string(), "application/x-www-form-urlencoded".to_string()),
+        ];
+
+        match host::http_post("https://accounts.spotify.com/api/token", Some(body), headers) {
+            Ok(resp_body) => {
+                let tr: SpotifyTokenResponse = match serde_json::from_str(&resp_body) {
+                    Ok(res) => res,
+                    Err(e) => {
+                        host::log_error(&format!("Spotify: Failed to parse token response: {}", e));
+                        return None;
+                    }
+                };
+                if let Some(new_access) = tr.access_token {
+                    let new_expires = now + (tr.expires_in.unwrap_or(3600) as i64);
+                    host::set_state("oauth_access_token", &new_access);
+                    host::set_state("oauth_token_expires_at", &new_expires.to_string());
+                    if let Some(new_refresh) = tr.refresh_token {
+                        host::set_state("oauth_refresh_token", &new_refresh);
+                    }
+                    return Some(new_access);
+                }
+                None
+            }
+            Err(e) => {
+                host::log_error(&format!("Spotify: HTTP error refreshing token: {}", e));
+                None
+            }
+        }
     }
 }
 
