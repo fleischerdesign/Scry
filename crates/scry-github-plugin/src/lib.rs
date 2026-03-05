@@ -145,6 +145,23 @@ impl ScryPlugin for GithubPlugin {
                 ev.display_title = Some(format!("PR {} in {}", action, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
                 ev.display_subtitle = Some(title.to_string());
             },
+            "IssuesEvent" => {
+                let action = ev.payload["payload"]["action"].as_str().unwrap_or("updated");
+                let title = ev.payload["payload"]["issue"]["title"].as_str().unwrap_or("Issue");
+                ev.display_title = Some(format!("Issue {} in {}", action, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
+                ev.display_subtitle = Some(title.to_string());
+            },
+            "IssueCommentEvent" => {
+                let action = ev.payload["payload"]["action"].as_str().unwrap_or("created");
+                let body = ev.payload["payload"]["comment"]["body"].as_str().unwrap_or("Comment");
+                ev.display_title = Some(format!("Issue comment {} in {}", action, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
+                ev.display_subtitle = Some(body.chars().take(100).collect::<String>());
+            },
+            "CreateEvent" => {
+                let ref_type = ev.payload["payload"]["ref_type"].as_str().unwrap_or("entity");
+                let ref_name = ev.payload["payload"]["ref"].as_str().unwrap_or("");
+                ev.display_title = Some(format!("Created {} {} in {}", ref_type, ref_name, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
+            },
             _ => {
                 ev.display_title = Some(format!("GitHub: {}", event_type));
             }
@@ -184,7 +201,8 @@ impl GithubPlugin {
             headers.push(("If-None-Match".to_string(), etag));
         }
 
-        let url = format!("https://api.github.com/users/{}/events/public", username);
+        // Removed /public to fetch both public AND private events (authorized by oauth token)
+        let url = format!("https://api.github.com/users/{}/events", username);
         let resp = match host::http_request("GET", &url, None, headers) {
             Ok(r) => r,
             Err(e) => {
