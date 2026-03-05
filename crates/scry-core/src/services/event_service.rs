@@ -98,7 +98,7 @@ impl EventService {
         for entity in &event.entities {
             // Use the centralized DRY method to potentially populate display_image if not already set
             if event.display_image.is_none() {
-                let (_, image) = entity_repo.get_display_info(&entity.namespace, &entity.typ, &entity.id).await;
+                let (_, _, image) = entity_repo.get_display_info(&entity.namespace, &entity.typ, &entity.id).await;
                 event.display_image = image;
             }
 
@@ -345,7 +345,7 @@ impl EventService {
             
             // Try to resolve name and image if the semantic type is an entity (ns/type)
             if parts.len() == 2 {
-                let (title, image) = entity_repo.get_display_info(parts[0], parts[1], id).await;
+                let (title, _subtitle, image) = entity_repo.get_display_info(parts[0], parts[1], id).await;
                 enriched["display_title"] = json!(title);
                 if let Some(img) = image { enriched["display_image"] = json!(img); }
             }

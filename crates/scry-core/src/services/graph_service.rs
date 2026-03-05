@@ -157,9 +157,12 @@ impl GraphService {
         let mut result = serde_json::Map::new();
         
         // Resolve display fields using the centralized DRY repository method
-        let (display_title, display_image) = repo.get_display_info(namespace, typ, id).await;
+        let (display_title, display_subtitle, display_image) = repo.get_display_info(namespace, typ, id).await;
 
         result.insert("display_title".to_string(), serde_json::Value::String(display_title));
+        if let Some(sub) = display_subtitle {
+            result.insert("display_subtitle".to_string(), serde_json::Value::String(sub));
+        }
         if let Some(img) = display_image {
             result.insert("display_image".to_string(), serde_json::Value::String(img));
         }

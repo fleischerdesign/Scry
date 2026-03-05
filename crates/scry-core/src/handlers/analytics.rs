@@ -85,7 +85,7 @@ pub async fn search_events(State(state): State<Arc<AppState>>, Query(params): Qu
                 let e_type = parts[3];
                 let e_id = parts[4];
                 let entity_repo = crate::repository::EntityRepository::new(state.event_service.db(), auth.user_id);
-                let (title, image) = entity_repo.get_display_info(ns, e_type, e_id).await;
+                let (title, _subtitle, image) = entity_repo.get_display_info(ns, e_type, e_id).await;
                 enriched["display_title"] = json!(title);
                 enriched["display_image"] = json!(image);
             }

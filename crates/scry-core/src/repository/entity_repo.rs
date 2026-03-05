@@ -182,16 +182,18 @@ impl<'a> EntityRepository<'a> {
         Ok(val.map(|v| v.trim_matches('"').to_string()))
     }
 
-    pub async fn get_display_info(&self, namespace: &str, typ: &str, id: &str) -> (String, Option<String>) {
+    pub async fn get_display_info(&self, namespace: &str, typ: &str, id: &str) -> (String, Option<String>, Option<String>) {
         let title = self.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::NAME).await.ok().flatten()
             .unwrap_or_else(|| id.to_string());
         
+        let subtitle = self.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::SUBTITLE).await.ok().flatten();
+
         let mut image = self.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::PHOTO).await.ok().flatten();
         if image.is_none() {
             image = self.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::AVATAR).await.ok().flatten();
         }
 
-        (title, image)
+        (title, subtitle, image)
     }
 
     pub async fn get_relationships(&self, namespace: &str, typ: &str, id: &str) -> Result<Vec<(String, String, String, String, String, String, String)>> {

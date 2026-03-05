@@ -557,9 +557,13 @@ impl SpotifyPlugin {
                 host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::PHOTO, &json!(img).to_string());
             }
 
-            // 3. Set relationships immediately
+            // 3. Set relationships and artist metadata immediately
             for artist_name in &artist_names {
                 let artist_id = identity::create_id(namespaces::MUSIC, &["artist", artist_name]);
+                
+                // Store artist name so the ID is resolvable to a human-readable title
+                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::NAME, &json!(artist_name).to_string());
+
                 host::set_relationship(scry_plugin_sdk::Relationship {
                     source_namespace: namespaces::MUSIC.to_string(),
                     source_type: "track".to_string(),
