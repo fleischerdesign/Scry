@@ -108,6 +108,9 @@ class ScryAPI {
 	getPluginSecrets(id: string): Promise<Record<string, string>> { 
 		return this.request(`/system/plugins/${id}/secrets`); 
 	}
+	getPluginAuthUrl(id: string): Promise<{ auth_url?: string; state?: string; error?: string }> { 
+		return this.request(`/system/plugins/${id}/auth-url`); 
+	}
 	getPluginReport(pluginId: string, reportId: string): Promise<ApiReportData> {
 		return this.request(`/system/plugins/${pluginId}/reports/${reportId}`);
 	}

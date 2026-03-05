@@ -66,6 +66,8 @@
 			.filter(([_, prop]: [string, any]) => prop.secret === true)
 			.map(([key]) => key);
 	}
+
+	import { ui } from "../../ui.svelte";
 </script>
 
 <div class="space-y-4 animate-in slide-in-from-right-4 duration-300">
@@ -206,6 +208,24 @@
 								No custom parameters defined.
 							</p>
 						{/if}
+					{/if}
+
+					{#if plugin.capabilities.includes("oauth")}
+						<div class="mt-4 pt-4 border-t border-base-300/30">
+							<button
+								class="btn btn-primary btn-xs font-mono"
+								onclick={async () => {
+									const result = await api.getPluginAuthUrl(plugin.id);
+									if (result.auth_url) {
+										window.location.href = result.auth_url;
+									} else if (result.error) {
+										ui.notify("OAuth", result.error, "error");
+									}
+								}}
+							>
+								CONNECT
+							</button>
+						</div>
 					{/if}
 				</div>
 

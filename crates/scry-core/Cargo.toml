@@ -42,3 +42,4 @@ jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 aes-gcm = "0.10"
 rand = "0.8"
 base64 = "0.22"
+urlencoding = "2.1"

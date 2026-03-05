@@ -64,7 +64,7 @@ impl ScryPlugin for SpotifyPlugin {
             version: "0.1.0".to_string(),
             description: "Importiert deine Spotify Playback History und aktuellen Wiedergabestatus.".to_string(),
             subscriptions: vec!["spotify.playback".to_string()],
-            capabilities: vec!["network".to_string(), "state".to_string(), "config".to_string()],
+            capabilities: vec!["network".to_string(), "state".to_string(), "config".to_string(), "oauth".to_string()],
             exports: vec![
                 scry_plugin_sdk::DataField {
                     category: "spotify.playback".to_string(),

@@ -146,7 +146,8 @@ async fn main() -> anyhow::Result<()> {
         system_service: SystemService::new(db.clone()),
         rate_limiter,
         event_sender,
-        cancel_token: cancel_token.clone()
+        cancel_token: cancel_token.clone(),
+        db: db.clone(),
     });
 
     // Start Background Tasks via SystemService
