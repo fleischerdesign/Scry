@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use wasmtime::{Config, Engine, Store};
-use wasmtime::component::{Component, ResourceTable, Linker};
+use wasmtime::component::{Component, ResourceTable, Linker, InstancePre};
 use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
 use anyhow::Result;
 use scry_plugin_sdk::{Manifest, ReportData, ReportMetadata};
@@ -31,8 +31,8 @@ impl Default for PluginConfig {
 }
 
 pub struct PluginInstance {
-    pub component: Component,
     pub manifest: Manifest,
+    pub instance_pre: InstancePre<MyCtx>,
 }
 
 pub struct PluginManager {
@@ -122,11 +122,11 @@ impl PluginManager {
         let plugins = self.plugins.read().await;
         let plugin = plugins.get(name).ok_or_else(|| anyhow::anyhow!("Plugin not found"))?;
 
-        let linker = self.setup_linker()?;
         let mut store = self.build_store(user_id, name).await?;
-        let instance = crate::plugins::Plugin::instantiate_async(&mut store, &plugin.component, &linker).await?;
+        let instance = plugin.instance_pre.instantiate_async(&mut store).await?;
+        let instance_wrapper = crate::plugins::Plugin::new(&mut store, &instance)?;
         
-        let (res, _store) = f(instance, store).await?;
+        let (res, _store) = f(instance_wrapper, store).await?;
         Ok(res)
     }
 
@@ -158,18 +158,22 @@ impl PluginManager {
         let component = Component::from_file(&self.engine, path)?;
 
         let linker = self.setup_linker()?;
+        let instance_pre = linker.instantiate_pre(&component)?;
+
         let mut store = self.build_store(0, &name).await?;
         
-        let instance_raw = crate::plugins::Plugin::instantiate_async(&mut store, &component, &linker).await?;
-        let wit_manifest = instance_raw.call_get_manifest(&mut store).await?;
+        let instance = instance_pre.instantiate_async(&mut store).await?;
+        let instance_wrapper = crate::plugins::Plugin::new(&mut store, &instance)?;
+        
+        let wit_manifest = instance_wrapper.call_get_manifest(&mut store).await?;
         let manifest = Manifest::from(wit_manifest);
         
-        if let Err(e) = instance_raw.call_on_init(&mut store).await? {
+        if let Err(e) = instance_wrapper.call_on_init(&mut store).await? {
             tracing::error!("Plugin {} on_init failed: {}", name, e);
         }
 
         tracing::info!("Loaded plugin: {} v{} ({})", manifest.name, manifest.version, name);
-        plugins.insert(name.clone(), PluginInstance { component, manifest });
+        plugins.insert(name.clone(), PluginInstance { manifest, instance_pre });
         Ok(())
     }
 
