@@ -8,7 +8,7 @@ pub use manager::PluginManager;
 #[allow(unused_imports)]
 pub use context::MyCtx;
 #[allow(unused_imports)]
-pub use mapper::{EventMapper, EntityMapper, ManifestMapper, ReportMapper, ConversionError};
+pub use mapper::ConversionError;
 
 wasmtime::component::bindgen!({
     world: "plugin",

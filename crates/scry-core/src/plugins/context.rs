@@ -12,18 +12,30 @@ pub struct MyCtx {
     pub http_client: Client,
     pub wasi: WasiCtx,
     pub table: ResourceTable,
+    pub max_memory: usize,
+    pub max_table_entries: usize,
     state_repo: OnceCell<PluginStateRepository>,
 }
 
 impl MyCtx {
-    pub fn new(db: sqlx::SqlitePool, user_id: i64, plugin_name: String) -> Self {
+    pub fn new(
+        db: sqlx::SqlitePool,
+        user_id: i64,
+        plugin_name: String,
+        max_memory: usize,
+        max_table_entries: usize,
+        wasi: WasiCtx,
+        table: ResourceTable,
+    ) -> Self {
         Self {
             db,
             user_id,
             plugin_name,
             http_client: Client::new(),
-            wasi: WasiCtxBuilder::new().build(),
-            table: ResourceTable::new(),
+            wasi,
+            table,
+            max_memory,
+            max_table_entries,
             state_repo: OnceCell::new(),
         }
     }
@@ -41,8 +53,7 @@ impl ResourceLimiter for MyCtx {
         desired: usize,
         _maximum: Option<usize>,
     ) -> wasmtime::Result<bool> {
-        const MAX_MEMORY: usize = 256 * 1024 * 1024;
-        Ok(desired <= MAX_MEMORY)
+        Ok(desired <= self.max_memory)
     }
 
     fn table_growing(
@@ -51,7 +62,7 @@ impl ResourceLimiter for MyCtx {
         desired: usize,
         _maximum: Option<usize>,
     ) -> wasmtime::Result<bool> {
-        Ok(desired <= 1000)
+        Ok(desired <= self.max_table_entries)
     }
 }
 

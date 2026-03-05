@@ -248,7 +248,7 @@ impl EventService {
     }
 
     pub async fn correlate_semantic(&self, user_id: i64, base_semantic: &str, join_semantic: &str, limit: u32) -> Result<Vec<Value>> {
-        let manifests: HashMap<String, crate::plugins::scry::plugin::types::Manifest> = self.plugin_manager.get_plugin_manifests().await;
+        let manifests: HashMap<String, scry_plugin_sdk::Manifest> = self.plugin_manager.get_plugin_manifests().await;
         let mut base_cat: Option<String> = None;
         let mut join_cat: Option<String> = None;
 
@@ -269,7 +269,7 @@ impl EventService {
     }
 
     pub async fn search_semantic(&self, user_id: i64, semantic_query: &str, limit: u32, offset: u32) -> Result<Vec<Event>> {
-        let manifests: HashMap<String, crate::plugins::scry::plugin::types::Manifest> = self.plugin_manager.get_plugin_manifests().await;
+        let manifests: HashMap<String, scry_plugin_sdk::Manifest> = self.plugin_manager.get_plugin_manifests().await;
         let mut target_categories = std::collections::HashSet::new();
 
         for m in manifests.values() {
@@ -316,7 +316,7 @@ impl EventService {
     }
 
     pub async fn resolve_semantic_info(&self, semantic_type: &str) -> Result<(String, String)> {
-        let manifests: HashMap<String, crate::plugins::scry::plugin::types::Manifest> = self.plugin_manager.get_plugin_manifests().await;
+        let manifests: HashMap<String, scry_plugin_sdk::Manifest> = self.plugin_manager.get_plugin_manifests().await;
         for m in manifests.values() {
             for export in &m.exports {
                 if export.semantic_type == semantic_type {
@@ -379,7 +379,7 @@ impl EventService {
     }
 
     pub async fn generate_daily_summary(&self, user_id: i64, date: &str) -> Result<Vec<String>> {
-        let manifests: HashMap<String, crate::plugins::scry::plugin::types::Manifest> = self.plugin_manager.get_plugin_manifests().await;
+        let manifests: HashMap<String, scry_plugin_sdk::Manifest> = self.plugin_manager.get_plugin_manifests().await;
         let mut full_summary = Vec::new();
         let start = format!("{}T00:00:00Z", date);
         let end = format!("{}T23:59:59Z", date);

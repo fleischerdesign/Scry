@@ -6,10 +6,10 @@ use wasmtime::{Config, Engine, Store};
 use wasmtime::component::{Component, ResourceTable, Linker};
 use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
 use anyhow::Result;
+use scry_plugin_sdk::{Manifest, ReportData, ReportMetadata};
 use scry_proto::Event as ScryEvent;
 use crate::plugins::context::MyCtx;
-use crate::plugins::mapper::{EventMapper, ReportMapper, ConversionError};
-use crate::plugins::scry::plugin::types::{Event as WitEvent, Manifest, ReportMetadata, ReportData, EntityRef as WitEntityRef};
+use crate::plugins::mapper::ConversionError;
 
 #[derive(Clone)]
 pub struct PluginConfig {
@@ -31,7 +31,6 @@ impl Default for PluginConfig {
 }
 
 pub struct PluginInstance {
-    pub name: String,
     pub component: Component,
     pub manifest: Manifest,
 }
@@ -76,7 +75,15 @@ impl PluginManager {
             .preopened_dir(&storage_path, "/", DirPerms::all(), FilePerms::all())?
             .build();
 
-        let ctx = MyCtx::new(self.db.clone(), user_id, name.to_string());
+        let ctx = MyCtx::new(
+            self.db.clone(),
+            user_id,
+            name.to_string(),
+            self.config.max_memory_bytes,
+            self.config.max_table_entries,
+            wasi,
+            table,
+        );
 
         let mut store = Store::new(&self.engine, ctx);
         store.limiter(|ctx| ctx);
@@ -154,14 +161,15 @@ impl PluginManager {
         let mut store = self.build_store(0, &name).await?;
         
         let instance_raw = crate::plugins::Plugin::instantiate_async(&mut store, &component, &linker).await?;
-        let manifest = instance_raw.call_get_manifest(&mut store).await?;
+        let wit_manifest = instance_raw.call_get_manifest(&mut store).await?;
+        let manifest = Manifest::from(wit_manifest);
         
         if let Err(e) = instance_raw.call_on_init(&mut store).await? {
             tracing::error!("Plugin {} on_init failed: {}", name, e);
         }
 
         tracing::info!("Loaded plugin: {} v{} ({})", manifest.name, manifest.version, name);
-        plugins.insert(name.clone(), PluginInstance { name, component, manifest });
+        plugins.insert(name.clone(), PluginInstance { component, manifest });
         Ok(())
     }
 
@@ -170,10 +178,10 @@ impl PluginManager {
 
         for name in plugin_names {
             let res = self.with_instance(&name, user_id, |instance, mut store| async move {
-                let wit_event = EventMapper::to_wit(&event);
+                let wit_event = crate::plugins::scry::plugin::types::Event::from(&event);
                 let processed = instance.call_on_ingest(&mut store, &wit_event).await?
                     .map_err(|e| anyhow::anyhow!(e))?;
-                let mapped = EventMapper::from_wit(processed).map_err(|e| anyhow::anyhow!(e))?;
+                let mapped = ScryEvent::try_from(processed).map_err(|e| anyhow::anyhow!(e))?;
                 Ok((mapped, store))
             }).await?;
             event = res;
@@ -185,7 +193,7 @@ impl PluginManager {
         self.with_instance(name, user_id, |instance, mut store| async move {
             let res = instance.call_on_poll(&mut store).await?;
             let mapped: Vec<ScryEvent> = res.into_iter()
-                .map(|ev| EventMapper::from_wit(ev).map_err(|e| anyhow::anyhow!(e)))
+                .map(|ev| ScryEvent::try_from(ev).map_err(|e| anyhow::anyhow!(e)))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok((mapped, store))
         }).await
@@ -201,7 +209,8 @@ impl PluginManager {
         for name in names {
             let reports = self.with_instance(&name, user_id, |instance, mut store| async move {
                 let res = instance.call_get_reports(&mut store).await?;
-                Ok((res, store))
+                let mapped = res.into_iter().map(ReportMetadata::from).collect();
+                Ok((mapped, store))
             }).await?;
             all.push((name, reports));
         }
@@ -212,21 +221,14 @@ impl PluginManager {
         self.with_instance(plugin_name, user_id, |instance, mut store| async move {
             let res = instance.call_run_report(&mut store, &report_id).await?
                 .map_err(|e| anyhow::anyhow!(e))?;
-            Ok((res, store))
+            let mapped = ReportData::from(res);
+            Ok((mapped, store))
         }).await
     }
 
     pub async fn get_plugin_summary(&self, user_id: i64, plugin_name: &str, start: String, end: String) -> Result<String> {
         self.with_instance(plugin_name, user_id, |instance, mut store| async move {
             let res = instance.call_get_summary(&mut store, &start, &end).await?;
-            Ok((res, store))
-        }).await
-    }
-
-    pub async fn resolve_plugin_trait(&self, user_id: i64, plugin_name: &str, namespace: String, typ: String, id: String, trait_id: String) -> Result<Option<String>> {
-        self.with_instance(plugin_name, user_id, |instance, mut store| async move {
-            let res = instance.call_resolve_trait(&mut store, &namespace, &typ, &id, &trait_id).await?
-                .map_err(|e| anyhow::anyhow!(e))?;
             Ok((res, store))
         }).await
     }

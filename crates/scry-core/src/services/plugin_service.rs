@@ -25,10 +25,7 @@ impl PluginService {
 
     pub async fn run_plugin_report(&self, user_id: i64, plugin_id: &str, report_id: String) -> Result<ApiReportData> {
         let data = self.plugin_manager.run_plugin_report(user_id, plugin_id, report_id).await?;
-        Ok(ApiReportData {
-            columns: data.columns,
-            data_json: data.data_json,
-        })
+        Ok(data.into())
     }
 
     pub async fn get_plugin_config(&self, user_id: i64, plugin_id: &str) -> Result<serde_json::Value> {
@@ -80,34 +77,39 @@ impl PluginService {
         let manifests = self.plugin_manager.get_plugin_manifests().await;
         let mut statuses = Vec::new();
 
-        // 1. Add Virtual Core Plugin
-        statuses.push(PluginStatus {
+        // 1. Add Virtual Core Plugin (Using SDK structure for consistency)
+        let core_manifest = scry_plugin_sdk::Manifest {
             id: "core".to_string(),
             name: "Scry System".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             description: "Core system services and metrics.".to_string(),
-            roles: vec!["system".to_string()],
-            capabilities: vec!["system".to_string()],
             subscriptions: vec![],
+            capabilities: vec!["system".to_string()],
             exports: vec![],
+            domain_info: vec![],
+            predicates: vec![],
             provided_traits: vec![],
-            reports: vec![],
+            poll_interval: None,
             config_schema: None,
             suggested_widgets: vec![
-                ApiWidgetDefinition {
+                scry_plugin_sdk::WidgetDefinition {
                     id: "system-status".to_string(),
                     title: "System Node Status".to_string(),
-                    template: ApiWidgetTemplate::Status,
+                    template: scry_plugin_sdk::WidgetTemplate::Status,
                     config_json: json!({ "scope": "all" }).to_string(),
                 },
-                ApiWidgetDefinition {
+                scry_plugin_sdk::WidgetDefinition {
                     id: "knowledge-growth".to_string(),
                     title: "Knowledge Growth".to_string(),
-                    template: ApiWidgetTemplate::Trend,
+                    template: scry_plugin_sdk::WidgetTemplate::Trend,
                     config_json: json!({ "semantic_type": "system.entities", "days": 7 }).to_string(),
                 }
             ],
-        });
+        };
+
+        let mut core_status = PluginStatus::from_sdk("core".to_string(), core_manifest, vec![]);
+        core_status.roles = vec!["system".to_string()];
+        statuses.push(core_status);
 
         // 2. Add real plugins
         for (id, m) in manifests {
@@ -121,45 +123,9 @@ impl PluginService {
             if !m.suggested_widgets.is_empty() { roles.push("VISUALIZER".to_string()); }
             if !p_reports.is_empty() { roles.push("ANALYZER".to_string()); }
 
-            statuses.push(PluginStatus {
-                id: id.clone(),
-                name: m.name,
-                version: m.version,
-                description: m.description,
-                roles,
-                capabilities: m.capabilities,
-                subscriptions: m.subscriptions,
-                exports: m.exports.into_iter().map(|e| ApiDataField {
-                    category: e.category,
-                    path: e.path,
-                    semantic_type: e.semantic_type,
-                    description: e.description,
-                    icon: e.icon,
-                    unit: e.unit,
-                    privacy: e.privacy,
-                    confidence: e.confidence,
-                    temporal: e.temporal,
-                }).collect(),
-                provided_traits: m.provided_traits.into_iter().map(|t| ApiTraitCapability {
-                    entity_namespace: t.entity_namespace,
-                    entity_type: t.entity_type,
-                    trait_id: t.trait_id,
-                }).collect(),
-                reports: p_reports.into_iter().map(|r| ApiReportMetadata {
-                    id: r.id, name: r.name, description: r.description, viz: format!("{:?}", r.viz),
-                }).collect(),
-                config_schema: m.config_schema,
-                suggested_widgets: m.suggested_widgets.into_iter().map(|w| ApiWidgetDefinition {
-                    id: w.id, title: w.title, config_json: w.config_json,
-                    template: match w.template {
-                        crate::plugins::scry::plugin::types::WidgetTemplate::Metric => ApiWidgetTemplate::Metric,
-                        crate::plugins::scry::plugin::types::WidgetTemplate::Trend => ApiWidgetTemplate::Trend,
-                        crate::plugins::scry::plugin::types::WidgetTemplate::TopList => ApiWidgetTemplate::TopList,
-                        crate::plugins::scry::plugin::types::WidgetTemplate::Status => ApiWidgetTemplate::Status,
-                        crate::plugins::scry::plugin::types::WidgetTemplate::Spotlight => ApiWidgetTemplate::Spotlight,
-                    }
-                }).collect(),
-            });
+            let mut status = PluginStatus::from_sdk(id.clone(), m, p_reports);
+            status.roles = roles;
+            statuses.push(status);
         }
         Ok(statuses)
     }
