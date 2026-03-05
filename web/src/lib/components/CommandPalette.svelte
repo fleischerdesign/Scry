@@ -22,16 +22,25 @@
         }
     });
 
+    function highlight(text: string, q: string) {
+        if (!q || !text) return text;
+        const regex = new RegExp(`(${q})`, 'gi');
+        return text.replace(regex, '<span class="search-highlight">$1</span>');
+    }
+
     let filteredItems = $derived.by(() => {
         const q = query.toLowerCase();
         
-        const staticActions = actions.filter(a => a.label.toLowerCase().includes(q) || a.category.toLowerCase().includes(q));
+        const staticActions = actions
+            .filter(a => a.label.toLowerCase().includes(q) || a.category.toLowerCase().includes(q))
+            .map(a => ({ ...a, snippet: "" })); // Static actions don't have snippets
         
         const searchResults = results.map(r => {
             return {
                 id: r.id,
-                label: r.display_title || r.id,
-                sublabel: r.display_subtitle || r.subtext || r.id,
+                label: r.display_title || r.label,
+                snippet: r.snippet,
+                sublabel: r.display_subtitle || r.subtext,
                 image: r.display_image,
                 category: r.type.toUpperCase(),
                 execute: () => router.navigate(r.link)
@@ -91,6 +100,19 @@
     });
 </script>
 
+<style>
+    @reference "../../app.css";
+
+    :global(.search-snippet mark), :global(.search-snippet .search-highlight) {
+        @apply bg-primary text-primary-content rounded-sm px-0.5;
+        font-weight: inherit;
+    }
+    
+    :global(.active .search-snippet mark), :global(.active .search-snippet .search-highlight) {
+        @apply bg-primary-content text-primary;
+    }
+</style>
+
 <dialog class="modal {isOpen ? 'modal-open' : ''}">
   <div class="modal-box p-0 max-w-2xl bg-base-100 shadow-2xl overflow-hidden flex flex-col border border-base-300">
     <!-- Header -->
@@ -136,7 +158,14 @@
                                 <span class="text-[10px] opacity-40 font-mono italic">{(item as any).sublabel}</span>
                             {/if}
                         </div>
-                        <span class="font-bold tracking-tight mt-1 truncate w-full text-left">{item.label}</span>
+                        <span class="font-bold tracking-tight mt-0.5 truncate w-full text-left search-snippet">
+                            {@html highlight(item.label, query)}
+                        </span>
+                        {#if item.snippet && !item.label.toLowerCase().includes(query.toLowerCase())}
+                            <span class="text-[11px] opacity-60 w-full text-left search-snippet line-clamp-1 mt-0.5 leading-tight">
+                                {@html item.snippet}
+                            </span>
+                        {/if}
                     </div>
                 </div>
                 {#if selectedIndex === i}

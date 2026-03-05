@@ -146,9 +146,12 @@ impl<'a> AnalyticsRepository<'a> {
     }
 
     pub async fn search(&self, query: &str, limit: u32) -> Result<Vec<(String, String, String, String, String)>> {
-        let search_term = format!("{}*", query);
+        // Escape double quotes in the query and wrap the whole thing in quotes for FTS5 safety
+        let sanitized_query = query.replace("\"", "\"\"");
+        let search_term = format!("\"{}\"*", sanitized_query);
+        
         let rows = sqlx::query_as::<_, (String, String, String, String, String)>(
-            "SELECT item_id, type, content, subtext, link FROM universal_search 
+            "SELECT item_id, type, snippet(universal_search, 2, '<mark>', '</mark>', '...', 64), subtext, link FROM universal_search 
              WHERE user_id = ? AND universal_search MATCH ? 
              ORDER BY rank LIMIT ?"
         )

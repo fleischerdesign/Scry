@@ -10,13 +10,15 @@ CREATE VIRTUAL TABLE IF NOT EXISTS universal_search USING fts5(
     tokenize='porter unicode61'
 );
 
--- Trigger für neue Events: Nutzt display_title und display_subtitle falls vorhanden, sonst payload
+-- Trigger für neue Events: Nutzt display_fields, Kategorie UND alle Werte aus dem Payload (ohne JSON-Syntax)
 CREATE TRIGGER IF NOT EXISTS trg_events_search_insert AFTER INSERT ON events BEGIN
     INSERT INTO universal_search(item_id, type, content, subtext, link, user_id)
     VALUES (
         new.id, 
         'event',
-        COALESCE(new.display_title, '') || ' ' || COALESCE(new.display_subtitle, '') || ' ' || new.category || ' ' || CAST(new.payload AS TEXT),
+        COALESCE(new.display_title, '') || ' ' || 
+        COALESCE(new.display_subtitle, '') || ' ' || 
+        (SELECT group_concat(atom, ' ') FROM json_tree(new.payload) WHERE atom IS NOT NULL),
         new.category,
         '/event/' || new.id,
         new.user_id

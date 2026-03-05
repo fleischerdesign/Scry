@@ -11,11 +11,14 @@ use scry_proto::Event as ScryEvent;
 use crate::plugins::context::MyCtx;
 use crate::plugins::mapper::ConversionError;
 
+use tokio::time::{timeout, Duration};
+
 #[derive(Clone)]
 pub struct PluginConfig {
     pub max_memory_bytes: usize,
     pub max_table_entries: usize,
     pub max_fuel: u64,
+    pub max_timeout_secs: u64,
     pub storage_base_path: String,
 }
 
@@ -25,6 +28,7 @@ impl Default for PluginConfig {
             max_memory_bytes: 256 * 1024 * 1024,
             max_table_entries: 1000,
             max_fuel: 1_000_000,
+            max_timeout_secs: 10,
             storage_base_path: "./storage".to_string(),
         }
     }
@@ -126,8 +130,18 @@ impl PluginManager {
         let instance = plugin.instance_pre.instantiate_async(&mut store).await?;
         let instance_wrapper = crate::plugins::Plugin::new(&mut store, &instance)?;
         
-        let (res, _store) = f(instance_wrapper, store).await?;
-        Ok(res)
+        let timeout_duration = Duration::from_secs(self.config.max_timeout_secs);
+        
+        match timeout(timeout_duration, f(instance_wrapper, store)).await {
+            Ok(res) => {
+                let (res, _store) = res?;
+                Ok(res)
+            },
+            Err(_) => {
+                tracing::error!("Plugin {} execution timed out after {}s", name, self.config.max_timeout_secs);
+                Err(anyhow::anyhow!("Plugin execution timed out"))
+            }
+        }
     }
 
     pub async fn reload_plugins(&self) -> Result<()> {

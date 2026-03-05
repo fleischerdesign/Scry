@@ -98,13 +98,13 @@ impl AnalyticsService {
         let repo = AnalyticsRepository::new(&self.db, user_id);
         let rows = repo.search(query, limit).await?;
 
-        let results: Vec<Value> = rows.into_iter().map(|(id, typ, content, subtext, link)| {
+        let results: Vec<Value> = rows.into_iter().map(|(id, typ, snippet, subtext, link)| {
             json!({
                 "id": id,
                 "type": typ,
-                "title": if typ == "event" { subtext.clone() } else { id.clone() },
-                "label": content.split('{').next().unwrap_or(&content).trim(),
-                "content": content,
+                "label": if typ == "event" { subtext.clone() } else { id.clone() },
+                "snippet": snippet,
+                "subtext": subtext,
                 "link": link
             })
         }).collect();
