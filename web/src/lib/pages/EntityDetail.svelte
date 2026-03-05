@@ -11,6 +11,7 @@
     let relationships = $state<any[]>([]);
     let events = $state<any[]>([]);
     let displayTitle = $state("");
+    let displaySubtitle = $state<string | null>(null);
     let displayImage = $state<string | null>(null);
     let loading = $state(true);
 
@@ -24,6 +25,7 @@
             ]);
             
             displayTitle = entityData.display_title || id;
+            displaySubtitle = entityData.display_subtitle || null;
             displayImage = entityData.display_image || null;
             
             traits = entityData.traits || {};
@@ -79,6 +81,9 @@
         <div class="flex-1">
             <div class="badge badge-primary badge-outline font-mono text-[9px] uppercase tracking-widest mb-2">{params.ns} / {params.type}</div>
             <h2 class="text-4xl font-black tracking-tighter italic uppercase text-base-content">{displayTitle}</h2>
+            {#if displaySubtitle}
+                <p class="text-xs font-mono opacity-40 uppercase tracking-widest mt-2">{displaySubtitle}</p>
+            {/if}
             <div class="flex gap-4 mt-4 text-[10px] font-mono opacity-40 uppercase tracking-widest">
                 <span>{events.length} Events Logged</span>
                 <span>•</span>
@@ -107,18 +112,9 @@
                                     {#each rels as rel}
                                         {@const isSource = rel.source.id === params.id}
                                         {@const target = isSource ? rel.target : rel.source}
-                                        <button 
-                                            onclick={() => router.navigate(`/entity/${target.ns}/${target.typ}/${target.id}`)}
-                                            class="w-full flex items-center gap-3 p-3 bg-base-200 hover:bg-base-300 transition-all rounded-2xl border border-base-300/50 group text-left"
-                                        >
-                                            <div class="w-8 h-8 rounded-lg bg-base-300 flex items-center justify-center text-[10px] font-bold opacity-40 group-hover:text-primary group-hover:opacity-100 transition-all">
-                                                {(target.display_title || target.id).charAt(0).toUpperCase()}
-                                            </div>
-                                            <div class="flex-1 min-w-0">
-                                                <div class="font-bold text-xs truncate group-hover:text-primary transition-colors">{target.display_title || target.id}</div>
-                                                <div class="text-[8px] opacity-30 uppercase font-mono tracking-tighter">{target.typ} {#if target.display_title}• {target.id}{/if}</div>
-                                            </div>
-                                        </button>
+                                        <div class="p-3 bg-base-200 hover:bg-base-300 transition-all rounded-2xl border border-base-300/50">
+                                            <EntityLabel namespace={target.ns} typ={target.typ} id={target.id} />
+                                        </div>
                                     {/each}
                                 </div>
                             </div>
@@ -131,7 +127,8 @@
                     <h3 class="text-xs font-black uppercase tracking-[0.3em] opacity-30 px-2">Entity Traits</h3>
                     <div class="grid grid-cols-1 gap-3">
                         {#each Object.entries(traits) as [traitId, value]}
-                            {#if traitId !== 'scry.visual/photo'}
+                            <!-- Filter out redundant display traits -->
+                            {#if !['scry.visual/photo', 'scry.core/name', 'scry.core/subtitle'].includes(traitId)}
                                 <div class="bg-base-200 p-4 rounded-2xl border border-base-300/50">
                                     <p class="text-[9px] font-black uppercase opacity-30 mb-1">{traitId.split('/').pop()}</p>
                                     

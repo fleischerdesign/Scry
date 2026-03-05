@@ -1,6 +1,6 @@
 use base64::Engine;
 use scry_plugin_sdk::prelude::*;
-use scry_plugin_sdk::schema::{namespaces, traits};
+use scry_plugin_sdk::schema::{namespaces, traits, predicates};
 use serde::Deserialize;
 
 #[derive(Default)]
@@ -557,8 +557,21 @@ impl SpotifyPlugin {
                 host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::PHOTO, &json!(img).to_string());
             }
 
-            // 3. Set the user's status as a pure entity reference (Agnostic Link)
-            // Format: "namespace:type:id"
+            // 3. Set relationships immediately
+            for artist_name in &artist_names {
+                let artist_id = identity::create_id(namespaces::MUSIC, &["artist", artist_name]);
+                host::set_relationship(scry_plugin_sdk::Relationship {
+                    source_namespace: namespaces::MUSIC.to_string(),
+                    source_type: "track".to_string(),
+                    source_id: track_id.clone(),
+                    predicate: predicates::PLAYED_BY.to_string(),
+                    target_namespace: namespaces::MUSIC.to_string(),
+                    target_type: "artist".to_string(),
+                    target_id: artist_id,
+                });
+            }
+
+            // 4. Set the user's status as a pure entity reference (Agnostic Link)
             let ref_link = format!("{}:track:{}", namespaces::MUSIC, track_id);
             host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, &json!(ref_link).to_string());
             
