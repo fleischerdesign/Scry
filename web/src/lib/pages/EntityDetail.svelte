@@ -3,6 +3,7 @@
     import { router } from '../router.svelte';
     import Card from '../components/Card.svelte';
     import TimelineItem from '../components/TimelineItem.svelte';
+    import EntityLabel from '../components/EntityLabel.svelte';
 
     const params = $derived(router.getParams('/entity/:ns/:type/:id'));
     
@@ -133,7 +134,16 @@
                             {#if traitId !== 'scry.visual/photo'}
                                 <div class="bg-base-200 p-4 rounded-2xl border border-base-300/50">
                                     <p class="text-[9px] font-black uppercase opacity-30 mb-1">{traitId.split('/').pop()}</p>
-                                    <p class="font-mono text-xs overflow-hidden text-ellipsis">{value}</p>
+                                    
+                                    {#if typeof value === 'string' && value.split(':').length === 3 && value.includes('.')}
+                                        <!-- Agnostic Link Detection (ns:type:id) -->
+                                        {@const parts = value.split(':')}
+                                        <div class="mt-1">
+                                            <EntityLabel namespace={parts[0]} typ={parts[1]} id={parts[2]} />
+                                        </div>
+                                    {:else}
+                                        <p class="font-mono text-xs overflow-hidden text-ellipsis">{value}</p>
+                                    {/if}
                                 </div>
                             {/if}
                         {/each}

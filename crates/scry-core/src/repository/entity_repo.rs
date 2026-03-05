@@ -50,22 +50,29 @@ impl<'a> EntityRepository<'a> {
         Ok(())
     }
 
-    pub async fn get_entities_batch(&self, refs: Vec<(String, String, String)>) -> Result<Vec<(String, String, String, Option<String>, Option<String>)>> {
+    pub async fn get_entities_batch(&self, refs: Vec<(String, String, String)>) -> Result<Vec<(String, String, String, Option<String>, Option<String>, Option<String>)>> {
         if refs.is_empty() { return Ok(vec![]); }
 
         let name_trait = scry_plugin_sdk::schema::traits::NAME;
+        let subtitle_trait = scry_plugin_sdk::schema::traits::SUBTITLE;
         let photo_trait = scry_plugin_sdk::schema::traits::PHOTO;
         let avatar_trait = scry_plugin_sdk::schema::traits::AVATAR;
 
         let mut results = Vec::new();
         for (ns, typ, id) in refs {
-            let row = sqlx::query_as::<_, (String, Option<String>, Option<String>)>("
+            let row = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<String>)>("
                 SELECT e.id, (
                     SELECT value_json FROM entity_traits t 
                     WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
                     AND t.trait_id = ?
                     LIMIT 1
                 ) as display_title,
+                (
+                    SELECT value_json FROM entity_traits t 
+                    WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
+                    AND t.trait_id = ?
+                    LIMIT 1
+                ) as display_subtitle,
                 (
                     SELECT value_json FROM entity_traits t 
                     WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
@@ -76,6 +83,7 @@ impl<'a> EntityRepository<'a> {
                 WHERE e.user_id = ? AND e.namespace = ? AND e.typ = ? AND e.id = ?
             ")
             .bind(name_trait)
+            .bind(subtitle_trait)
             .bind(photo_trait)
             .bind(avatar_trait)
             .bind(self.user_id)
@@ -85,8 +93,8 @@ impl<'a> EntityRepository<'a> {
             .fetch_optional(self.pool)
             .await?;
 
-            if let Some((id, title, photo)) = row {
-                results.push((ns, typ, id, title, photo));
+            if let Some((id, title, subtitle, photo)) = row {
+                results.push((ns, typ, id, title, subtitle, photo));
             }
         }
         Ok(results)
@@ -109,18 +117,25 @@ impl<'a> EntityRepository<'a> {
         Ok(types)
     }
 
-    pub async fn get_entities_by_type(&self, namespace: &str, typ: &str) -> Result<Vec<(String, Option<String>, Option<String>)>> {
+    pub async fn get_entities_by_type(&self, namespace: &str, typ: &str) -> Result<Vec<(String, Option<String>, Option<String>, Option<String>)>> {
         let name_trait = scry_plugin_sdk::schema::traits::NAME;
+        let subtitle_trait = scry_plugin_sdk::schema::traits::SUBTITLE;
         let photo_trait = scry_plugin_sdk::schema::traits::PHOTO;
         let avatar_trait = scry_plugin_sdk::schema::traits::AVATAR;
 
-        let rows = sqlx::query_as::<_, (String, Option<String>, Option<String>)>("
+        let rows = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<String>)>("
             SELECT e.id, (
                 SELECT value_json FROM entity_traits t 
                 WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
                 AND t.trait_id = ?
                 LIMIT 1
             ) as display_title,
+            (
+                SELECT value_json FROM entity_traits t 
+                WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
+                AND t.trait_id = ?
+                LIMIT 1
+            ) as display_subtitle,
             (
                 SELECT value_json FROM entity_traits t 
                 WHERE t.user_id = e.user_id AND t.namespace = e.namespace AND t.entity_type = e.typ AND t.entity_id = e.id 
@@ -131,6 +146,7 @@ impl<'a> EntityRepository<'a> {
             WHERE e.user_id = ? AND e.namespace = ? AND e.typ = ?
         ")
         .bind(name_trait)
+        .bind(subtitle_trait)
         .bind(photo_trait)
         .bind(avatar_trait)
         .bind(self.user_id)

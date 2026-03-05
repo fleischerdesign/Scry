@@ -50,13 +50,18 @@ impl GraphService {
         let repo = EntityRepository::new(&self.db, user_id);
         let rows = repo.get_entities_by_type(namespace, typ).await?;
 
-        let entities = rows.into_iter().map(|(id, title_json, photo_json)| {
-            let display_title = title_json.and_then(|json| {
+        let entities = rows.into_iter().map(|(id, title_json, subtitle_json, photo_json)| {
+            let display_title = title_json.and_then(|json: String| {
                 serde_json::from_str::<serde_json::Value>(&json).ok()
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
             }).unwrap_or_else(|| id.clone());
 
-            let display_image = photo_json.and_then(|json| {
+            let display_subtitle = subtitle_json.and_then(|json: String| {
+                serde_json::from_str::<serde_json::Value>(&json).ok()
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+            });
+
+            let display_image = photo_json.and_then(|json: String| {
                 serde_json::from_str::<serde_json::Value>(&json).ok()
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
             });
@@ -66,6 +71,7 @@ impl GraphService {
                 typ: typ.to_string(),
                 id: id.clone(),
                 display_title,
+                display_subtitle,
                 display_image,
             }
         }).collect();
@@ -79,13 +85,18 @@ impl GraphService {
         let batch_refs = refs.into_iter().map(|r| (r.namespace, r.typ, r.id)).collect();
         let rows = repo.get_entities_batch(batch_refs).await?;
 
-        let entities = rows.into_iter().map(|(ns, typ, id, title_json, photo_json)| {
-            let display_title = title_json.and_then(|json| {
+        let entities = rows.into_iter().map(|(ns, typ, id, title_json, subtitle_json, photo_json)| {
+            let display_title = title_json.and_then(|json: String| {
                 serde_json::from_str::<serde_json::Value>(&json).ok()
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
             }).unwrap_or_else(|| id.clone());
 
-            let display_image = photo_json.and_then(|json| {
+            let display_subtitle = subtitle_json.and_then(|json: String| {
+                serde_json::from_str::<serde_json::Value>(&json).ok()
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+            });
+
+            let display_image = photo_json.and_then(|json: String| {
                 serde_json::from_str::<serde_json::Value>(&json).ok()
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
             });
@@ -95,6 +106,7 @@ impl GraphService {
                 typ: typ,
                 id: id,
                 display_title,
+                display_subtitle,
                 display_image,
             }
         }).collect();

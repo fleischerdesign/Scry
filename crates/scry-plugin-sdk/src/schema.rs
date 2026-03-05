@@ -28,6 +28,7 @@ pub mod traits {
     // --- General ---
     pub const NAME: &str = "scry.core/name";
     pub const DESCRIPTION: &str = "scry.core/description";
+    pub const SUBTITLE: &str = "scry.core/subtitle";
     pub const PHOTO: &str = "scry.visual/photo";
     pub const AVATAR: &str = "scry.core/avatar";
     pub const URL: &str = "scry.core/url";
@@ -47,6 +48,10 @@ pub mod traits {
     pub const EMAIL: &str = "scry.person/email";
     pub const PHONE: &str = "scry.person/phone";
     pub const BIRTHDATE: &str = "scry.person/birthdate";
+
+    // --- Status / Activity ---
+    /// The entity currently being played or consumed by the user.
+    pub const NOW_PLAYING: &str = "scry.status/now_playing";
 
     // --- Health ---
     pub const STEPS: &str = "scry.health/steps";

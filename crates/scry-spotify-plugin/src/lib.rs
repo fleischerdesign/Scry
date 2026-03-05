@@ -248,6 +248,7 @@ impl ScryPlugin for SpotifyPlugin {
                 id: track_id.clone(),
             });
             host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::NAME, &json!(track_name).to_string());
+            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::SUBTITLE, &json!(artist_names.join(", ")).to_string());
             if let Some(track_id_spotify) = ev.payload.get("track_id").and_then(|v| v.as_str()) {
                  host::set_entity_trait(namespaces::MUSIC, "track", &track_id, "scry.spotify/track_id", &json!(track_id_spotify).to_string());
             }
@@ -472,6 +473,9 @@ impl SpotifyPlugin {
                     .and_then(|a| a.images.as_ref())
                     .and_then(|imgs| imgs.first())
                     .and_then(|i| i.url.clone());
+                
+                let track_name = track.name.clone().unwrap_or_else(|| "Unknown".to_string());
+                let subtitle = format!("by {}", artist_names.join(", "));
 
                 events.push(SdkEvent {
                     id: uuid::Uuid::new_v4(),
@@ -485,8 +489,8 @@ impl SpotifyPlugin {
                     context_info: None,
                     display_image,
                     display_value: None,
-                    display_title: None,
-                    display_subtitle: None,
+                    display_title: Some(track_name),
+                    display_subtitle: Some(subtitle),
                     confidence: Some(1.0),
                 });
             }
@@ -516,17 +520,14 @@ impl SpotifyPlugin {
         };
 
         if response.status != 200 {
-            host::log_error(&format!(
-                "Spotify currently-playing API returned status: {}",
-                response.status
-            ));
+            if response.status != 204 {
+                host::log_error(&format!(
+                    "Spotify currently-playing API returned status: {}",
+                    response.status
+                ));
+            }
             return vec![];
         }
-
-        host::log_info(&format!(
-            "Spotify: Raw currently-playing response: {}",
-            response.body
-        ));
 
         let playing: SpotifyCurrentlyPlaying = match serde_json::from_str(&response.body) {
             Ok(p) => p,
@@ -541,37 +542,34 @@ impl SpotifyPlugin {
 
         let is_playing = playing.is_playing.unwrap_or(false);
 
-        if !is_playing || playing.item.is_none() {
-            return vec![];
+        if is_playing && playing.item.is_some() {
+            let track = playing.item.unwrap();
+            let (artist_names, artist_ids) = Self::extract_artists(&track);
+            let track_name = track.name.clone().unwrap_or_default();
+            
+            // 1. Resolve the deterministic track ID
+            let track_id = identity::create_id(namespaces::MUSIC, &["track", &artist_names[0], &track_name]);
+            
+            // 2. Proactively store metadata for this track entity so it's resolvable
+            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::NAME, &json!(track_name).to_string());
+            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::SUBTITLE, &json!(artist_names.join(", ")).to_string());
+            if let Some(img) = track.album.as_ref().and_then(|a| a.images.as_ref()).and_then(|imgs| imgs.first()).and_then(|i| i.url.clone()) {
+                host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::PHOTO, &json!(img).to_string());
+            }
+
+            // 3. Set the user's status as a pure entity reference (Agnostic Link)
+            // Format: "namespace:type:id"
+            let ref_link = format!("{}:track:{}", namespaces::MUSIC, track_id);
+            host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, &json!(ref_link).to_string());
+            
+            host::log_info(&format!("Spotify: User is now playing {}", track_name));
+        } else {
+            host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, "null");
         }
 
-        let track = playing.item.unwrap();
-        let (artist_names, artist_ids) = Self::extract_artists(&track);
-        let mut payload = Self::build_track_payload(&track, &artist_names, &artist_ids);
-        payload["is_playing"] = json!(true);
-        let display_image = track
-            .album
-            .as_ref()
-            .and_then(|a| a.images.as_ref())
-            .and_then(|imgs| imgs.first())
-            .and_then(|i| i.url.clone());
-
-        vec![SdkEvent {
-            id: uuid::Uuid::new_v4(),
-            timestamp: chrono::Utc::now(),
-            category: "spotify.status".to_string(),
-            source: "spotify".to_string(),
-            payload,
-            metadata: None,
-            entities: vec![],
-            context: vec!["alias:self".to_string()],
-            context_info: None,
-            display_image,
-            display_value: None,
-            display_title: None,
-            display_subtitle: None,
-            confidence: Some(1.0),
-        }]
+        // Return NO events for the timeline to keep it clean.
+        // The real playback history is captured by fetch_recent_tracks.
+        vec![]
     }
 }
 

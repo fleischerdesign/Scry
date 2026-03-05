@@ -44,13 +44,19 @@
                 {displayTitle.charAt(0)}
             </div>
         {/if}
-        <div class="flex flex-col min-w-0">
-            <span class="text-[11px] font-black uppercase tracking-tighter leading-none group-hover:text-primary transition-colors truncate">
-                {displayTitle}
-            </span>
-            <span class="text-[8px] opacity-30 font-mono italic leading-none truncate">
-                {typ}: {id.substring(0, 8)}...
-            </span>
-        </div>
+            <div class="flex flex-col min-w-0">
+                <span class="text-[10px] font-black uppercase tracking-tighter leading-none group-hover:text-primary transition-colors truncate">
+                    {displayTitle}
+                </span>
+                {#if entity?.display_subtitle}
+                    <span class="text-[8px] opacity-60 italic leading-tight truncate">
+                        {entity.display_subtitle}
+                    </span>
+                {:else}
+                    <span class="text-[8px] opacity-30 font-mono italic leading-none truncate">
+                        {typ}: {id.substring(0, 8)}...
+                    </span>
+                {/if}
+            </div>
     </div>
 {/if}
