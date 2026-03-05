@@ -6,7 +6,7 @@ mod error;
 mod repository;
 mod services;
 
-use services::{AuthService, DashboardService, GraphService, AnalyticsService, PluginService, SystemService, EventService};
+use services::{AuthService, DashboardService, GraphService, AnalyticsService, PluginService, SystemService, EventService, SecretService};
 use state::AppState;
 
 use axum::{
@@ -142,7 +142,7 @@ async fn main() -> anyhow::Result<()> {
         auth_service: AuthService::new(db.clone()),
         dashboard_service: DashboardService::new(db.clone()),
         graph_service: GraphService::new(db.clone(), plugin_manager.clone()),
-        plugin_service: PluginService::new(db.clone(), plugin_manager.clone(), event_service),
+        plugin_service: PluginService::new(db.clone(), plugin_manager.clone(), event_service, SecretService::new()),
         system_service: SystemService::new(db.clone()),
         rate_limiter,
         event_sender,

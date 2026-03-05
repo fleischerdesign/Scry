@@ -311,6 +311,7 @@ macro_rules! scry_plugin {
             pub async fn get_state(key: &str) -> Option<String> { wit_host::get_state(key.to_string()).await }
             pub async fn set_state(key: &str, val: &str) { wit_host::set_state(key.to_string(), val.to_string()).await }
             pub async fn get_config(key: &str) -> Option<String> { wit_host::get_config(key.to_string()).await }
+            pub async fn get_secret(key: &str) -> Option<String> { wit_host::get_secret(key.to_string()).await }
             pub async fn get_profile_value(key: &str) -> Option<String> { wit_host::get_profile_value(key.to_string()).await }
             pub async fn http_get(url: &str) -> ::std::result::Result<String, String> { 
                 match wit_host::http_get(url.to_string()).await {

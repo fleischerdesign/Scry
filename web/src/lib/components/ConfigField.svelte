@@ -4,11 +4,16 @@
     const title = $derived(key.replace(/_/g, ' '));
     const description = $derived(schema.description || '');
     const type = $derived(schema.type || 'string');
+    const isSecret = $derived(schema.secret === true || key.includes('password') || key.includes('token') || key.includes('key'));
+    let showSecret = $state(false);
 </script>
 
 <div class="form-control w-full">
     <label class="label pb-1" for="field-{key}">
         <span class="label-text text-[10px] font-black uppercase tracking-widest opacity-50">{title}</span>
+        {#if isSecret}
+            <span class="badge badge-warning badge-xs font-mono ml-2">SECRET</span>
+        {/if}
     </label>
     
     {#if type === 'number'}
@@ -28,12 +33,26 @@
                 <span class="text-[10px] font-mono opacity-40 uppercase">{value ? 'ON' : 'OFF'}</span>
             {/if}
         </div>
-    {:else if key.includes('password') || key.includes('token') || key.includes('key')}
-        <input 
-            type="password" id="field-{key}" 
-            bind:value 
-            class="input input-bordered input-sm font-mono focus:input-primary transition-all" 
-        />
+    {:else if isSecret}
+        <div class="relative">
+            <input 
+                type={showSecret ? "text" : "password"} id="field-{key}" 
+                bind:value 
+                placeholder={description}
+                class="input input-bordered input-sm font-mono focus:input-primary transition-all w-full pr-10" 
+            />
+            <button 
+                type="button"
+                class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs"
+                onclick={() => showSecret = !showSecret}
+            >
+                {#if showSecret}
+                    <span class="lucide lucide-eye-off">👁</span>
+                {:else}
+                    <span class="lucide lucide-eye">👁</span>
+                {/if}
+            </button>
+        </div>
     {:else}
         <input 
             type="text" id="field-{key}" 

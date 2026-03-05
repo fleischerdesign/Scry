@@ -105,6 +105,9 @@ class ScryAPI {
 	updatePluginConfig(id: string, data: Record<string, JsonValue>): Promise<void> { 
 		return this.request(`/system/plugins/${id}/config`, { method: "POST", body: JSON.stringify(data) }); 
 	}
+	getPluginSecrets(id: string): Promise<Record<string, string>> { 
+		return this.request(`/system/plugins/${id}/secrets`); 
+	}
 	getPluginReport(pluginId: string, reportId: string): Promise<ApiReportData> {
 		return this.request(`/system/plugins/${pluginId}/reports/${reportId}`);
 	}

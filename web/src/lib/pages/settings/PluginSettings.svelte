@@ -6,6 +6,7 @@
 	import { router } from "../../router.svelte";
 
 	let pluginConfigs = $state<Record<string, any>>({});
+	let pluginSecrets = $state<Record<string, any>>({});
 	let saving = $state(false);
 	let successMessage = $state("");
 
@@ -25,6 +26,13 @@
 				console.error(`Failed to load config for ${p.id}`, e);
 				pluginConfigs[p.id] = {};
 			}
+			try {
+				const secrets = await api.getPluginSecrets(p.id);
+				pluginSecrets[p.id] = secrets;
+			} catch (e) {
+				console.error(`Failed to load secrets for ${p.id}`, e);
+				pluginSecrets[p.id] = {};
+			}
 		}
 	}
 
@@ -38,7 +46,7 @@
 		saving = true;
 		successMessage = "";
 		try {
-			await api.updatePluginConfig(pluginId, pluginConfigs[pluginId]);
+			await api.updatePluginConfig(pluginId, { ...pluginConfigs[pluginId], ...pluginSecrets[pluginId] });
 			successMessage = `${pluginId} updated`;
 			setTimeout(() => (successMessage = ""), 3000);
 		} catch (e) {
@@ -50,6 +58,13 @@
 
 	function getAliases(config: Record<string, any>) {
 		return Object.entries(config || {}).filter(([k]) => k.startsWith('alias:'));
+	}
+
+	function extractSecretKeys(schema: any): string[] {
+		if (!schema?.properties) return [];
+		return Object.entries(schema.properties)
+			.filter(([_, prop]: [string, any]) => prop.secret === true)
+			.map(([key]) => key);
 	}
 </script>
 
@@ -134,6 +149,12 @@
 
 					<!-- Technical Configuration -->
 					{#if plugin.capabilities.includes("config")}
+						{@const schema = plugin.config_schema ? JSON.parse(plugin.config_schema) : null}
+						{@const secretKeys = schema ? extractSecretKeys(schema) : []}
+						{@const publicProps = schema ? Object.entries(schema.properties || {}).filter(([k]) => !secretKeys.includes(k)) : []}
+						{@const secretProps = schema ? Object.entries(schema.properties || {}).filter(([k]) => secretKeys.includes(k)) : []}
+
+						{#if publicProps.length > 0}
 						<div class="space-y-4">
 							<h4
 								class="text-[10px] font-black uppercase tracking-widest opacity-40"
@@ -141,10 +162,9 @@
 								Node parameters
 							</h4>
 
-							{#if plugin.config_schema && pluginConfigs[plugin.id]}
-								{@const schema = JSON.parse(plugin.config_schema)}
+							{#if pluginConfigs[plugin.id]}
 								<div class="grid grid-cols-1 gap-6">
-									{#each Object.entries(schema.properties || {}) as [key, prop]}
+									{#each publicProps as [key, prop]}
 										<ConfigField
 											{key}
 											schema={prop}
@@ -152,14 +172,40 @@
 										/>
 									{/each}
 								</div>
-							{:else if !plugin.config_schema}
-								<p class="text-[10px] italic opacity-30">
-									No custom parameters defined.
-								</p>
 							{:else}
 								<span class="loading loading-dots loading-xs opacity-20"></span>
 							{/if}
 						</div>
+						{/if}
+
+						{#if secretProps.length > 0}
+						<div class="space-y-4 bg-warning/5 p-4 rounded-2xl border border-warning/10 mt-4">
+							<div class="flex items-center gap-2">
+								<h4 class="text-[10px] font-black uppercase tracking-widest text-warning">Secrets</h4>
+								<span class="badge badge-warning badge-xs">ENCRYPTED</span>
+							</div>
+
+							{#if pluginSecrets[plugin.id]}
+								<div class="grid grid-cols-1 gap-6">
+									{#each secretProps as [key, prop]}
+										<ConfigField
+											{key}
+											schema={prop}
+											bind:value={pluginSecrets[plugin.id][key]}
+										/>
+									{/each}
+								</div>
+							{:else}
+								<span class="loading loading-dots loading-xs opacity-20"></span>
+							{/if}
+						</div>
+						{/if}
+
+						{#if !plugin.config_schema}
+							<p class="text-[10px] italic opacity-30">
+								No custom parameters defined.
+							</p>
+						{/if}
 					{/if}
 				</div>
 

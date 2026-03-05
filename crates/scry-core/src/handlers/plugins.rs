@@ -26,6 +26,12 @@ pub async fn get_plugin_config(State(state): State<Arc<AppState>>, Path(id): Pat
     Ok(Json(res))
 }
 
+#[utoipa::path(get, path = "/api/v1/system/plugins/{id}/secrets", responses((status = 200, body = serde_json::Value)), security(("api_key" = [])))]
+pub async fn get_plugin_secrets(State(state): State<Arc<AppState>>, Path(id): Path<String>, Extension(auth): Extension<AuthContext>) -> Result<Json<serde_json::Value>> {
+    let res = state.plugin_service.get_plugin_secrets(auth.user_id, &id).await?;
+    Ok(Json(res))
+}
+
 #[utoipa::path(post, path = "/api/v1/system/plugins/{id}/config", responses((status = 200)), security(("api_key" = [])))]
 pub async fn update_plugin_config(State(state): State<Arc<AppState>>, Path(id): Path<String>, Extension(auth): Extension<AuthContext>, Json(req): Json<serde_json::Map<String, serde_json::Value>>) -> Result<impl IntoResponse> {
     state.plugin_service.update_plugin_config(auth.user_id, &id, req).await?;

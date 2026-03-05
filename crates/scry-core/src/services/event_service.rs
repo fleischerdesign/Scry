@@ -5,6 +5,7 @@ use scry_proto::Event;
 use crate::domain::*;
 use crate::error::{Error, Result};
 use crate::repository::{EventRepository, ConfigRepository, EntityRepository, AnalyticsRepository};
+use super::SecretService;
 use serde_json::{Value, json};
 
 #[derive(Clone)]
@@ -122,7 +123,8 @@ impl EventService {
 
     pub async fn ingest_event(&self, user_id: i64, event: Event) -> Result<Event> {
         let event_repo = EventRepository::new(&self.db, user_id);
-        let config_repo = ConfigRepository::new(&self.db, user_id);
+        let secret_service = SecretService::new();
+        let config_repo = ConfigRepository::new(&self.db, user_id, &secret_service);
         let entity_repo = EntityRepository::new(&self.db, user_id);
 
         let mut processed_event: Event = self.plugin_manager.run_ingest_pipeline(user_id, event).await
@@ -156,7 +158,7 @@ impl EventService {
                     };
 
                     if let Some(target) = default_target {
-                        let _ = config_repo.set_if_not_exists(processor_id, &alias_key, target).await;
+                        let _ = config_repo.set_if_not_exists(processor_id, &alias_key, target, false).await;
                         Some(scry_proto::EntityRef {
                             path: hint.clone(),
                             namespace: "scry.core".to_string(),

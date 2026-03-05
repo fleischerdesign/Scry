@@ -63,3 +63,5 @@ _build-plugins:
 	cp target/wasm32-wasip2/release/scry_weather_plugin.wasm plugins/weather.wasm
 	cargo build --release -p scry-music-enricher --target wasm32-wasip2
 	cp target/wasm32-wasip2/release/scry_music_enricher.wasm plugins/enricher.wasm
+	cargo build --release -p scry-spotify-plugin --target wasm32-wasip2
+	cp target/wasm32-wasip2/release/scry_spotify_plugin.wasm plugins/spotify.wasm

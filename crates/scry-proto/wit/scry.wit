@@ -133,6 +133,8 @@ interface host {
 
     set-relationship: func(rel: relationship);
     get-relationships: func(namespace: string, typ: string, id: string, direction: string) -> list<relationship>;
+
+    get-secret: func(key: string) -> option<string>;
 }
 
 world plugin {

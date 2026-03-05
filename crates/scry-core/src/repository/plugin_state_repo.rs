@@ -1,16 +1,23 @@
 use sqlx::SqlitePool;
 use crate::error::Result;
 use crate::plugins::scry::plugin::host::{Relationship, QueryParam};
+use crate::services::SecretService;
 
 pub struct PluginStateRepository {
     pool: SqlitePool,
     user_id: i64,
     plugin_name: String,
+    secret_service: SecretService,
 }
 
 impl PluginStateRepository {
     pub fn new(pool: &SqlitePool, user_id: i64, plugin_name: &str) -> Self {
-        Self { pool: pool.clone(), user_id, plugin_name: plugin_name.to_string() }
+        Self { 
+            pool: pool.clone(), 
+            user_id, 
+            plugin_name: plugin_name.to_string(),
+            secret_service: SecretService::new(),
+        }
     }
 
     pub async fn set_state(&self, key: &str, value: &str) -> Result<()> {
@@ -26,9 +33,19 @@ impl PluginStateRepository {
     }
 
     pub async fn get_config(&self, key: &str) -> Result<Option<String>> {
-        let res = sqlx::query_scalar::<_, String>("SELECT value FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ?")
+        let res = sqlx::query_scalar::<_, String>("SELECT value FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ? AND is_secret = 0")
             .bind(self.user_id).bind(&self.plugin_name).bind(key).fetch_optional(&self.pool).await?;
         Ok(res)
+    }
+
+    pub async fn get_secret(&self, key: &str) -> Result<Option<String>> {
+        let res = sqlx::query_scalar::<_, String>("SELECT value FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ? AND is_secret = 1")
+            .bind(self.user_id).bind(&self.plugin_name).bind(key).fetch_optional(&self.pool).await?;
+        
+        match res {
+            Some(encrypted) => Ok(self.secret_service.decrypt(self.user_id, &encrypted)?),
+            None => Ok(None),
+        }
     }
 
     pub async fn set_trait(&self, namespace: &str, typ: &str, id: &str, trait_id: &str, value_json: &str) -> Result<()> {

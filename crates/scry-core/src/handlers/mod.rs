@@ -55,6 +55,7 @@ pub fn app_router(state: Arc<AppState>) -> Router {
                 .route("/plugins", get(plugins::get_system_plugins))
                 .route("/plugins/:id/poll", post(plugins::poll_plugin_manually))
                 .route("/plugins/:id/config", get(plugins::get_plugin_config).post(plugins::update_plugin_config))
+                .route("/plugins/:id/secrets", get(plugins::get_plugin_secrets))
                 .route("/dashboards", get(dashboards::get_dashboards).post(dashboards::create_dashboard))
                 .route("/dashboards/:id/widgets", post(dashboards::add_widget))
                 .route("/dashboards/:id/widgets/:widget_id", delete(dashboards::delete_widget))

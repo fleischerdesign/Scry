@@ -6,5 +6,6 @@ members = [
     "crates/scry-music-plugin",
     "crates/scry-weather-plugin",
     "crates/scry-music-enricher",
+    "crates/scry-spotify-plugin",
 ]
 resolver = "2"

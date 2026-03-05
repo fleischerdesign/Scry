@@ -102,4 +102,8 @@ impl Host for MyCtx {
     async fn get_relationships(&mut self, namespace: String, typ: String, id: String, direction: String) -> Result<Vec<Relationship>> {
         self.state_repo().get_relationships(&namespace, &typ, &id, &direction).await.map_err(|e| anyhow::anyhow!(e))
     }
+
+    async fn get_secret(&mut self, key: String) -> Result<Option<String>> {
+        self.state_repo().get_secret(&key).await.map_err(|e| anyhow::anyhow!(e))
+    }
 }

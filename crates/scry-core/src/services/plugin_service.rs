@@ -6,17 +6,19 @@ use crate::error::Result;
 use crate::repository::ConfigRepository;
 use crate::plugins::PluginManager;
 use super::EventService;
+use super::SecretService;
 
 #[derive(Clone)]
 pub struct PluginService {
     db: SqlitePool,
     plugin_manager: Arc<PluginManager>,
     event_service: EventService,
+    secret_service: SecretService,
 }
 
 impl PluginService {
-    pub fn new(db: SqlitePool, plugin_manager: Arc<PluginManager>, event_service: EventService) -> Self {
-        Self { db, plugin_manager, event_service }
+    pub fn new(db: SqlitePool, plugin_manager: Arc<PluginManager>, event_service: EventService, secret_service: SecretService) -> Self {
+        Self { db, plugin_manager, event_service, secret_service }
     }
 
     pub async fn poll_plugin_manually(&self, user_id: i64, plugin_id: &str) -> Result<usize> {
@@ -29,8 +31,21 @@ impl PluginService {
     }
 
     pub async fn get_plugin_config(&self, user_id: i64, plugin_id: &str) -> Result<serde_json::Value> {
-        let repo = ConfigRepository::new(&self.db, user_id);
+        let repo = ConfigRepository::new(&self.db, user_id, &self.secret_service);
         let rows = repo.get_all_by_plugin(plugin_id).await?;
+        
+        let mut map = serde_json::Map::new();
+        for (k, v, is_secret) in rows {
+            if !is_secret {
+                map.insert(k, json!(v));
+            }
+        }
+        Ok(serde_json::Value::Object(map))
+    }
+
+    pub async fn get_plugin_secrets(&self, user_id: i64, plugin_id: &str) -> Result<serde_json::Value> {
+        let repo = ConfigRepository::new(&self.db, user_id, &self.secret_service);
+        let rows = repo.get_secrets_by_plugin(plugin_id).await?;
         
         let mut map = serde_json::Map::new();
         for (k, v) in rows {
@@ -40,12 +55,35 @@ impl PluginService {
     }
 
     pub async fn update_plugin_config(&self, user_id: i64, plugin_id: &str, config: serde_json::Map<String, serde_json::Value>) -> Result<()> {
-        let repo = ConfigRepository::new(&self.db, user_id);
+        let schema = self.get_config_schema(plugin_id).await;
+        let secret_keys = self.extract_secret_keys(&schema);
+        
+        let repo = ConfigRepository::new(&self.db, user_id, &self.secret_service);
         for (k, v) in config {
             let v_str = v.as_str().unwrap_or("").to_string();
-            repo.set(plugin_id, &k, &v_str).await?;
+            let is_secret = secret_keys.contains(&k);
+            repo.set(plugin_id, &k, &v_str, is_secret).await?;
         }
         Ok(())
+    }
+
+    async fn get_config_schema(&self, plugin_id: &str) -> Option<serde_json::Value> {
+        let manifests = self.plugin_manager.get_plugin_manifests().await;
+        manifests.get(plugin_id).and_then(|m| m.config_schema.as_ref()).and_then(|s| serde_json::from_str(s).ok())
+    }
+
+    fn extract_secret_keys(&self, schema: &Option<serde_json::Value>) -> std::collections::HashSet<String> {
+        let mut keys = std::collections::HashSet::new();
+        if let Some(s) = schema {
+            if let Some(props) = s.get("properties").and_then(|p| p.as_object()) {
+                for (k, prop) in props {
+                    if prop.get("secret").and_then(|v| v.as_bool()).unwrap_or(false) {
+                        keys.insert(k.clone());
+                    }
+                }
+            }
+        }
+        keys
     }
 
     pub async fn get_catalog(&self) -> serde_json::Value {
