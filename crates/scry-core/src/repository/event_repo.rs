@@ -15,7 +15,7 @@ pub struct DbEvent {
     pub display_title: Option<String>,
     pub display_subtitle: Option<String>,
     pub display_image: Option<String>,
-    pub display_value: Option<f64>,
+    pub display_value: Option<String>,
     pub confidence: Option<f64>,
 }
 
@@ -97,7 +97,7 @@ impl<'a> EventRepository<'a> {
             .bind(&event.display_title)
             .bind(&event.display_subtitle)
             .bind(&event.display_image)
-            .bind(event.display_value)
+            .bind(event.display_value.clone())
             .bind(event.confidence)
             .execute(self.pool)
             .await?;

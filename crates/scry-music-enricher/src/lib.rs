@@ -15,20 +15,19 @@ impl ScryPlugin for MusicEnricher {
             exports: vec![],
             domain_info: vec![],
             predicates: vec![],
-            provided_traits: vec![
-                scry_plugin_sdk::TraitCapability {
-                    entity_namespace: "scry.music".to_string(),
-                    entity_type: "artist".to_string(),
-                    trait_id: "scry.visual/photo".to_string(),
-                }
-            ],
+            provided_traits: vec![scry_plugin_sdk::TraitCapability {
+                entity_namespace: "scry.music".to_string(),
+                entity_type: "artist".to_string(),
+                trait_id: "scry.visual/photo".to_string(),
+            }],
             poll_interval: None,
             config_schema: None,
             suggested_widgets: vec![],
+            oauth_config: None,
         }
     }
 
-    async fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
+    fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
         if ev.category == "music.scrobble" {
             // Demo for dynamic confidence:
             // If we have an artist but maybe the track is unknown, we are less confident.
@@ -38,24 +37,38 @@ impl ScryPlugin for MusicEnricher {
         Ok(ev)
     }
 
-    async fn resolve_trait(&self, namespace: &str, typ: &str, id: &str, trait_id: &str) -> Result<Option<String>, String> {
+    fn resolve_trait(
+        &self,
+        namespace: &str,
+        typ: &str,
+        id: &str,
+        trait_id: &str,
+    ) -> Result<Option<String>, String> {
         if namespace == "scry.music" && typ == "artist" && trait_id == "scry.visual/photo" {
             // Wir nutzen ui-avatars.com für echtes visuelles Feedback
-            let mock_url = format!("https://ui-avatars.com/api/?name={}&background=random&size=128", urlencoding::encode(id));
+            let mock_url = format!(
+                "https://ui-avatars.com/api/?name={}&background=random&size=128",
+                urlencoding::encode(id)
+            );
             return Ok(Some(json!(mock_url).to_string()));
         }
         Ok(None)
     }
 
-    async fn on_entity_discovered(&self, namespace: &str, typ: &str, id: &str) {
+    fn on_entity_discovered(&self, namespace: &str, typ: &str, id: &str) {
         if namespace == "scry.music" && typ == "artist" {
-            host::log_info(&format!("Enricher: New artist discovered: {}. Fetching photo...", id)).await;
-            
+            host::log_info(&format!(
+                "Enricher: New artist discovered: {}. Fetching photo...",
+                id
+            ));
+
             // Trait auflösen
-            if let Ok(Some(photo_url_json)) = self.resolve_trait(namespace, typ, id, "scry.visual/photo").await {
+            if let Ok(Some(photo_url_json)) =
+                self.resolve_trait(namespace, typ, id, "scry.visual/photo")
+            {
                 // Persistent im Host speichern (Push-Modell)
-                host::set_entity_trait(namespace, typ, id, "scry.visual/photo", &photo_url_json).await;
-                host::log_info(&format!("Enricher: Successfully stored photo for {}", id)).await;
+                host::set_entity_trait(namespace, typ, id, "scry.visual/photo", &photo_url_json);
+                host::log_info(&format!("Enricher: Successfully stored photo for {}", id));
             }
         }
     }

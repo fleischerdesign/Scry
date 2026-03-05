@@ -85,7 +85,7 @@ impl EventService {
                     if is_metric || event.display_value.is_none() {
                         let path = export.path.strip_prefix("payload.").unwrap_or(&export.path);
                         if let Some(val) = event.payload.get(path).and_then(|v| v.as_f64()) {
-                            event.display_value = Some(val);
+                            event.display_value = Some(val.to_string());
                             // If we found a metric, we're happy and can stop searching for this export
                             if is_metric { break; }
                         }
@@ -411,7 +411,7 @@ mod tests {
                 id TEXT PRIMARY KEY, user_id INTEGER, timestamp TEXT, 
                 category TEXT, source TEXT, payload TEXT, metadata TEXT,
                 entities TEXT, context TEXT, 
-                display_title TEXT, display_subtitle TEXT, display_image TEXT, display_value REAL
+                display_title TEXT, display_subtitle TEXT, display_image TEXT, display_value TEXT
             );
             INSERT INTO users (id, username, password_hash) VALUES (1, 'alice', 'hash'), (2, 'bob', 'hash');
         "#).execute(&pool).await.unwrap();

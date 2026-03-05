@@ -15,6 +15,6 @@ export type Event = {
     display_title: string | null, 
     display_subtitle: string | null, 
     display_image: string | null, 
-    display_value: number | null, 
+    display_value: string | null, 
     confidence: number | null,
 };

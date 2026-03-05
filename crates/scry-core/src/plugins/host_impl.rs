@@ -1,4 +1,4 @@
-use crate::plugins::scry::plugin::host::{Host, QueryParam, Relationship};
+use crate::plugins::scry::plugin::host::{Host, QueryParam, Relationship, HttpRequestData, HttpResponse};
 use crate::plugins::context::MyCtx;
 use crate::repository::ProfileRepository;
 use anyhow::Result;
@@ -49,14 +49,41 @@ impl Host for MyCtx {
         }
     }
 
-    async fn http_get(&mut self, url: String) -> Result<std::result::Result<String, String>> {
-        let res = match self.http_client.get(&url)
-            .header("User-Agent", "Scry/1.0")
-            .send().await {
-            Ok(resp) => resp.text().await.map_err(|e| e.to_string()),
-            Err(e) => Err(e.to_string()),
+    async fn http_request(&mut self, req: HttpRequestData) -> Result<std::result::Result<HttpResponse, String>> {
+        let method = match req.method.to_uppercase().as_str() {
+            "GET" => reqwest::Method::GET,
+            "POST" => reqwest::Method::POST,
+            "PUT" => reqwest::Method::PUT,
+            "DELETE" => reqwest::Method::DELETE,
+            "PATCH" => reqwest::Method::PATCH,
+            _ => return Ok(Err(format!("Unsupported HTTP method: {}", req.method))),
         };
-        Ok(res)
+
+        let mut builder = self.http_client.request(method, &req.url)
+            .header("User-Agent", "Scry/1.0");
+
+        for (k, v) in req.headers {
+            builder = builder.header(k, v);
+        }
+
+        if let Some(body) = req.body {
+            builder = builder.body(body);
+        }
+
+        match builder.send().await {
+            Ok(resp) => {
+                let status = resp.status().as_u16();
+                let headers = resp.headers().iter()
+                    .map(|(k, v)| (k.to_string(), String::from_utf8_lossy(v.as_bytes()).to_string()))
+                    .collect();
+                let body = match resp.text().await {
+                    Ok(t) => t,
+                    Err(e) => return Ok(Err(format!("Failed to read response body: {}", e))),
+                };
+                Ok(Ok(HttpResponse { status, headers, body }))
+            }
+            Err(e) => Ok(Err(e.to_string())),
+        }
     }
 
     async fn set_state(&mut self, key: String, value: String) -> Result<()> {

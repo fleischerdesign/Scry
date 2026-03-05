@@ -1,6 +1,6 @@
 use axum::{
     extract::{State, Json, Path, Query},
-    http::{StatusCode, header},
+    http::StatusCode,
     response::{IntoResponse, Redirect},
     Extension,
 };
@@ -60,91 +60,79 @@ pub async fn poll_plugin_manually(State(state): State<Arc<AppState>>, Path(id): 
 }
 
 #[derive(Deserialize)]
-pub struct SpotifyOAuthQuery {
+pub struct OAuthQuery {
     code: Option<String>,
     error: Option<String>,
     state: Option<String>,
 }
 
-#[utoipa::path(get, path = "/api/v1/system/plugins/{id}/auth-url", responses((status = 200, body = serde_json::Value)), security(("api_key" = [])))]
-pub async fn get_plugin_auth_url(
-    State(_state): State<Arc<AppState>>,
+#[utoipa::path(get, path = "/api/v1/system/plugins/{id}/auth", responses((status = 200, body = serde_json::Value)), security(("api_key" = [])))]
+pub async fn plugin_oauth_start(
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Extension(auth): Extension<AuthContext>,
 ) -> Result<Json<serde_json::Value>> {
-    match id.as_str() {
-        "scry-spotify-plugin" => {
-            let client_id = std::env::var("SPOTIFY_CLIENT_ID")
-                .unwrap_or_else(|_| "".to_string());
-            
-            if client_id.is_empty() {
-                return Ok(Json(serde_json::json!({ "error": "SPOTIFY_CLIENT_ID not configured" })));
-            }
-            
-            let redirect_uri = std::env::var("SPOTIFY_REDIRECT_URI")
-                .unwrap_or_else(|_| "http://127.0.0.1:3000/api/v1/system/plugins/spotify/callback".to_string());
-            
-            let scopes = [
-                "user-read-recently-played",
-                "user-read-currently-playing",
-                "user-read-playback-state",
-            ].join(" ");
-            
-            let state = format!("user_{}", auth.user_id);
-            let auth_url = format!(
-                "https://accounts.spotify.com/authorize?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}",
-                urlencoding::encode(&client_id),
-                urlencoding::encode(&redirect_uri),
-                urlencoding::encode(&scopes),
-                urlencoding::encode(&state)
-            );
-            
-            Ok(Json(serde_json::json!({ "auth_url": auth_url, "state": state })))
-        }
-        _ => Ok(Json(serde_json::json!({ "error": "Plugin does not support OAuth" })))
-    }
+    let oauth_config = state.plugin_service.get_oauth_config(&id).await?;
+
+    let (client_id, client_secret) = state.plugin_service.get_oauth_credentials(auth.user_id, &id).await?;
+
+    let redirect_uri = format!("http://127.0.0.1:3000/api/v1/system/plugins/{}/auth/callback", id);
+    
+    let scopes = oauth_config.scopes.join(" ");
+    let state_val = format!("user_{}", auth.user_id);
+    
+    let auth_url = format!(
+        "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}",
+        oauth_config.auth_url,
+        urlencoding::encode(&client_id),
+        urlencoding::encode(&redirect_uri),
+        urlencoding::encode(&scopes),
+        urlencoding::encode(&state_val)
+    );
+
+    Ok(Json(serde_json::json!({ "auth_url": auth_url, "state": state_val })))
 }
 
-#[utoipa::path(get, path = "/api/v1/system/plugins/spotify/callback", responses((status = 200, description = "OAuth callback")))]
-pub async fn spotify_oauth_callback(
+#[utoipa::path(get, path = "/api/v1/system/plugins/{id}/auth/callback", responses((status = 200, description = "OAuth callback")))]
+pub async fn plugin_oauth_callback(
     State(app_state): State<Arc<AppState>>,
-    Query(query): Query<SpotifyOAuthQuery>,
+    Path(id): Path<String>,
+    Query(query): Query<OAuthQuery>,
 ) -> impl IntoResponse {
     if let Some(error) = query.error {
-        return Redirect::to(&format!("/settings?error=spotify_auth_failed&message={}", urlencoding::encode(&error)));
+        return Redirect::to(&format!("/settings?error=oauth_failed&message={}", urlencoding::encode(&error)));
     }
 
     let code = match query.code {
         Some(c) => c,
-        None => {
-            return Redirect::to("/settings?error=spotify_no_code");
-        }
+        None => return Redirect::to("/settings?error=oauth_no_code"),
     };
 
     let oauth_state = match query.state {
         Some(s) => s,
-        None => return Redirect::to("/settings?error=spotify_no_state"),
+        None => return Redirect::to("/settings?error=oauth_no_state"),
     };
 
     let user_id: i64 = match oauth_state.strip_prefix("user_") {
         Some(id_str) => id_str.parse().unwrap_or(0),
-        None => return Redirect::to("/settings?error=spotify_invalid_state"),
+        None => return Redirect::to("/settings?error=oauth_invalid_state"),
     };
 
     if user_id == 0 {
-        return Redirect::to("/settings?error=spotify_invalid_user");
+        return Redirect::to("/settings?error=oauth_invalid_user");
     }
 
-    let client_id = std::env::var("SPOTIFY_CLIENT_ID")
-        .unwrap_or_else(|_| "".to_string());
-    let client_secret = std::env::var("SPOTIFY_CLIENT_SECRET")
-        .unwrap_or_else(|_| "".to_string());
-    let redirect_uri = std::env::var("SPOTIFY_REDIRECT_URI")
-        .unwrap_or_else(|_| "http://127.0.0.1:3000/api/v1/system/plugins/spotify/callback".to_string());
+    let (client_id, client_secret) = match app_state.plugin_service.get_oauth_credentials(user_id, &id).await {
+        Ok(creds) => creds,
+        Err(_) => return Redirect::to("/settings?error=oauth_no_credentials"),
+    };
 
-    if client_id.is_empty() || client_secret.is_empty() {
-        return Redirect::to("/settings?error=spotify_not_configured");
-    }
+    let oauth_config = match app_state.plugin_service.get_oauth_config(&id).await {
+        Ok(config) => config,
+        Err(_) => return Redirect::to("/settings?error=oauth_not_supported"),
+    };
+
+    let redirect_uri = format!("http://127.0.0.1:3000/api/v1/system/plugins/{}/auth/callback", id);
 
     let credentials = base64::engine::general_purpose::STANDARD.encode(
         format!("{}:{}", client_id, client_secret)
@@ -158,7 +146,7 @@ pub async fn spotify_oauth_callback(
 
     let client = reqwest::Client::new();
     let response = client
-        .post("https://accounts.spotify.com/api/token")
+        .post(&oauth_config.token_url)
         .form(&params)
         .header("Authorization", format!("Basic {}", credentials))
         .send()
@@ -167,21 +155,28 @@ pub async fn spotify_oauth_callback(
     match response {
         Ok(resp) if resp.status().is_success() => {
             let token: serde_json::Value = resp.json().await.unwrap_or_default();
+            let access_token = token.get("access_token").and_then(|v| v.as_str()).unwrap_or("");
             let refresh_token = token.get("refresh_token").and_then(|v| v.as_str()).unwrap_or("");
             
-            if !refresh_token.is_empty() {
-                let secret_service = SecretService::new();
-                let repo = crate::repository::ConfigRepository::new(&app_state.db, user_id, &secret_service);
-                if let Err(e) = repo.set("scry-spotify-plugin", "refresh_token", refresh_token, true).await {
-                    tracing::error!("Failed to save Spotify refresh token: {}", e);
-                    return Redirect::to("/settings?error=spotify_save_failed");
+            let secret_service = SecretService::new();
+            let repo = crate::repository::ConfigRepository::new(&app_state.db, user_id, &secret_service);
+            
+            if !access_token.is_empty() {
+                if let Err(e) = repo.set(&id, "oauth_access_token", access_token, true).await {
+                    tracing::error!("Failed to save oauth access token: {}", e);
                 }
             }
             
-            Redirect::to("/settings?spotify_connected=true")
+            if !refresh_token.is_empty() {
+                if let Err(e) = repo.set(&id, "oauth_refresh_token", refresh_token, true).await {
+                    tracing::error!("Failed to save oauth refresh token: {}", e);
+                }
+            }
+            
+            Redirect::to("/settings?oauth_connected=true")
         }
         _ => {
-            Redirect::to("/settings?error=spotify_tokenExchange_failed")
+            Redirect::to("/settings?error=oauth_token_failed")
         }
     }
 }

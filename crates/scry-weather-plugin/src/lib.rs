@@ -60,19 +60,22 @@ impl ScryPlugin for WeatherPlugin {
                     config_json: json!({ "semantic_type": "metric.environment.temperature", "days": 7 }).to_string(),
                 }
             ],
+            oauth_config: None,
         }
     }
 
-    async fn on_poll(&self) -> Vec<SdkEvent> {
-        host::log_info("Weather: Polling current conditions...").await;
+    fn on_poll(&self) -> Vec<SdkEvent> {
+        host::log_info("Weather: Polling current conditions...");
 
         // 1. Versuche Koordinaten aus der lokalen Config zu laden
-        let mut lat = host::get_config("latitude").await.and_then(|v| v.parse::<f64>().ok());
-        let mut lon = host::get_config("longitude").await.and_then(|v| v.parse::<f64>().ok());
+        let mut lat = host::get_config("latitude").and_then(|v| v.parse::<f64>().ok());
+        let mut lon = host::get_config("longitude").and_then(|v| v.parse::<f64>().ok());
 
         // 2. Fallback: Versuche den aktuellen Standort-Trait vom User 'self' zu lesen
         if lat.is_none() || lon.is_none() {
-            if let Some(loc_json) = host::get_entity_trait("scry.core", "user", "self", "scry.geo/location").await {
+            if let Some(loc_json) =
+                host::get_entity_trait("scry.core", "user", "self", "scry.geo/location")
+            {
                 if let Ok(loc) = serde_json::from_str::<GeoLocation>(&loc_json) {
                     lat = Some(loc.latitude);
                     lon = Some(loc.longitude);
@@ -85,15 +88,18 @@ impl ScryPlugin for WeatherPlugin {
         let lon = lon.unwrap_or(13.41);
 
         // API Abfrage (Open-Meteo)
-        let url = format!("https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current_weather=true", lat, lon);
-        
-        match host::http_get(&url).await {
+        let url = format!(
+            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current_weather=true",
+            lat, lon
+        );
+
+        match host::http_get(&url) {
             Ok(resp_json) => {
                 let v: serde_json::Value = serde_json::from_str(&resp_json).unwrap_or_default();
                 let temp = v["current_weather"]["temperature"].as_f64().unwrap_or(0.0);
-                
+
                 // Wir versuchen einen Städtenamen aus den Koordinaten zu raten oder nehmen 'Current Location'
-                let city = host::get_entity_trait("scry.core", "user", "self", "scry.core/city").await
+                let city = host::get_entity_trait("scry.core", "user", "self", "scry.core/city")
                     .and_then(|v| serde_json::from_str::<String>(&v).ok())
                     .unwrap_or_else(|| "Current Location".to_string());
 
@@ -113,15 +119,15 @@ impl ScryPlugin for WeatherPlugin {
                     display_subtitle: Some(format!("Weather in {}", city)),
                     confidence: Some(1.0),
                 }]
-            },
+            }
             Err(e) => {
-                host::log_error(&format!("Weather: API call failed: {}", e)).await;
+                host::log_error(&format!("Weather: API call failed: {}", e));
                 vec![]
             }
         }
     }
 
-    async fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
+    fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
         if ev.category == "weather.current" {
             if let Some(city) = ev.payload.get("city").and_then(|v| v.as_str()) {
                 // Tagge den Ort als Entität im Knowledge Graph

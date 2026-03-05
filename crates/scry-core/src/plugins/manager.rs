@@ -27,7 +27,7 @@ impl Default for PluginConfig {
         Self {
             max_memory_bytes: 256 * 1024 * 1024,
             max_table_entries: 1000,
-            max_fuel: 1_000_000,
+            max_fuel: 100_000_000,
             max_timeout_secs: 10,
             storage_base_path: "./storage".to_string(),
         }
@@ -55,7 +55,6 @@ impl PluginManager {
     pub fn with_config(plugin_dir: &str, db: sqlx::SqlitePool, config: PluginConfig) -> Result<Self> {
         let mut cfg = Config::new();
         cfg.wasm_component_model(true);
-        cfg.wasm_component_model_async(true);
         cfg.consume_fuel(true);
         let engine = Engine::new(&cfg)?;
 
@@ -198,8 +197,8 @@ impl PluginManager {
             let res = self.with_instance(&name, user_id, |instance, mut store| async move {
                 let wit_event = crate::plugins::scry::plugin::types::Event::from(&event);
                 let processed = instance.call_on_ingest(&mut store, &wit_event).await?
-                    .map_err(|e| anyhow::anyhow!(e))?;
-                let mapped = ScryEvent::try_from(processed).map_err(|e| anyhow::anyhow!(e))?;
+                    .map_err(|e: String| anyhow::anyhow!(e))?;
+                let mapped = ScryEvent::try_from(processed).map_err(|e: ConversionError| anyhow::anyhow!(e))?;
                 Ok((mapped, store))
             }).await?;
             event = res;
@@ -211,7 +210,7 @@ impl PluginManager {
         self.with_instance(name, user_id, |instance, mut store| async move {
             let res = instance.call_on_poll(&mut store).await?;
             let mapped: Vec<ScryEvent> = res.into_iter()
-                .map(|ev| ScryEvent::try_from(ev).map_err(|e| anyhow::anyhow!(e)))
+                .map(|ev| ScryEvent::try_from(ev).map_err(|e: ConversionError| anyhow::anyhow!(e)))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok((mapped, store))
         }).await
@@ -238,7 +237,7 @@ impl PluginManager {
     pub async fn run_plugin_report(&self, user_id: i64, plugin_name: &str, report_id: String) -> Result<ReportData> {
         self.with_instance(plugin_name, user_id, |instance, mut store| async move {
             let res = instance.call_run_report(&mut store, &report_id).await?
-                .map_err(|e| anyhow::anyhow!(e))?;
+                .map_err(|e: String| anyhow::anyhow!(e))?;
             let mapped = ReportData::from(res);
             Ok((mapped, store))
         }).await

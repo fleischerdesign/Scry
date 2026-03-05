@@ -31,7 +31,7 @@ interface types {
         display-title: option<string>,
         display-subtitle: option<string>,
         display-image: option<string>,
-        display-value: option<f64>,
+        display-value: option<string>,
         confidence: option<f64>,
     }
 
@@ -80,6 +80,12 @@ interface types {
         config-json: string,
     }
 
+    record oauth-config {
+        auth-url: string,
+        token-url: string,
+        scopes: list<string>,
+    }
+
     record manifest {
         id: string,
         name: string,
@@ -94,6 +100,7 @@ interface types {
         poll-interval: option<u32>,
         config-schema: option<string>,
         suggested-widgets: list<widget-definition>,
+        oauth-config: option<oauth-config>,
     }
 
     enum visualization { table, bar-chart, line-chart, pie-chart }
@@ -120,8 +127,21 @@ interface host {
         f(f64),
     }
 
+    record http-request-data {
+        method: string,
+        url: string,
+        headers: list<tuple<string, string>>,
+        body: option<string>,
+    }
+
+    record http-response {
+        status: u16,
+        headers: list<tuple<string, string>>,
+        body: string,
+    }
+
     query: func(sql: string, params: list<query-param>) -> result<string, string>;
-    http-get: func(url: string) -> result<string, string>;
+    http-request: func(req: http-request-data) -> result<http-response, string>;
     set-state: func(key: string, value: string);
     get-state: func(key: string) -> option<string>;
     get-config: func(key: string) -> option<string>;

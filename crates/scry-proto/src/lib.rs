@@ -33,7 +33,7 @@ pub struct Event {
     pub display_title: Option<String>,
     pub display_subtitle: Option<String>,
     pub display_image: Option<String>,
-    pub display_value: Option<f64>,
+    pub display_value: Option<String>,
     pub confidence: Option<f64>,
 }
 

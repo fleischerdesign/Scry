@@ -59,8 +59,10 @@ class SemanticService {
             return '•••••';
         }
 
-        if (typeof value === 'number') {
-            const formatted = value.toFixed(1);
+        // Try to parse numeric values (display_value comes as string from backend)
+        const num = typeof value === 'number' ? value : Number(value);
+        if (!isNaN(num) && value !== '') {
+            const formatted = num.toFixed(1);
             if (field?.unit) {
                 return `${formatted} ${this.formatUnit(field.unit)}`;
             }

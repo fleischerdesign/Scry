@@ -143,6 +143,7 @@ impl PluginService {
                     config_json: json!({ "semantic_type": "system.entities", "days": 7 }).to_string(),
                 }
             ],
+            oauth_config: None,
         };
 
         let mut core_status = PluginStatus::from_sdk("core".to_string(), core_manifest, vec![]);
@@ -166,5 +167,24 @@ impl PluginService {
             statuses.push(status);
         }
         Ok(statuses)
+    }
+
+    pub async fn get_oauth_config(&self, plugin_id: &str) -> Result<scry_plugin_sdk::OAuthConfig> {
+        let manifests = self.plugin_manager.get_plugin_manifests().await;
+        let manifest = manifests.get(plugin_id).ok_or_else(|| crate::error::Error::NotFound("Plugin not found".into()))?;
+        
+        manifest.oauth_config.clone().ok_or_else(|| crate::error::Error::NotFound("OAuth not configured".into()))
+    }
+
+    pub async fn get_oauth_credentials(&self, user_id: i64, plugin_id: &str) -> Result<(String, String)> {
+        let repo = ConfigRepository::new(&self.db, user_id, &self.secret_service);
+        
+        let client_id = repo.get_secret(plugin_id, "client_id").await?
+            .ok_or_else(|| crate::error::Error::NotFound("client_id not set".into()))?;
+        
+        let client_secret = repo.get_secret(plugin_id, "client_secret").await?
+            .ok_or_else(|| crate::error::Error::NotFound("client_secret not set".into()))?;
+        
+        Ok((client_id, client_secret))
     }
 }
