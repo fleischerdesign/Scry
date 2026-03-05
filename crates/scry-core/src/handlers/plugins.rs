@@ -144,38 +144,58 @@ pub async fn plugin_oauth_callback(
         ("redirect_uri", &redirect_uri),
     ];
 
+    tracing::info!(plugin_id = %id, user_id = %user_id, "Exchanging OAuth code for token at {}", oauth_config.token_url);
+
     let client = reqwest::Client::new();
     let response = client
         .post(&oauth_config.token_url)
         .form(&params)
         .header("Authorization", format!("Basic {}", credentials))
+        .header("Accept", "application/json")
         .send()
         .await;
 
     match response {
-        Ok(resp) if resp.status().is_success() => {
-            let token: serde_json::Value = resp.json().await.unwrap_or_default();
-            let access_token = token.get("access_token").and_then(|v| v.as_str()).unwrap_or("");
-            let refresh_token = token.get("refresh_token").and_then(|v| v.as_str()).unwrap_or("");
+        Ok(resp) => {
+            let status = resp.status();
+            let body_text = resp.text().await.unwrap_or_default();
             
-            let secret_service = SecretService::new();
-            let repo = crate::repository::ConfigRepository::new(&app_state.db, user_id, &secret_service);
+            tracing::info!(plugin_id = %id, status = %status.as_u16(), "GitHub responded to token exchange");
             
-            if !access_token.is_empty() {
-                if let Err(e) = repo.set(&id, "oauth_access_token", access_token, true).await {
-                    tracing::error!("Failed to save oauth access token: {}", e);
+            if status.is_success() {
+                let token: serde_json::Value = serde_json::from_str(&body_text).unwrap_or_default();
+                let access_token = token.get("access_token").and_then(|v| v.as_str()).unwrap_or("");
+                let refresh_token = token.get("refresh_token").and_then(|v| v.as_str()).unwrap_or("");
+                
+                if access_token.is_empty() {
+                    tracing::warn!(plugin_id = %id, body = %body_text, "Successful HTTP response but access_token is empty or missing in JSON");
                 }
-            }
-            
-            if !refresh_token.is_empty() {
-                if let Err(e) = repo.set(&id, "oauth_refresh_token", refresh_token, true).await {
-                    tracing::error!("Failed to save oauth refresh token: {}", e);
+
+                let secret_service = SecretService::new();
+                let repo = crate::repository::ConfigRepository::new(&app_state.db, user_id, &secret_service);
+                
+                if !access_token.is_empty() {
+                    if let Err(e) = repo.set(&id, "oauth_access_token", access_token, true).await {
+                        tracing::error!(plugin_id = %id, error = %e, "Failed to save oauth access token to database");
+                    } else {
+                        tracing::info!(plugin_id = %id, "OAuth access token saved successfully");
+                    }
                 }
+                
+                if !refresh_token.is_empty() {
+                    if let Err(e) = repo.set(&id, "oauth_refresh_token", refresh_token, true).await {
+                        tracing::error!(plugin_id = %id, error = %e, "Failed to save oauth refresh token to database");
+                    }
+                }
+                
+                Redirect::to("/settings?oauth_connected=true")
+            } else {
+                tracing::error!(plugin_id = %id, status = %status.as_u16(), body = %body_text, "GitHub token exchange failed with non-success status");
+                Redirect::to("/settings?error=oauth_token_failed")
             }
-            
-            Redirect::to("/settings?oauth_connected=true")
         }
-        _ => {
+        Err(e) => {
+            tracing::error!(plugin_id = %id, error = %e, "HTTP error during GitHub token exchange");
             Redirect::to("/settings?error=oauth_token_failed")
         }
     }
