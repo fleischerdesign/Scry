@@ -250,6 +250,7 @@ impl GithubPlugin {
                 context: vec!["alias:self".to_string()],
                 context_info: None,
                 display_image: None,
+                display_icon: None,
                 display_value: None,
                 display_title: None,
                 display_subtitle: None,

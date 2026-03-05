@@ -118,6 +118,29 @@ impl EventService {
         if !info.is_empty() {
             event.context_info = Some(Value::Object(info));
         }
+
+        // 3. Icon Enrichment (Agnostic fallback from manifests)
+        if event.display_icon.is_none() {
+            for m in manifests.values() {
+                // Priority A: Category-specific icon from exports
+                if let Some(export) = m.exports.iter().find(|e| e.category == event.category) {
+                    if let Some(icon) = &export.icon {
+                        event.display_icon = Some(icon.clone());
+                        break;
+                    }
+                }
+                // Priority B: Domain-level icon from domain_info
+                for domain in &m.domain_info {
+                    if event.category.starts_with(&domain.ns) {
+                        if let Some(icon) = &domain.icon {
+                            event.display_icon = Some(icon.clone());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 

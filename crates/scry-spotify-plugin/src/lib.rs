@@ -479,6 +479,7 @@ impl SpotifyPlugin {
                     context: vec!["alias:self".to_string()],
                     context_info: None,
                     display_image,
+                    display_icon: None,
                     display_value: None,
                     display_title: Some(track_name),
                     display_subtitle: Some(subtitle),

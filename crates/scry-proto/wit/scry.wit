@@ -31,6 +31,7 @@ interface types {
         display-title: option<string>,
         display-subtitle: option<string>,
         display-image: option<string>,
+        display-icon: option<string>,
         display-value: option<string>,
         confidence: option<f64>,
     }

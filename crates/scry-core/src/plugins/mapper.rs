@@ -61,6 +61,7 @@ impl TryFrom<WitEvent> for Event {
             display_title: wit_ev.display_title,
             display_subtitle: wit_ev.display_subtitle,
             display_image: wit_ev.display_image,
+            display_icon: wit_ev.display_icon,
             display_value: wit_ev.display_value,
             confidence: wit_ev.confidence,
         })
@@ -88,6 +89,7 @@ impl From<&Event> for WitEvent {
             display_title: event.display_title.clone(),
             display_subtitle: event.display_subtitle.clone(),
             display_image: event.display_image.clone(),
+            display_icon: event.display_icon.clone(),
             display_value: event.display_value.clone(),
             confidence: event.confidence,
         }

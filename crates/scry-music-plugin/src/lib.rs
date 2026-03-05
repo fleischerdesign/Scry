@@ -110,6 +110,7 @@ impl ScryPlugin for MusicPlugin {
             context: vec!["alias:self".to_string()],
             context_info: None,
             display_image: None,
+            display_icon: None,
             display_value: None,
             display_title: Some("A Beautiful Simulation".to_string()),
             display_subtitle: Some("by The Simulator".to_string()),

@@ -33,6 +33,7 @@ pub struct Event {
     pub display_title: Option<String>,
     pub display_subtitle: Option<String>,
     pub display_image: Option<String>,
+    pub display_icon: Option<String>,
     pub display_value: Option<String>,
     pub confidence: Option<f64>,
 }
@@ -52,6 +53,7 @@ impl Event {
             display_title: None,
             display_subtitle: None,
             display_image: None,
+            display_icon: None,
             display_value: None,
             confidence: None,
         }

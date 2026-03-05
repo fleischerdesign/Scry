@@ -239,6 +239,7 @@ macro_rules! scry_plugin {
                     display_title: ev.display_title,
                     display_subtitle: ev.display_subtitle,
                     display_image: ev.display_image,
+                    display_icon: ev.display_icon,
                     display_value: ev.display_value,
                     confidence: ev.confidence,
                 };
@@ -264,6 +265,7 @@ macro_rules! scry_plugin {
                         display_title: res.display_title,
                         display_subtitle: res.display_subtitle,
                         display_image: res.display_image,
+                        display_icon: res.display_icon,
                         display_value: res.display_value,
                         confidence: res.confidence,
                     }),
@@ -321,6 +323,7 @@ macro_rules! scry_plugin {
                         display_title: result.display_title,
                         display_subtitle: result.display_subtitle,
                         display_image: result.display_image,
+                        display_icon: result.display_icon,
                         display_value: result.display_value,
                         confidence: result.confidence,
                     });

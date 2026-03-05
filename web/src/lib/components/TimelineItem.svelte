@@ -2,6 +2,7 @@
     import { router } from "../router.svelte";
     import { semanticService } from "../services/semantic.svelte";
     import EntityLabel from "./EntityLabel.svelte";
+    import Icon from "@iconify/svelte";
     import type { Event } from "../types/Event";
 
     let { item, isFirst = false, isLast = false }: { item: Event, isFirst?: boolean, isLast?: boolean } = $props();
@@ -27,6 +28,12 @@
                 <div class="avatar">
                     <div class="w-10 h-10 rounded-xl shadow-lg ring ring-primary/10">
                         <img src={item.display_image} alt="Entity visualization" />
+                    </div>
+                </div>
+            {:else if item.display_icon}
+                <div class="avatar placeholder">
+                    <div class="w-10 h-10 rounded-xl shadow-inner border border-base-300/50 bg-base-200/50 flex items-center justify-center">
+                        <Icon icon={item.display_icon} class="w-5 h-5 opacity-60" />
                     </div>
                 </div>
             {/if}
