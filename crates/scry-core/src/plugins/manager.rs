@@ -2,8 +2,8 @@ use std::path::Path;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use wasmtime::{Config, Engine, Store};
-use wasmtime::component::{Component, ResourceTable, Linker, InstancePre};
+use wasmtime::{Config, Engine, Store, Cache};
+use wasmtime::component::{Component, Linker, InstancePre, ResourceTable};
 use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
 use anyhow::Result;
 use scry_plugin_sdk::{Manifest, ReportData, ReportMetadata};
@@ -11,6 +11,7 @@ use scry_proto::Event as ScryEvent;
 use crate::plugins::context::MyCtx;
 use crate::plugins::mapper::ConversionError;
 
+use futures::future::join_all;
 use tokio::time::{timeout, Duration};
 
 #[derive(Clone)]
@@ -56,6 +57,12 @@ impl PluginManager {
         let mut cfg = Config::new();
         cfg.wasm_component_model(true);
         cfg.consume_fuel(true);
+
+        // Aktiviere den Wasmtime-Cache.
+        if let Ok(cache) = Cache::from_file(None) {
+            cfg.cache(Some(cache));
+        }
+
         let engine = Engine::new(&cfg)?;
 
         Ok(Self {
@@ -144,35 +151,49 @@ impl PluginManager {
     }
 
     pub async fn reload_plugins(&self) -> Result<()> {
-        let mut plugins = self.plugins.write().await;
-        plugins.clear();
-
         if !Path::new(&self.plugin_dir).exists() {
             tokio::fs::create_dir_all(&self.plugin_dir).await?;
         }
 
+        let mut entries = Vec::new();
         let mut dir = tokio::fs::read_dir(&self.plugin_dir).await?;
         while let Some(entry) = dir.next_entry().await? {
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) == Some("wasm") {
-                self.load_plugin_internal(&mut plugins, &path).await?;
+                entries.push(path);
+            }
+        }
+
+        let futures = entries.into_iter().map(|path| self.load_plugin_single(path));
+        let results = join_all(futures).await;
+
+        let mut plugins = self.plugins.write().await;
+        plugins.clear();
+        for res in results {
+            match res {
+                Ok((name, instance)) => {
+                    plugins.insert(name, instance);
+                }
+                Err(e) => tracing::error!("Error loading plugin: {}", e),
             }
         }
         Ok(())
     }
 
     pub async fn reload_plugin(&self, path: &Path) -> Result<()> {
+        let (name, instance) = self.load_plugin_single(path.to_owned()).await?;
         let mut plugins = self.plugins.write().await;
-        self.load_plugin_internal(&mut plugins, path).await
+        plugins.insert(name, instance);
+        Ok(())
     }
 
-    async fn load_plugin_internal(&self, plugins: &mut HashMap<String, PluginInstance>, path: &Path) -> Result<()> {
+    async fn load_plugin_single(&self, path: std::path::PathBuf) -> Result<(String, PluginInstance)> {
         let name = path.file_stem()
             .and_then(|s| s.to_str())
             .map(|s| s.to_string())
             .ok_or_else(|| anyhow::anyhow!("Invalid plugin filename: {:?}", path))?;
         
-        let component = Component::from_file(&self.engine, path)?;
+        let component = Component::from_file(&self.engine, &path)?;
 
         let linker = self.setup_linker()?;
         let instance_pre = linker.instantiate_pre(&component)?;
@@ -190,8 +211,7 @@ impl PluginManager {
         }
 
         tracing::info!("Loaded plugin: {} v{} ({})", manifest.name, manifest.version, name);
-        plugins.insert(name.clone(), PluginInstance { manifest, instance_pre });
-        Ok(())
+        Ok((name, PluginInstance { manifest, instance_pre }))
     }
 
     pub async fn run_ingest_pipeline(&self, user_id: i64, mut event: ScryEvent) -> Result<ScryEvent> {

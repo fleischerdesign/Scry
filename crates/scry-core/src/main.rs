@@ -99,7 +99,14 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!("../../migrations").run(&db).await?;
 
     let plugin_manager = Arc::new(PluginManager::new("./plugins", db.clone())?);
-    plugin_manager.reload_plugins().await?;
+    
+    // Plugins im Hintergrund laden, um den Startvorgang nicht zu blockieren
+    let pm_for_load = plugin_manager.clone();
+    tokio::spawn(async move {
+        if let Err(e) = pm_for_load.reload_plugins().await {
+            tracing::error!("Failed to load plugins in background: {}", e);
+        }
+    });
 
     let pm_for_watcher = plugin_manager.clone();
     let rt_handle = tokio::runtime::Handle::current();
