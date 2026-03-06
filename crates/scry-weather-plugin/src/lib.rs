@@ -129,6 +129,14 @@ impl ScryPlugin for WeatherPlugin {
                     id: place_id.clone(),
                 });
                 host::set_entity_trait(namespaces::PLACE, "city", &place_id, traits::NAME, &json!(city).to_string());
+
+                // Persist coordinates as traits for the place
+                if let Some(lat) = ev.payload.get("lat").and_then(|v| v.as_f64()) {
+                    host::set_entity_trait(namespaces::PLACE, "city", &place_id, traits::LATITUDE, &json!(lat).to_string());
+                }
+                if let Some(lon) = ev.payload.get("lon").and_then(|v| v.as_f64()) {
+                    host::set_entity_trait(namespaces::PLACE, "city", &place_id, traits::LONGITUDE, &json!(lon).to_string());
+                }
             }
         }
         Ok(ev)
