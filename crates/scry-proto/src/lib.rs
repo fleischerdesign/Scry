@@ -16,7 +16,7 @@ pub struct EntityRef {
 #[cfg_attr(feature = "ts-rs", derive(ts_rs::TS))]
 #[cfg_attr(feature = "ts-rs", ts(export))]
 #[cfg_attr(feature = "backend", derive(utoipa::ToSchema, sqlx::FromRow))]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Event {
     pub id: Uuid,
     pub timestamp: DateTime<Utc>,
@@ -39,23 +39,63 @@ pub struct Event {
 }
 
 impl Event {
-    pub fn new(category: String, source: String, payload: serde_json::Value) -> Self {
+    pub fn new(
+        category: impl Into<String>,
+        source: impl Into<String>,
+        payload: serde_json::Value,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             timestamp: Utc::now(),
-            category,
-            source,
+            category: category.into(),
+            source: source.into(),
             payload,
-            metadata: None,
-            entities: Vec::new(),
-            context: Vec::new(),
-            context_info: None,
-            display_title: None,
-            display_subtitle: None,
-            display_image: None,
-            display_icon: None,
-            display_value: None,
-            confidence: None,
+            ..Default::default()
         }
+    }
+
+    pub fn with_title(mut self, title: impl Into<String>) -> Self {
+        self.display_title = Some(title.into());
+        self
+    }
+
+    pub fn with_subtitle(mut self, subtitle: impl Into<String>) -> Self {
+        self.display_subtitle = Some(subtitle.into());
+        self
+    }
+
+    pub fn with_image(mut self, image: impl Into<String>) -> Self {
+        self.display_image = Some(image.into());
+        self
+    }
+
+    pub fn with_icon(mut self, icon: impl Into<String>) -> Self {
+        self.display_icon = Some(icon.into());
+        self
+    }
+
+    pub fn with_value(mut self, value: impl Into<String>) -> Self {
+        self.display_value = Some(value.into());
+        self
+    }
+
+    pub fn with_confidence(mut self, confidence: f64) -> Self {
+        self.confidence = Some(confidence);
+        self
+    }
+
+    pub fn with_metadata(mut self, metadata: serde_json::Value) -> Self {
+        self.metadata = Some(metadata);
+        self
+    }
+
+    pub fn with_entity(mut self, entity: EntityRef) -> Self {
+        self.entities.push(entity);
+        self
+    }
+
+    pub fn with_context(mut self, context: impl Into<String>) -> Self {
+        self.context.push(context.into());
+        self
     }
 }

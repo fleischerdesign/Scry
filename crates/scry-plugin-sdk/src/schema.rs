@@ -30,6 +30,7 @@ pub mod traits {
     pub const DESCRIPTION: &str = "scry.core/description";
     pub const SUBTITLE: &str = "scry.core/subtitle";
     pub const PHOTO: &str = "scry.visual/photo";
+    pub const ICON: &str = "scry.visual/icon";
     pub const AVATAR: &str = "scry.core/avatar";
     pub const URL: &str = "scry.core/url";
 

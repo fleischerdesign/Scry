@@ -193,8 +193,7 @@ impl<'a> EntityRepository<'a> {
             image = self.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::AVATAR).await.ok().flatten();
         }
 
-        let icon = sqlx::query_scalar::<_, Option<String>>("SELECT display_icon FROM entities WHERE user_id = ? AND namespace = ? AND typ = ? AND id = ?")
-            .bind(self.user_id).bind(namespace).bind(typ).bind(id).fetch_optional(self.pool).await.ok().flatten().flatten();
+        let icon = self.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::ICON).await.ok().flatten();
 
         (title, subtitle, image, icon)
     }

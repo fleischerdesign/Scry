@@ -100,23 +100,16 @@ impl ScryPlugin for WeatherPlugin {
                     .and_then(|v| serde_json::from_str::<String>(&v).ok())
                     .unwrap_or_else(|| "Current Location".to_string());
 
-                vec![SdkEvent {
-                    id: uuid::Uuid::new_v4(),
-                    timestamp: chrono::Utc::now(),
-                    category: "weather.current".to_string(),
-                    source: "open-meteo".to_string(),
-                    payload: json!({ "temperature": temp, "lat": lat, "lon": lon, "city": city }),
-                    metadata: None,
-                    entities: vec![],
-                    context: vec!["alias:self".to_string()],
-                    context_info: None,
-                    display_image: None,
-                    display_icon: None,
-                    display_value: Some(format!("{}°C", temp)),
-                    display_title: Some(format!("Temperature in {}", city)),
-                    display_subtitle: Some(format!("Currently {}°C", temp)),
-                    confidence: Some(1.0),
-                }]
+                vec![SdkEvent::new(
+                    "weather.current",
+                    "open-meteo",
+                    json!({ "temperature": temp, "lat": lat, "lon": lon, "city": city }),
+                )
+                .with_context("alias:self")
+                .with_value(format!("{}°C", temp))
+                .with_title(format!("Temperature in {}", city))
+                .with_subtitle(format!("Currently {}°C", temp))
+                .with_confidence(1.0)]
             }
             Err(e) => {
                 host::log_error(&format!("Weather: API call failed: {}", e));

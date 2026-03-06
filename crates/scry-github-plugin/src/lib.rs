@@ -234,28 +234,17 @@ impl GithubPlugin {
             if ge.id == last_id { break; }
             if i == 0 { newest_id = ge.id.clone(); }
 
-            sdk_events.push(SdkEvent {
-                id: uuid::Uuid::new_v4(),
-                timestamp: ge.created_at,
-                category: format!("github.{}", ge.event_type),
-                source: "github".to_string(),
-                payload: serde_json::json!({
-                    "id": ge.id,
-                    "actor": ge.actor,
-                    "repo": ge.repo,
-                    "payload": ge.payload,
-                }),
-                metadata: None,
-                entities: vec![],
-                context: vec!["alias:self".to_string()],
-                context_info: None,
-                display_image: None,
-                display_icon: None,
-                display_value: None,
-                display_title: None,
-                display_subtitle: None,
-                confidence: Some(1.0),
-            });
+            let mut ev = SdkEvent::new(format!("github.{}", ge.event_type), "github", serde_json::json!({
+                "id": ge.id,
+                "actor": ge.actor,
+                "repo": ge.repo,
+                "payload": ge.payload,
+            }))
+            .with_context("alias:self")
+            .with_confidence(1.0);
+
+            ev.timestamp = ge.created_at;
+            sdk_events.push(ev);
         }
 
         host::set_state("github_last_event_id", &newest_id);

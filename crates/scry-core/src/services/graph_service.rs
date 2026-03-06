@@ -35,7 +35,7 @@ impl GraphService {
             if icon.is_none() && name == "scry.core" {
                 icon = Some("lucide:shield-check".to_string());
             }
-            ApiNamespace { name, icon }
+            ApiNamespace { name, display_icon: icon }
         }).collect();
 
         Ok(namespaces)

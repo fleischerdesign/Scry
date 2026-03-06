@@ -167,7 +167,11 @@ impl PluginManager {
     }
 
     async fn load_plugin_internal(&self, plugins: &mut HashMap<String, PluginInstance>, path: &Path) -> Result<()> {
-        let name = path.file_stem().unwrap().to_str().unwrap().to_string();
+        let name = path.file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow::anyhow!("Invalid plugin filename: {:?}", path))?;
+        
         let component = Component::from_file(&self.engine, path)?;
 
         let linker = self.setup_linker()?;

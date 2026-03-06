@@ -95,27 +95,19 @@ impl ScryPlugin for MusicPlugin {
     fn on_poll(&self) -> Vec<SdkEvent> {
         let energy_level = 42.0; // Fixed for now
 
-        vec![SdkEvent {
-            id: uuid::Uuid::new_v4(),
-            timestamp: chrono::Utc::now(),
-            category: "music.scrobble".to_string(),
-            source: "music-sim".to_string(),
-            payload: json!({
+        vec![SdkEvent::new(
+            "music.scrobble",
+            "music-sim",
+            json!({
                 "artist": "The Simulator",
                 "track": "A Beautiful Simulation",
                 "energy_level": energy_level
             }),
-            metadata: None,
-            entities: vec![],
-            context: vec!["alias:self".to_string()],
-            context_info: None,
-            display_image: None,
-            display_icon: None,
-            display_value: None,
-            display_title: Some("A Beautiful Simulation".to_string()),
-            display_subtitle: Some("by The Simulator".to_string()),
-            confidence: Some(1.0),
-        }]
+        )
+        .with_context("alias:self")
+        .with_title("A Beautiful Simulation")
+        .with_subtitle("by The Simulator")
+        .with_confidence(1.0)]
     }
 }
 

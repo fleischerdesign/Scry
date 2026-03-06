@@ -101,18 +101,9 @@ class SemanticService {
      * Get an icon for a semantic type.
      */
     getIcon(semanticType: string): string {
-        const icons: Record<string, string> = {
-            'environment.temperature': 'lucide:thermometer',
-            'music.energy_level': 'lucide:zap',
-            'system.cpu': 'lucide:cpu',
-            'system.memory': 'lucide:database',
-            'software.repo': 'lucide:github',
-            'place.city': 'lucide:map-pin',
-            'core.user': 'lucide:user'
-        };
-        
-        const info = this.parseType(semanticType);
-        return icons[info.subType] || this.getNamespaceIcon(info.subType.split('.')[0]);
+        // We now rely on the backend providing 'display_icon' in Events and Entities.
+        // This is purely a fallback for when we only have a semantic type string.
+        return this.getNamespaceIcon(semanticType.split('.')[1] || semanticType);
     }
 
     /**
@@ -120,17 +111,21 @@ class SemanticService {
      */
     getNamespaceIcon(ns: string): string {
         const icons: Record<string, string> = {
-            'scry.music': 'lucide:headphones',
-            'scry.software': 'lucide:code-2',
-            'scry.env': 'lucide:cloud-sun',
-            'scry.health': 'lucide:heart',
-            'scry.finance': 'lucide:wallet',
-            'scry.core': 'lucide:fingerprint',
-            'scry.place': 'lucide:map',
+            'music': 'lucide:headphones',
+            'software': 'lucide:code-2',
+            'env': 'lucide:cloud-sun',
+            'weather': 'lucide:cloud-sun',
+            'health': 'lucide:heart',
+            'finance': 'lucide:wallet',
+            'core': 'lucide:fingerprint',
+            'place': 'lucide:map-pin',
             'github': 'lucide:github',
             'spotify': 'lucide:music'
         };
-        return icons[ns] || icons[`scry.${ns}`] || 'lucide:box';
+        
+        // Clean namespace (remove scry. prefix if present)
+        const cleanNs = ns.startsWith('scry.') ? ns.replace('scry.', '') : ns;
+        return icons[cleanNs] || 'lucide:box';
     }
 
     /**

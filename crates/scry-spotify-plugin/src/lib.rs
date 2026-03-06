@@ -468,23 +468,18 @@ impl SpotifyPlugin {
                 let track_name = track.name.clone().unwrap_or_else(|| "Unknown".to_string());
                 let subtitle = format!("by {}", artist_names.join(", "));
 
-                events.push(SdkEvent {
-                    id: uuid::Uuid::new_v4(),
-                    timestamp: dt,
-                    category: "spotify.playback".to_string(),
-                    source: "spotify".to_string(),
-                    payload,
-                    metadata: None,
-                    entities: vec![],
-                    context: vec!["alias:self".to_string()],
-                    context_info: None,
-                    display_image,
-                    display_icon: None,
-                    display_value: None,
-                    display_title: Some(track_name),
-                    display_subtitle: Some(subtitle),
-                    confidence: Some(1.0),
-                });
+                let mut ev = SdkEvent::new("spotify.playback", "spotify", payload)
+                    .with_context("alias:self")
+                    .with_title(track_name)
+                    .with_subtitle(subtitle)
+                    .with_confidence(1.0);
+
+                ev.timestamp = dt;
+                if let Some(img) = display_image {
+                    ev = ev.with_image(img);
+                }
+
+                events.push(ev);
             }
         }
 

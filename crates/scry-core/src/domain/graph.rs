@@ -6,7 +6,7 @@ use ts_rs::TS;
 #[ts(export)]
 pub struct ApiNamespace {
     pub name: String,
-    pub icon: Option<String>,
+    pub display_icon: Option<String>,
 }
 
 #[derive(Serialize, ToSchema, TS)]
