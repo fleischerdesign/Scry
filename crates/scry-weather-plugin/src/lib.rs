@@ -35,7 +35,8 @@ impl ScryPlugin for WeatherPlugin {
                 }
             ],
             domain_info: vec![
-                scry_plugin_sdk::DomainInfo { ns: "scry.weather".to_string(), icon: Some("lucide:cloud-sun".to_string()) }
+                scry_plugin_sdk::DomainInfo { ns: "scry.weather".to_string(), icon: Some("lucide:cloud-sun".to_string()) },
+                scry_plugin_sdk::DomainInfo { ns: "scry.place".to_string(), icon: Some("lucide:map-pin".to_string()) }
             ],
             predicates: vec![],
             provided_traits: vec![],
