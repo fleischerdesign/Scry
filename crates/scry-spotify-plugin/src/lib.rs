@@ -240,6 +240,7 @@ impl ScryPlugin for SpotifyPlugin {
             });
             host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::NAME, &json!(track_name).to_string());
             host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::SUBTITLE, &json!(artist_names.join(", ")).to_string());
+            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::ICON, &json!("lucide:music").to_string());
             if let Some(track_id_spotify) = ev.payload.get("track_id").and_then(|v| v.as_str()) {
                  host::set_entity_trait(namespaces::MUSIC, "track", &track_id, "scry.spotify/track_id", &json!(track_id_spotify).to_string());
             }
@@ -254,6 +255,7 @@ impl ScryPlugin for SpotifyPlugin {
                     id: artist_id.clone(),
                 });
                 host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::NAME, &json!(artist).to_string());
+                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::ICON, &json!("lucide:mic").to_string());
 
                 // Track → played_by → Artist relationship
                 host::set_relationship(scry_plugin_sdk::Relationship {
@@ -276,6 +278,7 @@ impl ScryPlugin for SpotifyPlugin {
                 id: album_id.clone(),
             });
             host::set_entity_trait(namespaces::MUSIC, "album", &album_id, traits::NAME, &json!(album_name).to_string());
+            host::set_entity_trait(namespaces::MUSIC, "album", &album_id, traits::ICON, &json!("lucide:disc").to_string());
             
             // Track → belongs_to → Album relationship
             host::set_relationship(scry_plugin_sdk::Relationship {

@@ -251,22 +251,26 @@ impl GithubPlugin {
         sdk_events
     }
 
-    fn ensure_repo_entity(&self, repo_data: &serde_json::Value) -> String {
-        let name = repo_data["name"].as_str().unwrap_or("unknown");
-        let id = identity::create_id(namespaces::SOFTWARE, &["repo", name]);
-        host::set_entity_trait(namespaces::SOFTWARE, "repo", &id, traits::NAME, &serde_json::json!(name).to_string());
-        id
-    }
-
-    fn ensure_user_entity(&self, actor_data: &serde_json::Value) -> String {
-        let login = actor_data["login"].as_str().unwrap_or("unknown");
-        let id = identity::create_id(namespaces::SOFTWARE, &["user", login]);
-        host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::NAME, &serde_json::json!(login).to_string());
-        if let Some(avatar) = actor_data["avatar_url"].as_str() {
-            host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::AVATAR, &serde_json::json!(avatar).to_string());
+        fn ensure_repo_entity(&self, repo_data: &serde_json::Value) -> String {
+            let name = repo_data["name"].as_str().unwrap_or("unknown");
+            let id = identity::create_id(namespaces::SOFTWARE, &["repo", name]);
+            host::set_entity_trait(namespaces::SOFTWARE, "repo", &id, traits::NAME, &serde_json::json!(name).to_string());
+            host::set_entity_trait(namespaces::SOFTWARE, "repo", &id, traits::ICON, &serde_json::json!("lucide:code-2").to_string());
+            id
         }
-        id
-    }
+    
+        fn ensure_user_entity(&self, actor_data: &serde_json::Value) -> String {
+            let login = actor_data["login"].as_str().unwrap_or("unknown");
+            let id = identity::create_id(namespaces::SOFTWARE, &["user", login]);
+            
+            host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::NAME, &serde_json::json!(login).to_string());
+            host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::ICON, &serde_json::json!("lucide:user").to_string());
+            if let Some(avatar) = actor_data["avatar_url"].as_str() {
+                host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::AVATAR, &serde_json::json!(avatar).to_string());
+            }
+            id
+        }
+    
 }
 
 scry_plugin!(GithubPlugin);
