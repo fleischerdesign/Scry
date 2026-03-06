@@ -4,6 +4,7 @@
 	import { semanticService } from "../services/semantic.svelte";
 	import Card from "../components/Card.svelte";
 	import EntityLabel from "../components/EntityLabel.svelte";
+	import Icon from "@iconify/svelte";
 	import type { Event } from "../types/Event";
 
 	const params = $derived(router.getParams("/event/:id"));
@@ -61,6 +62,10 @@
 				<div class="w-24 h-24 rounded-3xl shadow-2xl ring ring-primary/20 overflow-hidden bg-base-300">
 					<img src={event.display_image} alt={event.display_title || ''} class="object-cover w-full h-full" />
 				</div>
+			</div>
+		{:else if !loading && event?.display_icon}
+			<div class="w-24 h-24 rounded-3xl bg-base-300 flex items-center justify-center shadow-inner border border-base-300/50">
+				<Icon icon={event.display_icon} class="w-12 h-12 opacity-20" />
 			</div>
 		{:else if !loading}
 			<div class="w-24 h-24 rounded-3xl bg-base-300 flex items-center justify-center text-3xl font-black opacity-20 uppercase">

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { identityService } from '../services/identity.svelte';
     import { router } from '../router.svelte';
+    import Icon from '@iconify/svelte';
 
     interface Props {
         namespace: string;
@@ -30,6 +31,8 @@
     >
         {#if entity?.display_image}
             <img src={entity.display_image} alt="" class="w-3 h-3 rounded-sm object-cover" />
+        {:else if entity?.display_icon}
+            <Icon icon={entity.display_icon} class="w-3 h-3 opacity-60" />
         {/if}
         <span>{displayTitle}</span>
     </button>
@@ -38,6 +41,10 @@
         {#if entity?.display_image}
             <div class="w-6 h-6 rounded-lg shadow-inner overflow-hidden flex-shrink-0">
                 <img src={entity.display_image} alt="" class="w-full h-full object-cover" />
+            </div>
+        {:else if entity?.display_icon}
+            <div class="w-6 h-6 rounded-lg bg-base-200 flex items-center justify-center group-hover:bg-primary/10 group-hover:text-primary transition-colors flex-shrink-0">
+                <Icon icon={entity.display_icon} class="w-3.5 h-3.5 opacity-40 group-hover:opacity-100 transition-opacity" />
             </div>
         {:else}
             <div class="w-6 h-6 rounded-lg bg-base-200 flex items-center justify-center font-bold text-[8px] group-hover:bg-primary/10 group-hover:text-primary transition-colors flex-shrink-0">

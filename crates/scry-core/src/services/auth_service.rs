@@ -114,7 +114,7 @@ impl AuthService {
         entity_repo.ensure_entity("scry.core", "user", "self").await?;
 
         // Use centralized DRY method
-        let (_title, _subtitle, display_image) = entity_repo.get_display_info("scry.core", "user", "self").await;
+        let (_title, _subtitle, display_image, _icon) = entity_repo.get_display_info("scry.core", "user", "self").await;
 
         // Get scopes from existing API key (or use 'all' default)
         let _api_key = user_repo.get_api_key_by_user(user_id).await?;

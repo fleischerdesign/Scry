@@ -49,6 +49,7 @@ impl GraphService {
     pub async fn get_entities(&self, user_id: i64, namespace: &str, typ: &str) -> Result<Vec<ApiEntity>> {
         let repo = EntityRepository::new(&self.db, user_id);
         let rows = repo.get_entities_by_type(namespace, typ).await?;
+        let manifests = self.plugin_manager.get_plugin_manifests().await;
 
         let entities = rows.into_iter().map(|(id, title_json, subtitle_json, photo_json)| {
             let display_title = title_json.and_then(|json: String| {
@@ -66,6 +67,16 @@ impl GraphService {
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
             });
 
+            let mut display_icon = None;
+            for m in manifests.values() {
+                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == namespace) {
+                    if domain.icon.is_some() {
+                        display_icon = domain.icon.clone();
+                        break;
+                    }
+                }
+            }
+
             ApiEntity {
                 namespace: namespace.to_string(),
                 typ: typ.to_string(),
@@ -73,6 +84,7 @@ impl GraphService {
                 display_title,
                 display_subtitle,
                 display_image,
+                display_icon,
             }
         }).collect();
 
@@ -84,6 +96,7 @@ impl GraphService {
         
         let batch_refs = refs.into_iter().map(|r| (r.namespace, r.typ, r.id)).collect();
         let rows = repo.get_entities_batch(batch_refs).await?;
+        let manifests = self.plugin_manager.get_plugin_manifests().await;
 
         let entities = rows.into_iter().map(|(ns, typ, id, title_json, subtitle_json, photo_json)| {
             let display_title = title_json.and_then(|json: String| {
@@ -101,6 +114,16 @@ impl GraphService {
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
             });
 
+            let mut display_icon = None;
+            for m in manifests.values() {
+                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == ns) {
+                    if domain.icon.is_some() {
+                        display_icon = domain.icon.clone();
+                        break;
+                    }
+                }
+            }
+
             ApiEntity {
                 namespace: ns,
                 typ: typ,
@@ -108,6 +131,7 @@ impl GraphService {
                 display_title,
                 display_subtitle,
                 display_image,
+                display_icon,
             }
         }).collect();
 
@@ -157,7 +181,7 @@ impl GraphService {
         let mut result = serde_json::Map::new();
         
         // Resolve display fields using the centralized DRY repository method
-        let (display_title, display_subtitle, display_image) = repo.get_display_info(namespace, typ, id).await;
+        let (display_title, display_subtitle, display_image, db_icon) = repo.get_display_info(namespace, typ, id).await;
 
         result.insert("display_title".to_string(), serde_json::Value::String(display_title));
         if let Some(sub) = display_subtitle {
@@ -165,6 +189,22 @@ impl GraphService {
         }
         if let Some(img) = display_image {
             result.insert("display_image".to_string(), serde_json::Value::String(img));
+        }
+
+        let mut display_icon = db_icon;
+        if display_icon.is_none() {
+            for m in manifests.values() {
+                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == namespace) {
+                    if domain.icon.is_some() {
+                        display_icon = domain.icon.clone();
+                        break;
+                    }
+                }
+            }
+        }
+
+        if let Some(icon) = display_icon {
+            result.insert("display_icon".to_string(), serde_json::Value::String(icon));
         }
 
         result.insert("traits".to_string(), serde_json::Value::Object(traits_map));

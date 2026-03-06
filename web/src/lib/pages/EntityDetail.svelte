@@ -1,9 +1,11 @@
 <script lang="ts">
     import { api } from '../api';
     import { router } from '../router.svelte';
+    import { semanticService } from '../services/semantic.svelte';
     import Card from '../components/Card.svelte';
     import TimelineItem from '../components/TimelineItem.svelte';
     import EntityLabel from '../components/EntityLabel.svelte';
+    import Icon from "@iconify/svelte";
 
     const params = $derived(router.getParams('/entity/:ns/:type/:id'));
     
@@ -13,6 +15,7 @@
     let displayTitle = $state("");
     let displaySubtitle = $state<string | null>(null);
     let displayImage = $state<string | null>(null);
+    let displayIcon = $state<string | null>(null);
     let loading = $state(true);
 
     async function loadData(ns: string, type: string, id: string) {
@@ -27,6 +30,7 @@
             displayTitle = entityData.display_title || id;
             displaySubtitle = entityData.display_subtitle || null;
             displayImage = entityData.display_image || null;
+            displayIcon = entityData.display_icon || null;
             
             traits = entityData.traits || {};
             relationships = entityData.relationships || [];
@@ -71,6 +75,10 @@
                 <div class="w-24 h-24 rounded-3xl shadow-2xl ring ring-primary/20 overflow-hidden bg-base-300">
                     <img src={displayImage} alt={displayTitle} class="object-cover w-full h-full" />
                 </div>
+            </div>
+        {:else if displayIcon}
+            <div class="w-24 h-24 rounded-3xl bg-base-300 flex items-center justify-center shadow-inner border border-base-300/50">
+                <Icon icon={displayIcon} class="w-12 h-12 opacity-20" />
             </div>
         {:else}
             <div class="w-24 h-24 rounded-3xl bg-base-300 flex items-center justify-center text-3xl font-black opacity-20">

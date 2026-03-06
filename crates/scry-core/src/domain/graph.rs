@@ -18,6 +18,7 @@ pub struct ApiEntity {
     pub display_title: String,
     pub display_subtitle: Option<String>,
     pub display_image: Option<String>,
+    pub display_icon: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, TS)]

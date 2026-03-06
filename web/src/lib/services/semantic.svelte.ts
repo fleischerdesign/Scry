@@ -105,11 +105,32 @@ class SemanticService {
             'environment.temperature': 'lucide:thermometer',
             'music.energy_level': 'lucide:zap',
             'system.cpu': 'lucide:cpu',
-            'system.memory': 'lucide:database'
+            'system.memory': 'lucide:database',
+            'software.repo': 'lucide:github',
+            'place.city': 'lucide:map-pin',
+            'core.user': 'lucide:user'
         };
         
         const info = this.parseType(semanticType);
-        return icons[info.subType] || 'lucide:activity';
+        return icons[info.subType] || this.getNamespaceIcon(info.subType.split('.')[0]);
+    }
+
+    /**
+     * Get a fallback icon for a namespace.
+     */
+    getNamespaceIcon(ns: string): string {
+        const icons: Record<string, string> = {
+            'scry.music': 'lucide:headphones',
+            'scry.software': 'lucide:code-2',
+            'scry.env': 'lucide:cloud-sun',
+            'scry.health': 'lucide:heart',
+            'scry.finance': 'lucide:wallet',
+            'scry.core': 'lucide:fingerprint',
+            'scry.place': 'lucide:map',
+            'github': 'lucide:github',
+            'spotify': 'lucide:music'
+        };
+        return icons[ns] || icons[`scry.${ns}`] || 'lucide:box';
     }
 
     /**

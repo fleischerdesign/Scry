@@ -182,7 +182,7 @@ impl<'a> EntityRepository<'a> {
         Ok(val.map(|v| v.trim_matches('"').to_string()))
     }
 
-    pub async fn get_display_info(&self, namespace: &str, typ: &str, id: &str) -> (String, Option<String>, Option<String>) {
+    pub async fn get_display_info(&self, namespace: &str, typ: &str, id: &str) -> (String, Option<String>, Option<String>, Option<String>) {
         let title = self.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::NAME).await.ok().flatten()
             .unwrap_or_else(|| id.to_string());
         
@@ -193,7 +193,10 @@ impl<'a> EntityRepository<'a> {
             image = self.get_trait(namespace, typ, id, scry_plugin_sdk::schema::traits::AVATAR).await.ok().flatten();
         }
 
-        (title, subtitle, image)
+        let icon = sqlx::query_scalar::<_, Option<String>>("SELECT display_icon FROM entities WHERE user_id = ? AND namespace = ? AND typ = ? AND id = ?")
+            .bind(self.user_id).bind(namespace).bind(typ).bind(id).fetch_optional(self.pool).await.ok().flatten().flatten();
+
+        (title, subtitle, image, icon)
     }
 
     pub async fn get_relationships(&self, namespace: &str, typ: &str, id: &str) -> Result<Vec<(String, String, String, String, String, String, String)>> {
