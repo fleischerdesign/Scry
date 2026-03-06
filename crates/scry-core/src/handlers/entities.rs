@@ -17,12 +17,12 @@ pub async fn get_namespaces(
     Ok(Json(res))
 }
 
-#[utoipa::path(get, path = "/api/v1/discovery/entities/{namespace}", responses((status = 200, body = [String])), security(("api_key" = [])))]
+#[utoipa::path(get, path = "/api/v1/discovery/entities/{namespace}", responses((status = 200, body = [ApiEntityType])), security(("api_key" = [])))]
 pub async fn get_namespace_types(
     State(state): State<Arc<AppState>>,
     Path(namespace): Path<String>,
     Extension(auth): Extension<AuthContext>
-) -> Result<Json<Vec<String>>> {
+) -> Result<Json<Vec<ApiEntityType>>> {
     let res = state.graph_service.get_namespace_types(auth.user_id, &namespace).await?;
     Ok(Json(res))
 }

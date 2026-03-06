@@ -99,33 +99,10 @@ class SemanticService {
 
     /**
      * Get an icon for a semantic type.
+     * This is now a simple fallback, as we prefer backend-provided 'display_icon'.
      */
-    getIcon(semanticType: string): string {
-        // We now rely on the backend providing 'display_icon' in Events and Entities.
-        // This is purely a fallback for when we only have a semantic type string.
-        return this.getNamespaceIcon(semanticType.split('.')[1] || semanticType);
-    }
-
-    /**
-     * Get a fallback icon for a namespace.
-     */
-    getNamespaceIcon(ns: string): string {
-        const icons: Record<string, string> = {
-            'music': 'lucide:headphones',
-            'software': 'lucide:code-2',
-            'env': 'lucide:cloud-sun',
-            'weather': 'lucide:cloud-sun',
-            'health': 'lucide:heart',
-            'finance': 'lucide:wallet',
-            'core': 'lucide:fingerprint',
-            'place': 'lucide:map-pin',
-            'github': 'lucide:github',
-            'spotify': 'lucide:music'
-        };
-        
-        // Clean namespace (remove scry. prefix if present)
-        const cleanNs = ns.startsWith('scry.') ? ns.replace('scry.', '') : ns;
-        return icons[cleanNs] || 'lucide:box';
+    getIcon(_semanticType: string): string {
+        return 'lucide:activity';
     }
 
     /**

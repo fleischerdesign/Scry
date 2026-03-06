@@ -41,9 +41,28 @@ impl GraphService {
         Ok(namespaces)
     }
 
-    pub async fn get_namespace_types(&self, user_id: i64, namespace: &str) -> Result<Vec<String>> {
+    pub async fn get_namespace_types(&self, user_id: i64, namespace: &str) -> Result<Vec<ApiEntityType>> {
         let repo = EntityRepository::new(&self.db, user_id);
-        repo.get_types_by_namespace(namespace).await
+        let names = repo.get_types_by_namespace(namespace).await?;
+        let manifests = self.plugin_manager.get_plugin_manifests().await;
+
+        let types = names.into_iter().map(|name| {
+            let mut icon = None;
+            let semantic_type = format!("{}/{}", namespace, name);
+            
+            for m in manifests.values() {
+                if let Some(export) = m.exports.iter().find(|e| e.semantic_type == semantic_type) {
+                    if export.icon.is_some() {
+                        icon = export.icon.clone();
+                        break;
+                    }
+                }
+            }
+
+            ApiEntityType { name, display_icon: icon }
+        }).collect();
+
+        Ok(types)
     }
 
     pub async fn get_entities(&self, user_id: i64, namespace: &str, typ: &str) -> Result<Vec<ApiEntity>> {

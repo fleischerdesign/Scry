@@ -53,7 +53,7 @@
 					<div class="flex items-center justify-between mb-6">
 						<div class="w-14 h-14 rounded-3xl bg-base-100 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
 							<Icon 
-								icon={ns.icon || 'lucide:database'} 
+								icon={ns.display_icon || 'lucide:database'} 
 								class="w-6 h-6 text-primary" 
 							/>
 						</div>

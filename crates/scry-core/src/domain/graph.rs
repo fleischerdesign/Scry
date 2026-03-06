@@ -11,6 +11,13 @@ pub struct ApiNamespace {
 
 #[derive(Serialize, ToSchema, TS)]
 #[ts(export)]
+pub struct ApiEntityType {
+    pub name: String,
+    pub display_icon: Option<String>,
+}
+
+#[derive(Serialize, ToSchema, TS)]
+#[ts(export)]
 pub struct ApiEntity {
     pub namespace: String,
     pub typ: String,

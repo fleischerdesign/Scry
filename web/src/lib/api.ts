@@ -3,6 +3,7 @@ import { ui } from "./ui.svelte";
 import type { Event } from "./types/Event";
 import type { ApiNamespace } from "./types/ApiNamespace";
 import type { ApiEntity } from "./types/ApiEntity";
+import type { ApiEntityType } from "./types/ApiEntityType";
 import type { PluginStatus } from "./types/PluginStatus";
 import type { Dashboard } from "./types/Dashboard";
 import type { ApiReportData } from "./types/ApiReportData";
@@ -43,7 +44,7 @@ class ScryAPI {
 	getNamespaces(): Promise<ApiNamespace[]> {
 		return this.request("/discovery/entities");
 	}
-	getNamespaceTypes(namespace: string): Promise<string[]> {
+	getNamespaceTypes(namespace: string): Promise<ApiEntityType[]> {
 		return this.request(`/discovery/entities/${namespace}`);
 	}
 	getEntities(namespace: string, type: string): Promise<ApiEntity[]> {
