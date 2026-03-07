@@ -48,9 +48,15 @@ export function useStreaming() {
             timelineQueries.forEach(([queryKey, oldData]) => {
                 queryClient.setQueryData(queryKey, (old: Event[] | undefined) => {
                     if (!old) return [event];
+                    
+                    // Insert and sort by timestamp (newest first)
+                    const updated = [...old, event].sort((a, b) => 
+                        b.timestamp.localeCompare(a.timestamp)
+                    );
+
                     // Keep the same limit as the original query requested (extract from queryKey if possible, default 100)
                     const limit = (queryKey[2] as any)?.limit || 100;
-                    return [event, ...old].slice(0, limit);
+                    return updated.slice(0, limit);
                 });
             });
             
