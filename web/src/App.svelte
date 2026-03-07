@@ -26,6 +26,7 @@
 	import EntityDetail from "./lib/pages/EntityDetail.svelte";
 	import Auth from "./lib/components/Auth.svelte";
 	import CommandPalette from "./lib/components/CommandPalette.svelte";
+	import Icon from "@iconify/svelte";
 	import { queryClient } from "./lib/query";
 
 	// Initialize global background services
@@ -223,36 +224,61 @@
 							<button
 								class:active={router.path === "/overview"}
 								onclick={() => router.navigate("/overview")}
-								class="gap-4 font-bold tracking-tight">Overview</button
+								class="gap-4 font-bold tracking-tight"
 							>
+								<Icon icon="lucide:layout-dashboard" class="w-4 h-4" />
+								Overview
+							</button>
 						</li>
 						<li>
 							<button
 								class:active={router.path === "/timeline"}
 								onclick={() => router.navigate("/timeline")}
-								class="gap-4 font-bold tracking-tight">Timeline</button
+								class="gap-4 font-bold tracking-tight"
 							>
+								<Icon icon="lucide:clock" class="w-4 h-4" />
+								Timeline
+							</button>
+						</li>
+						<li>
+							<button
+								class:active={router.path.startsWith("/entity") && !router.path.includes("scry.core/user/self")}
+								onclick={() => router.navigate("/entity")}
+								class="gap-4 font-bold tracking-tight"
+							>
+								<Icon icon="lucide:search" class="w-4 h-4" />
+								Explorer
+							</button>
 						</li>
 						<li>
 							<button
 								class:active={router.path === "/explorer"}
 								onclick={() => router.navigate("/explorer")}
-								class="gap-4 font-bold tracking-tight">Explorer</button
+								class="gap-4 font-bold tracking-tight"
 							>
+								<Icon icon="lucide:flask-conical" class="w-4 h-4" />
+								Lab
+							</button>
 						</li>
 						<li>
 							<button
 								class:active={router.path === "/analytics"}
 								onclick={() => router.navigate("/analytics")}
-								class="gap-4 font-bold tracking-tight">Insights</button
+								class="gap-4 font-bold tracking-tight"
 							>
+								<Icon icon="lucide:zap" class="w-4 h-4" />
+								Insights
+							</button>
 						</li>
 						<li>
 							<button
 								class:active={router.path === "/settings"}
 								onclick={() => router.navigate("/settings")}
-								class="gap-4 font-bold tracking-tight">Settings</button
+								class="gap-4 font-bold tracking-tight"
 							>
+								<Icon icon="lucide:settings" class="w-4 h-4" />
+								Settings
+							</button>
 						</li>
 
 						<li
@@ -260,18 +286,20 @@
 						>
 							Dashboards
 						</li>
-						{#each dashboardsQuery.data ?? [] as dash}
-							<li>
-								<button
-									class:active={router.path === `/dashboard/${dash.slug}`}
-									onclick={() => router.navigate(`/dashboard/${dash.slug}`)}
-									class="gap-4 font-bold tracking-tight text-secondary"
-								>
-									<div class="w-1 h-1 rounded-full bg-secondary opacity-40"></div>
-									{dash.name}
-								</button>
-							</li>
-						{/each}
+						<div class="px-2 space-y-1">
+							{#each dashboardsQuery.data ?? [] as dash}
+								<li>
+									<button
+										class:active={router.path === `/dashboard/${dash.slug}`}
+										onclick={() => router.navigate(`/dashboard/${dash.slug}`)}
+										class="gap-3 font-bold tracking-tight text-secondary bg-secondary/5 hover:bg-secondary/10 border border-secondary/10 rounded-xl"
+									>
+										<Icon icon="lucide:layout" class="w-3.5 h-3.5 opacity-60" />
+										{dash.name}
+									</button>
+								</li>
+							{/each}
+						</div>
 					</ul>
 
 					<div class="mt-auto pt-4">
