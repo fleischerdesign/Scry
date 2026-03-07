@@ -1,11 +1,13 @@
 <script lang="ts">
 	import Stat from "../components/Stat.svelte";
+	import { api } from "../api";
 	import { createTimelineQuery } from "../queries/timeline";
 	import { createPluginsQuery } from "../queries/plugins";
 	import { createDashboardsQuery } from "../queries/dashboards";
 	import { router } from "../router.svelte";
 	import PageHeader from "../components/PageHeader.svelte";
 	import Icon from "@iconify/svelte";
+	import EntityLabel from "../components/EntityLabel.svelte";
 
 	let { dailySummary = [] } = $props();
 
@@ -13,8 +15,34 @@
 	const pluginsQuery = createPluginsQuery();
 	const dashboardsQuery = createDashboardsQuery();
 
+	// Agnostic Identity State
+	let userEntity = $state<any>(null);
+	let loadingUser = $state(true);
+
+	async function loadUserIdentity() {
+		try {
+			userEntity = await api.getEntityTraits("scry.core", "user", "self");
+		} catch (e) {
+			console.error("Failed to load user identity", e);
+		} finally {
+			loadingUser = false;
+		}
+	}
+
+	const userName = $derived(userEntity?.traits?.["scry.core/name"] || "User");
+	const userPhoto = $derived(userEntity?.traits?.["scry.visual/photo"] || userEntity?.traits?.["scry.core/avatar"]);
+	
+	// Agnostically find all status traits
+	const statusTraits = $derived.by(() => {
+		if (!userEntity?.traits) return [];
+		return Object.entries(userEntity.traits)
+			.filter(([key]) => key.startsWith("scry.status/"))
+			.map(([key, value]) => ({ key, value }));
+	});
+
 	$effect(() => {
 		router.title = "Overview";
+		loadUserIdentity();
 	});
 
 	function syncKernel() {
@@ -40,41 +68,71 @@
 		{/snippet}
 	</PageHeader>
 
-	<!-- Daily Perspective Hero (Managed by Plugins) -->
-	{#if dailySummary && dailySummary.length > 0}
-		<div
-			class="hero bg-base-100 rounded-3xl border border-base-300 shadow-sm overflow-hidden"
-		>
-			<div class="hero-content text-center py-12 px-8 flex-col w-full">
-				<div class="max-w-3xl">
-					<h2
-						class="text-[10px] uppercase tracking-[0.4em] font-black text-primary opacity-50 mb-8"
-					>
-						Daily_Perspective
-					</h2>
-					<div class="space-y-6">
+	<!-- Agnostic Identity Hero (Full Width) -->
+	<div class="flex flex-col md:flex-row items-center gap-10 bg-base-100 border border-base-300 rounded-[3rem] p-10 shadow-sm relative overflow-hidden group w-full">
+		<!-- Visual Ambient Background -->
+		<div class="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -mr-48 -mt-48"></div>
+		
+		<!-- Avatar Section -->
+		<div class="relative shrink-0">
+			<div class="avatar">
+				<div class="w-32 h-32 rounded-[2.5rem] shadow-2xl ring-8 ring-base-200 group-hover:ring-primary/10 transition-all duration-500 overflow-hidden bg-base-300">
+					{#if userPhoto}
+						<img src={userPhoto} alt={userName} class="object-cover" />
+					{:else}
+						<div class="w-full h-full flex items-center justify-center text-4xl font-black opacity-20">
+							{userName.charAt(0).toUpperCase()}
+						</div>
+					{/if}
+				</div>
+			</div>
+			<!-- Online Indicator -->
+			<div class="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-success border-4 border-base-100 flex items-center justify-center shadow-lg">
+				<div class="w-2 h-2 rounded-full bg-white animate-ping"></div>
+			</div>
+		</div>
+
+		<!-- Info Section -->
+		<div class="flex-1 text-center md:text-left space-y-4 relative z-10">
+			<div>
+				<h2 class="text-3xl font-black tracking-tight">{userName}</h2>
+			</div>
+
+			<!-- Dynamic Status Traits -->
+			<div class="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-4">
+				{#each statusTraits as status}
+					<div class="bg-base-200/50 border border-base-300/50 rounded-2xl px-4 py-2 flex items-center gap-3">
+						<div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+						<span class="text-[10px] font-black uppercase tracking-widest opacity-40">{status.key.split('/').pop()?.replace('_', ' ')}:</span>
+						
+						{#if typeof status.value === 'string' && status.value.split(':').length === 3 && status.value.includes('.')}
+							{@const parts = status.value.split(':')}
+							<EntityLabel namespace={parts[0]} typ={parts[1]} id={parts[2]} inline={true} />
+						{:else}
+							<span class="text-xs font-bold tracking-tight">{status.value}</span>
+						{/if}
+					</div>
+				{/each}
+				
+				{#if statusTraits.length === 0}
+					<div class="text-[10px] font-bold opacity-20 uppercase tracking-widest italic">No active status detected</div>
+				{/if}
+			</div>
+
+			<!-- Digital Shadow Narration (Daily Perspective) -->
+			{#if dailySummary.length > 0}
+				<div class="pt-4 border-t border-base-300/50">
+					<div class="space-y-2">
 						{#each dailySummary as line}
-							{#if line.toLowerCase().includes("no ") || line
-									.toLowerCase()
-									.includes("unavailable")}
-								<p
-									class="text-[10px] font-mono uppercase tracking-[0.2em] opacity-20 py-4 border-y border-base-content/5"
-								>
-									{line}
-								</p>
-							{:else}
-								<p
-									class="text-3xl font-light leading-tight tracking-tight text-base-content italic quote"
-								>
-									"{line}"
-								</p>
-							{/if}
+							<p class="text-sm font-medium italic opacity-60 leading-relaxed quote">
+								"{line}"
+							</p>
 						{/each}
 					</div>
 				</div>
-			</div>
+			{/if}
 		</div>
-	{/if}
+	</div>
 
 	<!-- Core Platform Stats -->
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
