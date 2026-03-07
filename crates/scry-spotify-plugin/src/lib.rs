@@ -13,7 +13,7 @@ struct SpotifyTokenResponse {
     refresh_token: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 struct SpotifyCurrentlyPlaying {
     item: Option<SpotifyTrack>,
     is_playing: Option<bool>,
@@ -46,7 +46,7 @@ struct SpotifyImage {
     url: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 struct SpotifyRecentTracks {
     items: Vec<SpotifyRecentItem>,
 }
@@ -67,9 +67,9 @@ impl ScryPlugin for SpotifyPlugin {
         scry_plugin_sdk::Manifest {
             id: "scry-spotify-plugin".to_string(),
             name: "Spotify".to_string(),
-            version: "0.2.1".to_string(),
+            version: "0.2.2".to_string(),
             description:
-                "Importiert Spotify Playback History mit deterministischen UUIDs für Musik-Entitäten."
+                "Importiert Spotify Playback History mit adaptiven Polling-Intervallen und agnostischer Anreicherung."
                     .to_string(),
             subscriptions: vec!["spotify.playback".to_string()],
             capabilities: vec![
@@ -149,7 +149,7 @@ impl ScryPlugin for SpotifyPlugin {
                 entity_type: "artist".to_string(),
                 trait_id: traits::PHOTO.to_string(),
             }],
-            poll_interval: Some(60),
+            poll_interval: Some(5),
             config_schema: Some(
                 json!({
                     "type": "object",
@@ -182,7 +182,7 @@ impl ScryPlugin for SpotifyPlugin {
     }
 
     fn on_init(&self) -> Result<(), String> {
-        host::log_info("Spotify Plugin (v5 ID) initialized");
+        host::log_info("Spotify Plugin initialized");
         Ok(())
     }
 
@@ -240,8 +240,15 @@ impl ScryPlugin for SpotifyPlugin {
     }
 
     fn on_poll(&self) -> Vec<SdkEvent> {
-        host::log_info("Spotify: on_poll started");
+        let idle_cycles = host::get_state("internal_idle_cycles").and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
+        let last_playing_id = host::get_state("last_playing_id").unwrap_or_default();
         
+        // --- Smart-Sync Logic ---
+        if idle_cycles > 3 && (idle_cycles % 6 != 0) && last_playing_id.is_empty() {
+            host::set_state("internal_idle_cycles", &(idle_cycles + 1).to_string());
+            return vec![]; 
+        }
+
         let client_id = match host::get_secret("client_id") {
             Some(id) => id,
             None => { host::log_warn("Spotify: No client_id configured"); return vec![]; }
@@ -252,29 +259,34 @@ impl ScryPlugin for SpotifyPlugin {
             None => { host::log_warn("Spotify: No client_secret configured"); return vec![]; }
         };
 
-        // 1. Intelligent Token Management
         let access_token = self.get_valid_access_token(&client_id, &client_secret);
         let token = match access_token {
             Some(t) => t,
             None => { host::log_warn("Spotify: Could not obtain access token"); return vec![]; }
         };
 
-        // 2. Fetch History (less frequent or delta-based)
-        // We only fetch history if it's been a while (e.g., every 5th poll) to save resources
+        let mut all_events = Vec::new();
+        
+        // 1. Currently Playing
+        let playing_events = self.fetch_currently_playing(&token);
+        let is_now_playing = !host::get_state("last_playing_id").unwrap_or_default().is_empty();
+
+        if is_now_playing {
+            host::set_state("internal_idle_cycles", "0");
+        } else {
+            host::set_state("internal_idle_cycles", &(idle_cycles + 1).to_string());
+        }
+
+        // 2. Fetch History
         let poll_count = host::get_state("internal_poll_count").and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
         host::set_state("internal_poll_count", &(poll_count + 1).to_string());
 
-        let mut all_events = Vec::new();
-        if poll_count % 5 == 0 {
-            host::log_info("Spotify: Fetching recent tracks (History Sync)");
+        if poll_count % 12 == 0 {
             let recent_events = self.fetch_recent_tracks(&token);
             all_events.extend(recent_events);
         }
 
-        // 3. Fetch Currently Playing (Every poll, but with delta-check)
-        let playing_events = self.fetch_currently_playing(&token);
         all_events.extend(playing_events);
-
         all_events
     }
 
@@ -310,7 +322,6 @@ impl ScryPlugin for SpotifyPlugin {
             if let Some(track_id_spotify) = ev.payload.get("track_id").and_then(|v| v.as_str()) {
                  host::set_entity_trait(namespaces::MUSIC, "track", &track_id, "scry.spotify/track_id", &json!(track_id_spotify).to_string());
                  
-                 // Add agnostic external link
                  let spotify_link = json!([{
                      "label": "Spotify",
                      "url": format!("https://open.spotify.com/track/{}", track_id_spotify),
@@ -338,7 +349,6 @@ impl ScryPlugin for SpotifyPlugin {
                 if let Some(sid) = artist_ids_spotify.get(i) {
                     host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, "scry.spotify/artist_id", &json!(sid).to_string());
                     
-                    // Add agnostic external link
                     let spotify_link = json!([{
                         "label": "Spotify",
                         "url": format!("https://open.spotify.com/artist/{}", sid),
@@ -347,7 +357,6 @@ impl ScryPlugin for SpotifyPlugin {
                     host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::LINKS, &spotify_link.to_string());
                 }
 
-                // Track → played_by → Artist relationship
                 host::set_relationship(scry_plugin_sdk::Relationship {
                     source_namespace: namespaces::MUSIC.to_string(),
                     source_type: "track".to_string(),
@@ -373,7 +382,6 @@ impl ScryPlugin for SpotifyPlugin {
                 host::set_entity_trait(namespaces::MUSIC, "album", &album_id, traits::PHOTO, &json!(img).to_string());
             }
             if let Some(album_id_spotify) = ev.payload.get("album_id").and_then(|v| v.as_str()) {
-                // Add agnostic external link
                 let spotify_link = json!([{
                     "label": "Spotify",
                     "url": format!("https://open.spotify.com/album/{}", album_id_spotify),
@@ -382,7 +390,6 @@ impl ScryPlugin for SpotifyPlugin {
                 host::set_entity_trait(namespaces::MUSIC, "album", &album_id, traits::LINKS, &spotify_link.to_string());
             }
             
-            // Track → belongs_to → Album relationship
             host::set_relationship(scry_plugin_sdk::Relationship {
                 source_namespace: namespaces::MUSIC.to_string(),
                 source_type: "track".to_string(),
@@ -398,53 +405,26 @@ impl ScryPlugin for SpotifyPlugin {
 }
 
 impl SpotifyPlugin {
-    /// Extracts all artist names and IDs from a SpotifyTrack.
-    /// Returns (names, ids) — both guaranteed to have the same length.
     fn extract_artists(track: &SpotifyTrack) -> (Vec<String>, Vec<String>) {
         match &track.artists {
             Some(artists) if !artists.is_empty() => {
-                let names = artists
-                    .iter()
-                    .map(|a| {
-                        a.name
-                            .clone()
-                            .unwrap_or_else(|| "Unknown Artist".to_string())
-                    })
-                    .collect();
-                let ids = artists
-                    .iter()
-                    .map(|a| a.id.clone().unwrap_or_default())
-                    .collect();
+                let names = artists.iter().map(|a| a.name.clone().unwrap_or_else(|| "Unknown Artist".to_string())).collect();
+                let ids = artists.iter().map(|a| a.id.clone().unwrap_or_default()).collect();
                 (names, ids)
             }
             _ => (vec!["Unknown Artist".to_string()], vec![String::new()]),
         }
     }
 
-    /// Builds the payload JSON for a track, shared between fetch_recent_tracks and fetch_currently_playing.
-    fn build_track_payload(
-        track: &SpotifyTrack,
-        artist_names: &[String],
-        artist_ids: &[String],
-    ) -> serde_json::Value {
+    fn build_track_payload(track: &SpotifyTrack, artist_names: &[String], artist_ids: &[String]) -> serde_json::Value {
         let track_name = track.name.clone().unwrap_or_else(|| "Unknown".to_string());
-        let album_name = track
-            .album
-            .as_ref()
-            .and_then(|a| a.name.clone())
-            .unwrap_or_else(|| "Unknown Album".to_string());
-        let album_image = track
-            .album
-            .as_ref()
-            .and_then(|a| a.images.as_ref())
-            .and_then(|imgs| imgs.first())
-            .and_then(|i| i.url.clone());
+        let album_name = track.album.as_ref().and_then(|a| a.name.clone()).unwrap_or_else(|| "Unknown Album".to_string());
+        let album_image = track.album.as_ref().and_then(|a| a.images.as_ref()).and_then(|imgs| imgs.first()).and_then(|i| i.url.clone());
 
         json!({
             "track_name": track_name,
             "artist_names": artist_names,
             "artist_ids": artist_ids,
-            // Flattened convenience field for display / backward compat
             "artist_name": artist_names.join(", "),
             "album_name": album_name,
             "album_image": album_image,
@@ -454,310 +434,9 @@ impl SpotifyPlugin {
         })
     }
 
-    fn refresh_access_token(
-        &self,
-        client_id: &str,
-        client_secret: &str,
-        refresh_token: &str,
-    ) -> Option<String> {
-        let body = format!(
-            "grant_type=refresh_token&refresh_token={}",
-            urlencoding::encode(refresh_token)
-        );
-
-        let credentials = base64::engine::general_purpose::STANDARD
-            .encode(format!("{}:{}", client_id, client_secret));
-
-        let headers = vec![
-            (
-                "Authorization".to_string(),
-                format!("Basic {}", credentials),
-            ),
-            (
-                "Content-Type".to_string(),
-                "application/x-www-form-urlencoded".to_string(),
-            ),
-        ];
-
-        match host::http_post(
-            "https://accounts.spotify.com/api/token",
-            Some(body),
-            headers,
-        ) {
-            Ok(resp_body) => {
-                let token_response: SpotifyTokenResponse = match serde_json::from_str(&resp_body) {
-                    Ok(tr) => tr,
-                    Err(e) => {
-                        host::log_error(&format!(
-                            "Spotify: Failed to parse token response: {}. Body: {}",
-                            e, resp_body
-                        ));
-                        return None;
-                    }
-                };
-                if let Some(new_refresh) = &token_response.refresh_token {
-                    host::set_state("oauth_refresh_token", new_refresh);
-                }
-                token_response.access_token
-            }
-            Err(e) => {
-                host::log_error(&format!("Spotify: Failed to refresh token: {}", e));
-                None
-            }
-        }
-    }
-
-    fn fetch_recent_tracks(&self, access_token: &str) -> Vec<SdkEvent> {
-        let headers = vec![(
-            "Authorization".to_string(),
-            format!("Bearer {}", access_token),
-        )];
-
-        let last_played_at = host::get_state("last_played_at");
-        let mut url = "https://api.spotify.com/v1/me/player/recently-played?limit=50".to_string();
-        if let Some(ts) = &last_played_at {
-            url = format!("{}&after={}", url, ts);
-        }
-
-        let response = match host::http_request(
-            "GET",
-            &url,
-            None,
-            headers,
-        ) {
-            Ok(res) => res,
-            Err(e) => {
-                host::log_error(&format!("Spotify API error: {}", e));
-                return vec![];
-            }
-        };
-
-        if response.status != 200 {
-            host::log_error(&format!(
-                "Spotify API returned status {}: {}",
-                response.status, response.body
-            ));
-            return vec![];
-        }
-
-        let recent: SpotifyRecentTracks = match serde_json::from_str(&response.body) {
-            Ok(t) => t,
-            Err(e) => {
-                host::log_error(&format!("Failed to parse Spotify response: {}", e));
-                return vec![];
-            }
-        };
-
-        let mut events = Vec::new();
-        let mut max_timestamp_ms: i64 = last_played_at
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(0);
-
-        for item in recent.items {
-            if let Some(track) = item.track {
-                let played_at = item
-                    .played_at
-                    .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
-
-                let dt = chrono::DateTime::parse_from_rfc3339(&played_at)
-                    .map(|dt| dt.with_timezone(&chrono::Utc))
-                    .unwrap_or_else(|_| chrono::Utc::now());
-
-                let ts_ms = dt.timestamp_millis();
-                if ts_ms > max_timestamp_ms {
-                    max_timestamp_ms = ts_ms;
-                }
-
-                let (artist_names, artist_ids) = Self::extract_artists(&track);
-                let payload = Self::build_track_payload(&track, &artist_names, &artist_ids);
-                let display_image = track
-                    .album
-                    .as_ref()
-                    .and_then(|a| a.images.as_ref())
-                    .and_then(|imgs| imgs.first())
-                    .and_then(|i| i.url.clone());
-                
-                let track_name = track.name.clone().unwrap_or_else(|| "Unknown".to_string());
-                let subtitle = format!("by {}", artist_names.join(", "));
-
-                let mut ev = SdkEvent::new("spotify.playback", "spotify", payload)
-                    .with_context("alias:self")
-                    .with_title(track_name)
-                    .with_subtitle(subtitle)
-                    .with_confidence(1.0);
-
-                ev.timestamp = dt;
-                if let Some(img) = display_image {
-                    ev = ev.with_image(img);
-                }
-
-                events.push(ev);
-            }
-        }
-
-        if max_timestamp_ms > 0 {
-            host::set_state("last_played_at", &max_timestamp_ms.to_string());
-        }
-
-        events
-    }
-
-    fn fetch_currently_playing(&self, access_token: &str) -> Vec<SdkEvent> {
-        let headers = vec![(
-            "Authorization".to_string(),
-            format!("Bearer {}", access_token),
-        )];
-
-        let response = match host::http_request(
-            "GET",
-            "https://api.spotify.com/v1/me/player/currently-playing",
-            None,
-            headers,
-        ) {
-            Ok(res) => res,
-            Err(_) => return vec![],
-        };
-
-        if response.status == 204 {
-            let last_id = host::get_state("last_playing_id").unwrap_or_default();
-            if !last_id.is_empty() {
-                host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, "null");
-                host::set_state("last_playing_id", "");
-            }
-            return vec![];
-        }
-
-        if response.status != 200 {
-            host::log_error(&format!("Spotify currently-playing API status: {}", response.status));
-            return vec![];
-        }
-
-        let playing: SpotifyCurrentlyPlaying = match serde_json::from_str(&response.body) {
-            Ok(p) => p,
-            Err(e) => {
-                host::log_error(&format!("Failed to parse currently-playing response: {}", e));
-                return vec![];
-            }
-        };
-
-        let is_playing = playing.is_playing.unwrap_or(false);
-
-        if is_playing && playing.item.is_some() {
-            let track = playing.item.unwrap();
-            let track_id_spotify = track.id.clone().unwrap_or_default();
-            
-            // Delta Check: Only update if the track has actually changed
-            let last_playing_id = host::get_state("last_playing_id").unwrap_or_default();
-            if track_id_spotify == last_playing_id {
-                return vec![];
-            }
-            host::set_state("last_playing_id", &track_id_spotify);
-
-            let (artist_names, _artist_ids) = Self::extract_artists(&track);
-            let track_name = track.name.clone().unwrap_or_default();
-            
-            // 1. Resolve the deterministic track ID
-            let track_id = identity::create_id(namespaces::MUSIC, &["track", &artist_names[0], &track_name]);
-            
-            // 2. Proactively store metadata for this track entity so it's resolvable
-            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::NAME, &json!(track_name).to_string());
-            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::SUBTITLE, &json!(artist_names.join(", ")).to_string());
-            if let Some(img) = track.album.as_ref().and_then(|a| a.images.as_ref()).and_then(|imgs| imgs.first()).and_then(|i| i.url.clone()) {
-                host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::PHOTO, &json!(img).to_string());
-            }
-            
-            // Add agnostic external link for real-time focus
-            let spotify_link = json!([{
-                "label": "Spotify",
-                "url": format!("https://open.spotify.com/track/{}", track_id_spotify),
-                "icon": "lucide:external-link"
-            }]);
-            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::LINKS, &spotify_link.to_string());
-
-            // 3. Set relationships and artist metadata immediately
-            let (_, artist_ids_spotify) = Self::extract_artists(&track);
-            for (i, artist_name) in artist_names.iter().enumerate() {
-                let artist_id = identity::create_id(namespaces::MUSIC, &["artist", artist_name]);
-                
-                // Store artist metadata
-                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::NAME, &json!(artist_name).to_string());
-                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::ICON, &json!("lucide:mic").to_string());
-
-                if let Some(sid) = artist_ids_spotify.get(i) {
-                    if !sid.is_empty() {
-                        host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, "scry.spotify/artist_id", &json!(sid).to_string());
-                        
-                        // Add agnostic external link
-                        let spotify_link = json!([{
-                            "label": "Spotify",
-                            "url": format!("https://open.spotify.com/artist/{}", sid),
-                            "icon": "lucide:external-link"
-                        }]);
-                        host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::LINKS, &spotify_link.to_string());
-
-                        // Proactively resolve photo if missing
-                        if host::get_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO).is_none() {
-                            if let Ok(Some(photo_url_json)) = self.resolve_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO) {
-                                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO, &photo_url_json);
-                            }
-                        }
-                    }
-                }
-
-                host::set_relationship(scry_plugin_sdk::Relationship {
-                    source_namespace: namespaces::MUSIC.to_string(),
-                    source_type: "track".to_string(),
-                    source_id: track_id.clone(),
-                    predicate: predicates::PLAYED_BY.to_string(),
-                    target_namespace: namespaces::MUSIC.to_string(),
-                    target_type: "artist".to_string(),
-                    target_id: artist_id,
-                });
-            }
-
-            // 4. Set the user's status as a pure entity reference (Agnostic Link)
-            let ref_link = format!("{}:track:{}", namespaces::MUSIC, track_id);
-            host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, &json!(ref_link).to_string());
-            
-            host::log_info(&format!("Spotify: Now playing changed to {}", track_name));
-        } else {
-            let last_id = host::get_state("last_playing_id").unwrap_or_default();
-            if !last_id.is_empty() {
-                host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, "null");
-                host::set_state("last_playing_id", "");
-            }
-        }
-
-        // Return NO events for the timeline to keep it clean.
-        vec![]
-    }
-
-    fn get_valid_access_token(&self, client_id: &str, client_secret: &str) -> Option<String> {
-        let cached_token = host::get_state("oauth_access_token");
-        let expires_at_str = host::get_state("oauth_token_expires_at");
-        
-        let now = chrono::Utc::now().timestamp();
-        let expires_at = expires_at_str.and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
-
-        // If we have a token and it's valid for at least another 60 seconds, use it
-        if let Some(token) = cached_token {
-            if expires_at > now + 60 {
-                return Some(token);
-            }
-        }
-
-        // Otherwise, refresh
-        host::log_info("Spotify: Access token expired or missing, refreshing...");
-        let refresh_token = host::get_secret("oauth_refresh_token")?;
-        
-        let body = format!(
-            "grant_type=refresh_token&refresh_token={}",
-            urlencoding::encode(&refresh_token)
-        );
-
-        let credentials = base64::engine::general_purpose::STANDARD
-            .encode(format!("{}:{}", client_id, client_secret));
-
+    fn refresh_access_token(&self, client_id: &str, client_secret: &str, refresh_token: &str) -> Option<String> {
+        let body = format!("grant_type=refresh_token&refresh_token={}", urlencoding::encode(refresh_token));
+        let credentials = base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", client_id, client_secret));
         let headers = vec![
             ("Authorization".to_string(), format!("Basic {}", credentials)),
             ("Content-Type".to_string(), "application/x-www-form-urlencoded".to_string()),
@@ -765,28 +444,152 @@ impl SpotifyPlugin {
 
         match host::http_post("https://accounts.spotify.com/api/token", Some(body), headers) {
             Ok(resp_body) => {
-                let tr: SpotifyTokenResponse = match serde_json::from_str(&resp_body) {
-                    Ok(res) => res,
-                    Err(e) => {
-                        host::log_error(&format!("Spotify: Failed to parse token response: {}", e));
-                        return None;
+                let tr: SpotifyTokenResponse = serde_json::from_str(&resp_body).ok()?;
+                if let Some(new_refresh) = &tr.refresh_token {
+                    host::set_state("oauth_refresh_token", new_refresh);
+                }
+                tr.access_token
+            }
+            Err(_) => None
+        }
+    }
+
+    fn fetch_recent_tracks(&self, access_token: &str) -> Vec<SdkEvent> {
+        let headers = vec![("Authorization".to_string(), format!("Bearer {}", access_token))];
+        let last_played_at = host::get_state("last_played_at");
+        let mut url = "https://api.spotify.com/v1/me/player/recently-played?limit=50".to_string();
+        if let Some(ts) = &last_played_at { url = format!("{}&after={}", url, ts); }
+
+        let response = match host::http_request("GET", &url, None, headers) {
+            Ok(res) if res.status == 200 => res,
+            _ => return vec![],
+        };
+
+        let recent: SpotifyRecentTracks = serde_json::from_str(&response.body).unwrap_or_default();
+        let mut events = Vec::new();
+        let mut max_timestamp_ms: i64 = last_played_at.and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+
+        for item in recent.items {
+            if let Some(track) = item.track {
+                let played_at = item.played_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+                let dt = chrono::DateTime::parse_from_rfc3339(&played_at).map(|dt| dt.with_timezone(&chrono::Utc)).unwrap_or_else(|_| chrono::Utc::now());
+                let ts_ms = dt.timestamp_millis();
+                if ts_ms > max_timestamp_ms { max_timestamp_ms = ts_ms; }
+
+                let (artist_names, artist_ids) = Self::extract_artists(&track);
+                let payload = Self::build_track_payload(&track, &artist_names, &artist_ids);
+                let mut ev = SdkEvent::new("spotify.playback", "spotify", payload)
+                    .with_context("alias:self")
+                    .with_title(track.name.clone().unwrap_or_default())
+                    .with_subtitle(format!("by {}", artist_names.join(", ")))
+                    .with_confidence(1.0);
+                ev.timestamp = dt;
+                if let Some(img) = track.album.as_ref().and_then(|a| a.images.as_ref()).and_then(|imgs| imgs.first()).and_then(|i| i.url.clone()) {
+                    ev = ev.with_image(img);
+                }
+                events.push(ev);
+            }
+        }
+        if max_timestamp_ms > 0 { host::set_state("last_played_at", &max_timestamp_ms.to_string()); }
+        events
+    }
+
+    fn fetch_currently_playing(&self, access_token: &str) -> Vec<SdkEvent> {
+        let headers = vec![("Authorization".to_string(), format!("Bearer {}", access_token))];
+        let response = match host::http_request("GET", "https://api.spotify.com/v1/me/player/currently-playing", None, headers) {
+            Ok(res) if res.status == 200 => res,
+            Ok(res) if res.status == 204 => {
+                let last_id = host::get_state("last_playing_id").unwrap_or_default();
+                if !last_id.is_empty() {
+                    host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, "null");
+                    host::set_state("last_playing_id", "");
+                }
+                return vec![];
+            }
+            _ => return vec![],
+        };
+
+        let playing: SpotifyCurrentlyPlaying = serde_json::from_str(&response.body).unwrap_or_default();
+        if playing.is_playing.unwrap_or(false) && playing.item.is_some() {
+            let track = playing.item.unwrap();
+            let track_id_spotify = track.id.clone().unwrap_or_default();
+            let last_playing_id = host::get_state("last_playing_id").unwrap_or_default();
+            if track_id_spotify == last_playing_id { return vec![]; }
+            host::set_state("last_playing_id", &track_id_spotify);
+
+            let (artist_names, artist_ids_spotify) = Self::extract_artists(&track);
+            let track_name = track.name.clone().unwrap_or_default();
+            let track_id = identity::create_id(namespaces::MUSIC, &["track", &artist_names[0], &track_name]);
+            
+            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::NAME, &json!(track_name).to_string());
+            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::SUBTITLE, &json!(artist_names.join(", ")).to_string());
+            if let Some(img) = track.album.as_ref().and_then(|a| a.images.as_ref()).and_then(|imgs| imgs.first()).and_then(|i| i.url.clone()) {
+                host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::PHOTO, &json!(img).to_string());
+            }
+            let spotify_link = json!([{ "label": "Spotify", "url": format!("https://open.spotify.com/track/{}", track_id_spotify), "icon": "lucide:external-link" }]);
+            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::LINKS, &spotify_link.to_string());
+
+            for (i, artist_name) in artist_names.iter().enumerate() {
+                let artist_id = identity::create_id(namespaces::MUSIC, &["artist", artist_name]);
+                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::NAME, &json!(artist_name).to_string());
+                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::ICON, &json!("lucide:mic").to_string());
+                if let Some(sid) = artist_ids_spotify.get(i) {
+                    if !sid.is_empty() {
+                        host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, "scry.spotify/artist_id", &json!(sid).to_string());
+                        let artist_link = json!([{ "label": "Spotify", "url": format!("https://open.spotify.com/artist/{}", sid), "icon": "lucide:external-link" }]);
+                        host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::LINKS, &artist_link.to_string());
+                        if host::get_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO).is_none() {
+                            if let Ok(Some(photo_url_json)) = self.resolve_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO) {
+                                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO, &photo_url_json);
+                            }
+                        }
                     }
-                };
+                }
+                host::set_relationship(scry_plugin_sdk::Relationship {
+                    source_namespace: namespaces::MUSIC.to_string(), source_type: "track".to_string(), source_id: track_id.clone(),
+                    predicate: predicates::PLAYED_BY.to_string(), target_namespace: namespaces::MUSIC.to_string(), target_type: "artist".to_string(), target_id: artist_id,
+                });
+            }
+            let ref_link = format!("{}:track:{}", namespaces::MUSIC, track_id);
+            host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, &json!(ref_link).to_string());
+        } else {
+            let last_id = host::get_state("last_playing_id").unwrap_or_default();
+            if !last_id.is_empty() {
+                host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, "null");
+                host::set_state("last_playing_id", "");
+            }
+        }
+        vec![]
+    }
+
+    fn get_valid_access_token(&self, client_id: &str, client_secret: &str) -> Option<String> {
+        let cached_token = host::get_state("oauth_access_token");
+        let expires_at_str = host::get_state("oauth_token_expires_at");
+        let now = chrono::Utc::now().timestamp();
+        let expires_at = expires_at_str.and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+
+        if let Some(token) = cached_token {
+            if expires_at > now + 60 { return Some(token); }
+        }
+
+        let refresh_token = host::get_secret("oauth_refresh_token")?;
+        let body = format!("grant_type=refresh_token&refresh_token={}", urlencoding::encode(&refresh_token));
+        let credentials = base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", client_id, client_secret));
+        let headers = vec![ ("Authorization".to_string(), format!("Basic {}", credentials)), ("Content-Type".to_string(), "application/x-www-form-urlencoded".to_string()), ];
+
+        match host::http_post("https://accounts.spotify.com/api/token", Some(body), headers) {
+            Ok(resp_body) => {
+                let tr: SpotifyTokenResponse = serde_json::from_str(&resp_body).ok()?;
                 if let Some(new_access) = tr.access_token {
                     let new_expires = now + (tr.expires_in.unwrap_or(3600) as i64);
                     host::set_state("oauth_access_token", &new_access);
                     host::set_state("oauth_token_expires_at", &new_expires.to_string());
-                    if let Some(new_refresh) = tr.refresh_token {
-                        host::set_state("oauth_refresh_token", &new_refresh);
-                    }
+                    if let Some(new_refresh) = tr.refresh_token { host::set_state("oauth_refresh_token", &new_refresh); }
                     return Some(new_access);
                 }
                 None
             }
-            Err(e) => {
-                host::log_error(&format!("Spotify: HTTP error refreshing token: {}", e));
-                None
-            }
+            Err(_) => None
         }
     }
 }
