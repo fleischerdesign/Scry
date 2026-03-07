@@ -55,8 +55,8 @@
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-0 group-hover:opacity-100 text-primary transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
 					</div>
 					<h3 class="font-bold text-lg uppercase tracking-tight mb-1">{type.name}</h3>
-					<p class="text-[10px] opacity-40 uppercase font-mono tracking-widest">
-						Explore all {type.name} entities_
+					<p class="text-[10px] opacity-40 uppercase font-mono tracking-widest leading-relaxed">
+						Domain-specific entity classification and behavior definitions_
 					</p>
 				</button>
 			{/each}
