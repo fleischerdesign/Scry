@@ -57,12 +57,17 @@ struct SpotifyRecentItem {
     track: Option<SpotifyTrack>,
 }
 
+#[derive(Debug, Deserialize)]
+struct SpotifyArtistDetail {
+    images: Option<Vec<SpotifyImage>>,
+}
+
 impl ScryPlugin for SpotifyPlugin {
     fn get_manifest(&self) -> scry_plugin_sdk::Manifest {
         scry_plugin_sdk::Manifest {
             id: "scry-spotify-plugin".to_string(),
             name: "Spotify".to_string(),
-            version: "0.2.0".to_string(),
+            version: "0.2.1".to_string(),
             description:
                 "Importiert Spotify Playback History mit deterministischen UUIDs für Musik-Entitäten."
                     .to_string(),
@@ -139,7 +144,11 @@ impl ScryPlugin for SpotifyPlugin {
                     inverse_label: "Contains Track".to_string(),
                 },
             ],
-            provided_traits: vec![],
+            provided_traits: vec![scry_plugin_sdk::TraitCapability {
+                entity_namespace: namespaces::MUSIC.to_string(),
+                entity_type: "artist".to_string(),
+                trait_id: traits::PHOTO.to_string(),
+            }],
             poll_interval: Some(60),
             config_schema: Some(
                 json!({
@@ -175,6 +184,59 @@ impl ScryPlugin for SpotifyPlugin {
     fn on_init(&self) -> Result<(), String> {
         host::log_info("Spotify Plugin (v5 ID) initialized");
         Ok(())
+    }
+
+    fn resolve_trait(
+        &self,
+        namespace: &str,
+        typ: &str,
+        id: &str,
+        trait_id: &str,
+    ) -> Result<Option<String>, String> {
+        if namespace == namespaces::MUSIC && typ == "artist" && trait_id == traits::PHOTO {
+            let client_id = match host::get_secret("client_id") {
+                Some(id) => id,
+                None => return Ok(None),
+            };
+            let client_secret = match host::get_secret("client_secret") {
+                Some(secret) => secret,
+                None => return Ok(None),
+            };
+
+            let artist_id_spotify = match host::get_entity_trait(namespace, typ, id, "scry.spotify/artist_id") {
+                Some(sid_json) => serde_json::from_str::<String>(&sid_json).unwrap_or_default(),
+                None => return Ok(None),
+            };
+
+            if artist_id_spotify.is_empty() { return Ok(None); }
+
+            let token = match self.get_valid_access_token(&client_id, &client_secret) {
+                Some(t) => t,
+                None => return Ok(None),
+            };
+
+            let url = format!("https://api.spotify.com/v1/artists/{}", artist_id_spotify);
+            let headers = vec![("Authorization".to_string(), format!("Bearer {}", token))];
+
+            match host::http_request("GET", &url, None, headers) {
+                Ok(resp) if resp.status == 200 => {
+                    let detail: SpotifyArtistDetail = serde_json::from_str(&resp.body).map_err(|e| e.to_string())?;
+                    let photo_url = detail.images.and_then(|imgs| imgs.first().map(|i| i.url.clone()));
+                    return Ok(photo_url.flatten().map(|u| json!(u).to_string()));
+                }
+                _ => return Ok(None),
+            }
+        }
+        Ok(None)
+    }
+
+    fn on_entity_discovered(&self, namespace: &str, typ: &str, id: &str) {
+        if namespace == namespaces::MUSIC && typ == "artist" {
+            host::log_info(&format!("Spotify: New artist discovered: {}. Resolving photo...", id));
+            if let Ok(Some(photo_url_json)) = self.resolve_trait(namespace, typ, id, traits::PHOTO) {
+                host::set_entity_trait(namespace, typ, id, traits::PHOTO, &photo_url_json);
+            }
+        }
     }
 
     fn on_poll(&self) -> Vec<SdkEvent> {
@@ -225,6 +287,7 @@ impl ScryPlugin for SpotifyPlugin {
                 .unwrap_or_default();
             let primary_artist = artist_names.first().map(|s| s.as_str()).unwrap_or("Unknown");
             let album_name = ev.payload.get("album_name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+            let album_image = ev.payload.get("album_image").and_then(|v| v.as_str());
 
             // --- Display fields ---
             ev.display_title = Some(track_name.clone());
@@ -241,12 +304,19 @@ impl ScryPlugin for SpotifyPlugin {
             host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::NAME, &json!(track_name).to_string());
             host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::SUBTITLE, &json!(artist_names.join(", ")).to_string());
             host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::ICON, &json!("lucide:music").to_string());
+            if let Some(img) = album_image {
+                host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::PHOTO, &json!(img).to_string());
+            }
             if let Some(track_id_spotify) = ev.payload.get("track_id").and_then(|v| v.as_str()) {
                  host::set_entity_trait(namespaces::MUSIC, "track", &track_id, "scry.spotify/track_id", &json!(track_id_spotify).to_string());
             }
 
             // --- Artist Entities ---
-            for artist in &artist_names {
+            let artist_ids_spotify: Vec<String> = ev.payload.get("artist_ids").and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+
+            for (i, artist) in artist_names.iter().enumerate() {
                 let artist_id = identity::create_id(namespaces::MUSIC, &["artist", artist]);
                 ev.entities.push(scry_plugin_sdk::EntityRef {
                     path: "payload.artist_names".to_string(),
@@ -256,6 +326,10 @@ impl ScryPlugin for SpotifyPlugin {
                 });
                 host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::NAME, &json!(artist).to_string());
                 host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::ICON, &json!("lucide:mic").to_string());
+                
+                if let Some(sid) = artist_ids_spotify.get(i) {
+                    host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, "scry.spotify/artist_id", &json!(sid).to_string());
+                }
 
                 // Track → played_by → Artist relationship
                 host::set_relationship(scry_plugin_sdk::Relationship {
@@ -279,6 +353,9 @@ impl ScryPlugin for SpotifyPlugin {
             });
             host::set_entity_trait(namespaces::MUSIC, "album", &album_id, traits::NAME, &json!(album_name).to_string());
             host::set_entity_trait(namespaces::MUSIC, "album", &album_id, traits::ICON, &json!("lucide:disc").to_string());
+            if let Some(img) = album_image {
+                host::set_entity_trait(namespaces::MUSIC, "album", &album_id, traits::PHOTO, &json!(img).to_string());
+            }
             
             // Track → belongs_to → Album relationship
             host::set_relationship(scry_plugin_sdk::Relationship {
@@ -331,6 +408,12 @@ impl SpotifyPlugin {
             .as_ref()
             .and_then(|a| a.name.clone())
             .unwrap_or_else(|| "Unknown Album".to_string());
+        let album_image = track
+            .album
+            .as_ref()
+            .and_then(|a| a.images.as_ref())
+            .and_then(|imgs| imgs.first())
+            .and_then(|i| i.url.clone());
 
         json!({
             "track_name": track_name,
@@ -339,6 +422,7 @@ impl SpotifyPlugin {
             // Flattened convenience field for display / backward compat
             "artist_name": artist_names.join(", "),
             "album_name": album_name,
+            "album_image": album_image,
             "track_id": track.id.clone().unwrap_or_default(),
             "album_id": track.album.as_ref().and_then(|a| a.id.clone()).unwrap_or_default(),
             "duration_ms": track.duration_ms.unwrap_or(0),
