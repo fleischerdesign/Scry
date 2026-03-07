@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { api } from '../api';
     import { router } from '../router.svelte';
+    import Icon from '@iconify/svelte';
 
     let { isOpen = $bindable(false), onAction } = $props();
     let query = $state("");
@@ -10,10 +11,12 @@
     let inputElement = $state<HTMLInputElement>();
 
     const actions = [
-        { id: 'nav-overview', label: 'Go to Overview', category: 'Navigation', execute: () => router.navigate('/overview') },
-        { id: 'nav-timeline', label: 'Go to Timeline', category: 'Navigation', execute: () => router.navigate('/timeline') },
-        { id: 'nav-analytics', label: 'Go to Analytics', category: 'Navigation', execute: () => router.navigate('/analytics') },
-        { id: 'nav-settings', label: 'Go to Settings', category: 'Navigation', execute: () => router.navigate('/settings') },
+        { id: 'nav-overview', label: 'Go to Overview', category: 'Navigation', icon: 'lucide:layout-dashboard', execute: () => router.navigate('/overview') },
+        { id: 'nav-timeline', label: 'Go to Timeline', category: 'Navigation', icon: 'lucide:clock', execute: () => router.navigate('/timeline') },
+        { id: 'nav-explorer', label: 'Go to Explorer', category: 'Navigation', icon: 'lucide:search', execute: () => router.navigate('/entity') },
+        { id: 'nav-laboratory', label: 'Go to Laboratory', category: 'Navigation', icon: 'lucide:flask-conical', execute: () => router.navigate('/explorer') },
+        { id: 'nav-analytics', label: 'Go to Insights', category: 'Navigation', icon: 'lucide:zap', execute: () => router.navigate('/analytics') },
+        { id: 'nav-settings', label: 'Go to Settings', category: 'Navigation', icon: 'lucide:settings', execute: () => router.navigate('/settings') },
     ];
 
     $effect(() => {
@@ -36,12 +39,16 @@
             .map(a => ({ ...a, snippet: "" })); // Static actions don't have snippets
         
         const searchResults = results.map(r => {
+            let icon = 'lucide:box';
+            if (r.type === 'event') icon = 'lucide:activity';
+            
             return {
                 id: r.id,
                 label: r.display_title || r.label,
                 snippet: r.snippet,
                 sublabel: r.display_subtitle || r.subtext,
                 image: r.display_image,
+                icon,
                 category: r.type.toUpperCase(),
                 execute: () => router.navigate(r.link)
             };
@@ -103,106 +110,130 @@
 <style>
     @reference "../../app.css";
 
-    :global(.search-snippet mark), :global(.search-snippet .search-highlight) {
-        @apply bg-primary text-primary-content rounded-sm px-0.5;
-        font-weight: inherit;
+    :global(.search-highlight) {
+        @apply text-primary font-black;
+        background: transparent;
     }
     
-    :global(.active .search-snippet mark), :global(.active .search-snippet .search-highlight) {
-        @apply bg-primary-content text-primary;
+    :global(.active .search-highlight) {
+        @apply text-primary-content;
+    }
+
+    .result-item {
+        @apply flex justify-between items-center py-3 px-5 rounded-xl transition-all duration-200 border border-transparent;
+    }
+
+    .result-item.active {
+        @apply bg-primary text-primary-content shadow-lg shadow-primary/20 border-primary;
     }
 </style>
 
 <dialog class="modal {isOpen ? 'modal-open' : ''}">
-  <div class="modal-box p-0 max-w-2xl bg-base-100 shadow-2xl overflow-hidden flex flex-col border border-base-300">
+  <div class="modal-box p-0 max-w-2xl bg-base-100 shadow-2xl overflow-hidden flex flex-col border border-base-300 rounded-3xl animate-in zoom-in-95 duration-200">
     <!-- Header -->
-    <div class="flex items-center px-6 py-4 border-b border-base-200 gap-4">
-      <div class="text-primary"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg></div>
+    <div class="flex items-center px-6 py-5 border-b border-base-200 gap-4 bg-base-200/30">
+      <div class="text-primary opacity-60">
+          <Icon icon="lucide:search" class="w-5 h-5" />
+      </div>
       <input 
         bind:this={inputElement}
         bind:value={query}
         type="text" 
-        placeholder="Search for events, entities, or navigation..." 
-        class="input w-full bg-transparent border-none focus:outline-none focus:ring-0 text-lg font-mono placeholder:opacity-20"
+        placeholder="Search entities, events, or actions..." 
+        class="input w-full bg-transparent border-none focus:outline-none focus:ring-0 text-lg font-medium placeholder:opacity-30"
       />
-      <kbd class="kbd kbd-sm font-mono opacity-50">ESC</kbd>
+      <div class="flex items-center gap-2">
+          <kbd class="kbd kbd-sm font-mono opacity-40 bg-base-100">ESC</kbd>
+      </div>
     </div>
 
     <!-- Content -->
-    <div class="max-h-[60vh] overflow-y-auto">
+    <div class="max-h-[60vh] overflow-y-auto p-2">
       {#if filteredItems.length > 0}
-        <ul class="menu w-full p-0">
+        <div class="space-y-1">
             {#each filteredItems as item, i}
-            <li class="w-full">
                 <button 
-                class="flex justify-between items-center py-4 px-6 rounded-none border-b border-base-200/50 w-full {selectedIndex === i ? 'active bg-primary/10 text-primary' : ''}"
-                onclick={() => { item.execute(); isOpen = false; query = ""; }}
-                onmouseenter={() => selectedIndex = i}
+                    class="result-item w-full text-left {selectedIndex === i ? 'active' : ''}"
+                    onclick={() => { item.execute(); isOpen = false; query = ""; }}
+                    onmouseenter={() => selectedIndex = i}
                 >
-                <div class="flex items-center gap-4 overflow-hidden flex-1">
-                    {#if (item as any).image}
-                        <div class="avatar">
-                            <div class="w-8 h-8 rounded-lg shadow">
-                                <img src={(item as any).image} alt="" />
-                            </div>
-                        </div>
-                    {:else}
-                        <div class="w-8 h-8 rounded-lg bg-base-300 flex items-center justify-center text-[10px] font-bold opacity-40">
-                            {item.label.charAt(0).toUpperCase()}
-                        </div>
-                    {/if}
-                    <div class="flex flex-col items-start overflow-hidden flex-1">
-                        <div class="flex items-center gap-2">
-                            <span class="text-[9px] px-1.5 py-0.5 rounded-md bg-base-300 font-black uppercase tracking-widest text-base-content/50">{item.category}</span>
-                            {#if (item as any).sublabel}
-                                <span class="text-[10px] opacity-40 font-mono italic">{(item as any).sublabel}</span>
+                    <div class="flex items-center gap-4 overflow-hidden flex-1">
+                        <!-- Visual: Image or Icon -->
+                        <div class="shrink-0">
+                            {#if (item as any).image}
+                                <div class="w-10 h-10 rounded-xl overflow-hidden shadow-sm bg-base-300">
+                                    <img src={(item as any).image} alt="" class="w-full h-full object-cover" />
+                                </div>
+                            {:else}
+                                <div class="w-10 h-10 rounded-xl flex items-center justify-center {selectedIndex === i ? 'bg-primary-content/20' : 'bg-base-200'} transition-colors">
+                                    <Icon icon={(item as any).icon || 'lucide:circle'} class="w-5 h-5 {selectedIndex === i ? 'text-primary-content' : 'opacity-40'}" />
+                                </div>
                             {/if}
                         </div>
-                        <span class="font-bold tracking-tight mt-0.5 truncate w-full text-left search-snippet">
-                            {@html highlight(item.label, query)}
-                        </span>
-                        {#if item.snippet && !item.label.toLowerCase().includes(query.toLowerCase())}
-                            <span class="text-[11px] opacity-60 w-full text-left search-snippet line-clamp-1 mt-0.5 leading-tight">
-                                {@html item.snippet}
-                            </span>
-                        {/if}
+
+                        <!-- Labels -->
+                        <div class="flex flex-col min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[8px] font-black uppercase tracking-[0.1em] {selectedIndex === i ? 'text-primary-content/60' : 'text-base-content/40'}">
+                                    {item.category}
+                                </span>
+                                {#if (item as any).sublabel}
+                                    <span class="text-[10px] truncate {selectedIndex === i ? 'text-primary-content/40' : 'opacity-30'} font-mono italic">
+                                        • {(item as any).sublabel}
+                                    </span>
+                                {/if}
+                            </div>
+                            <h4 class="font-bold text-sm tracking-tight truncate leading-tight mt-0.5">
+                                {@html highlight(item.label, query)}
+                            </h4>
+                            {#if item.snippet && !item.label.toLowerCase().includes(query.toLowerCase())}
+                                <p class="text-[11px] {selectedIndex === i ? 'text-primary-content/70' : 'opacity-50'} line-clamp-1 mt-0.5 leading-tight">
+                                    {@html item.snippet}
+                                </p>
+                            {/if}
+                        </div>
                     </div>
-                </div>
-                {#if selectedIndex === i}
-                    <div class="flex items-center gap-2 opacity-40 shrink-0 ml-4">
-                        <span class="text-[10px] font-mono">NAVIGATE</span>
-                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-base-300">↵</span>
-                    </div>
-                {/if}
+
+                    <!-- Shortcut Hint -->
+                    {#if selectedIndex === i}
+                        <div class="flex items-center gap-2 text-primary-content/40 shrink-0 ml-4 animate-in slide-in-from-right-2">
+                            <span class="text-[10px] font-black uppercase tracking-widest">Select</span>
+                            <Icon icon="lucide:corner-down-left" class="w-3 h-3" />
+                        </div>
+                    {/if}
                 </button>
-            </li>
             {/each}
-        </ul>
+        </div>
       {:else}
-        <div class="py-20 text-center space-y-4">
-            <div class="text-4xl opacity-10">🔍</div>
-            <p class="text-xs font-mono opacity-20 uppercase tracking-[0.3em]">No matching entries found</p>
+        <div class="py-24 text-center space-y-4 opacity-20">
+            <Icon icon="lucide:search-slash" class="w-12 h-12 mx-auto" />
+            <p class="text-[10px] font-black uppercase tracking-[0.3em]">No matching entries found</p>
         </div>
       {/if}
     </div>
 
     <!-- Footer -->
-    <div class="p-4 bg-base-200/50 justify-between items-center flex border-t border-base-200">
-      <div class="flex gap-4">
-        <div class="flex items-center gap-1.5">
-            <kbd class="kbd kbd-xs bg-base-300">↑</kbd>
-            <kbd class="kbd kbd-xs bg-base-300">↓</kbd>
-            <span class="text-[10px] opacity-40 uppercase font-bold">Navigate</span>
+    <div class="p-4 bg-base-200/50 justify-between items-center flex border-t border-base-200 px-6">
+      <div class="flex gap-6">
+        <div class="flex items-center gap-2">
+            <div class="flex gap-1">
+                <kbd class="kbd kbd-xs bg-base-100 opacity-60">↑</kbd>
+                <kbd class="kbd kbd-xs bg-base-100 opacity-60">↓</kbd>
+            </div>
+            <span class="text-[9px] font-black uppercase opacity-40 tracking-widest">Navigate</span>
         </div>
-        <div class="flex items-center gap-1.5">
-            <kbd class="kbd kbd-xs bg-base-300">↵</kbd>
-            <span class="text-[10px] opacity-40 uppercase font-bold">Select</span>
+        <div class="flex items-center gap-2">
+            <kbd class="kbd kbd-xs bg-base-100 opacity-60">↵</kbd>
+            <span class="text-[9px] font-black uppercase opacity-40 tracking-widest">Select</span>
         </div>
       </div>
-      <span class="text-[9px] font-black font-mono opacity-30 uppercase tracking-widest">Scry Universal Index v1.0</span>
+      <div class="flex items-center gap-2 opacity-30">
+          <Icon icon="lucide:fingerprint" class="w-3 h-3" />
+          <span class="text-[8px] font-black uppercase tracking-widest">Scry Index v1.1</span>
+      </div>
     </div>
   </div>
-  <form method="dialog" class="modal-backdrop">
+  <form method="dialog" class="modal-backdrop bg-base-content/20 backdrop-blur-sm transition-all">
     <button onclick={() => isOpen = false}>close</button>
   </form>
 </dialog>
