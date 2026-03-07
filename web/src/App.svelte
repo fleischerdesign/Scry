@@ -18,6 +18,7 @@
 	import Settings from "./lib/pages/Settings.svelte";
 	import GeneralSettings from "./lib/pages/settings/GeneralSettings.svelte";
 	import PluginSettings from "./lib/pages/settings/PluginSettings.svelte";
+	import PluginDetail from "./lib/pages/settings/PluginDetail.svelte";
 	import DashboardSettings from "./lib/pages/settings/DashboardSettings.svelte";
 	import ExplorerRoot from "./lib/pages/ExplorerRoot.svelte";
 	import NamespaceOverview from "./lib/pages/NamespaceOverview.svelte";
@@ -174,6 +175,8 @@
 							<Settings />
 						{:else if router.path === "/settings/general"}
 							<GeneralSettings />
+						{:else if router.match("/settings/plugins/:id")}
+							<PluginDetail />
 						{:else if router.path === "/settings/plugins"}
 							<PluginSettings />
 						{:else if router.path === "/settings/dashboards"}
