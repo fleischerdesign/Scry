@@ -1,11 +1,24 @@
 <script lang="ts">
 	import TimelineItem from "../components/TimelineItem.svelte";
+	import TimelineGroup from "../components/TimelineGroup.svelte";
 	import { createTimelineQuery } from "../queries/timeline";
 	import { router } from "../router.svelte";
 	import PageHeader from "../components/PageHeader.svelte";
 	import Icon from "@iconify/svelte";
+	import type { Event } from "../types/Event";
 	
 	const timelineQuery = createTimelineQuery();
+
+	// Derived grouped events: Array of [dateString, Event[]]
+	const groupedEvents = $derived.by(() => {
+		const groups: Record<string, Event[]> = {};
+		(timelineQuery.data ?? []).forEach(ev => {
+			const date = new Date(ev.timestamp).toISOString().split('T')[0];
+			if (!groups[date]) groups[date] = [];
+			groups[date].push(ev);
+		});
+		return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
+	});
 
 	$effect(() => {
 		router.title = "Timeline";
@@ -33,15 +46,11 @@
 		{/snippet}
 	</PageHeader>
 
-	<ul class="timeline timeline-vertical timeline-compact">
-		{#each timelineQuery.data ?? [] as item, i}
-			<TimelineItem
-				{item}
-				isFirst={i === 0}
-				isLast={i === (timelineQuery.data?.length ?? 0) - 1}
-			/>
+	<div class="space-y-4">
+		{#each groupedEvents as [date, events]}
+			<TimelineGroup {date} {events} />
 		{/each}
-	</ul>
+	</div>
 
 	{#if timelineQuery.isLoading}
 		<div class="flex flex-col items-center justify-center py-20 opacity-50">
