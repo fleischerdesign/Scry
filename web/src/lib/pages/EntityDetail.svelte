@@ -67,7 +67,10 @@
 </script>
 
 <div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-4xl pb-20">
-    <PageHeader title={displayTitle}>
+    <PageHeader 
+        title={displayTitle}
+        onBack={() => window.history.back()}
+    >
         {#snippet image()}
             {#if displayImage}
                 <div class="avatar">
@@ -84,12 +87,6 @@
                     {displayTitle.charAt(0).toUpperCase()}
                 </div>
             {/if}
-        {/snippet}
-
-        {#snippet actions()}
-            <button class="btn btn-ghost btn-sm btn-square rounded-xl border border-base-300" onclick={() => window.history.back()}>
-                <Icon icon="lucide:arrow-left" class="w-4 h-4" />
-            </button>
         {/snippet}
 
         <div class="space-y-3">

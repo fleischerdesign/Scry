@@ -1,19 +1,31 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import Icon from "@iconify/svelte";
 
     interface Props {
         title: string;
         subtitle?: string;
         image?: Snippet;
+        onBack?: () => void;
         children?: Snippet;
         actions?: Snippet;
     }
 
-    let { title, subtitle, image, children, actions }: Props = $props();
+    let { title, subtitle, image, onBack, children, actions }: Props = $props();
 </script>
 
 <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-base-300 pb-8 mb-8">
     <div class="flex items-center gap-6">
+        {#if onBack}
+            <button 
+                class="btn btn-ghost btn-sm btn-square rounded-xl border border-base-300 hover:bg-base-300 transition-all shrink-0" 
+                onclick={onBack}
+                aria-label="Go back"
+            >
+                <Icon icon="lucide:arrow-left" class="w-4 h-4" />
+            </button>
+        {/if}
+
         {#if image}
             <div class="shrink-0">
                 {@render image()}
