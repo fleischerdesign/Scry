@@ -233,7 +233,7 @@
 
     <!-- Navigation Prompt -->
     <div class="absolute top-8 right-10 opacity-30 text-right pointer-events-none">
-        <p class="text-[9px] font-black uppercase tracking-[0.2em]">Graph Explorer_</p>
+        <p class="text-[9px] font-black uppercase tracking-[0.2em]">Graph Explorer</p>
         <p class="text-[8px] italic opacity-60 mt-1">Scroll to Zoom • Drag to Pan • Click to Sail</p>
     </div>
 </div>
