@@ -1,34 +1,55 @@
 <script lang="ts">
-	import { onMount } from "svelte";
+	import { onMount, untrack } from "svelte";
 	import { Chart, registerables } from "chart.js";
-	import Card from "../components/Card.svelte";
 	import { api } from "../api";
 	import { ui } from "../ui.svelte";
-	import { createDashboardsQuery } from "../queries/dashboards";
 	import { router } from "../router.svelte";
+	import Icon from "@iconify/svelte";
 
 	Chart.register(...registerables);
 
-	const dashboardsQuery = createDashboardsQuery();
-
 	$effect(() => {
-		router.title = "Explorer";
+		router.title = "LABORATORY";
 	});
 
-	let explorerCanvas = $state<HTMLCanvasElement>();
-	let explorerChart: Chart | undefined;
+	// --- State ---
+	interface Query {
+		id: string;
+		type: string;
+		label: string;
+		color: string;
+		data: any[];
+		visible: boolean;
+	}
 
-	let selectedType = $state<string>("");
+	let queries = $state<Query[]>([]);
 	let timeframe = $state<number>(7);
-	let explorerData = $state<any[]>([]);
+	let interval = $state<string>("auto");
 	let loading = $state(false);
 	let catalog = $state<Record<string, any>>({});
+	let normalize = $state(true);
+	let showTable = $state(false);
 
-	// Modal / Pin State
-	let selectedDashboardId = $state("");
-	let selectedWidth = $state(2);
-	let pinning = $state(false);
+	let canvas = $state<HTMLCanvasElement>();
+	let chart: Chart | undefined;
 
+	const COLORS = [
+		"#3b82f6", // blue
+		"#ef4444", // red
+		"#10b981", // green
+		"#f59e0b", // amber
+		"#8b5cf6", // violet
+		"#ec4899", // pink
+	];
+
+	const INTERVALS = [
+		{ id: "auto", label: "Auto" },
+		{ id: "1h", label: "1 Hour" },
+		{ id: "1d", label: "1 Day" },
+		{ id: "1w", label: "1 Week" },
+	];
+
+	// --- Logic ---
 	async function loadCatalog() {
 		try {
 			catalog = await api.getCatalog();
@@ -37,253 +58,359 @@
 		}
 	}
 
-	$effect(() => {
-		const items = dashboardsQuery.data ?? [];
-		if (items.length > 0 && !selectedDashboardId) {
-			selectedDashboardId = items[0].id;
-		}
-	});
+	async function addQuery(type: string) {
+		if (queries.find((q) => q.type === type)) return;
+		
+		const id = Math.random().toString(36).substring(7);
+		const color = COLORS[queries.length % COLORS.length];
+		const newQuery: Query = {
+			id,
+			type,
+			label: type.split(".").pop() || type,
+			color,
+			data: [],
+			visible: true,
+		};
+		
+		queries = [...queries, newQuery];
+		await refreshQuery(id);
+	}
 
-	onMount(loadCatalog);
+	function removeQuery(id: string) {
+		queries = queries.filter((q) => q.id !== id);
+	}
 
-	async function loadExplorerData() {
-		if (!selectedType) return;
+	function getEffectiveInterval() {
+		if (interval !== "auto") return interval;
+		if (timeframe <= 2) return "1h";
+		if (timeframe <= 31) return "1d";
+		return "1w";
+	}
+
+	async function refreshQuery(id: string) {
+		const q = queries.find((it) => it.id === id);
+		if (!q) return;
+
 		loading = true;
 		try {
-			if (
-				selectedType.includes("temperature") ||
-				selectedType.includes("count") ||
-				selectedType.includes("level")
-			) {
-				const interval = timeframe === 1 ? "1h" : undefined;
-				explorerData = await api.getSemanticSeries(
-					selectedType,
-					timeframe,
-					interval,
-				);
-			} else {
-				explorerData = await api.getSemanticTop(selectedType, 10, timeframe);
-			}
+			const activeInterval = getEffectiveInterval();
+			const data = await api.getSemanticSeries(q.type, timeframe, activeInterval);
+			queries = queries.map((it) => (it.id === id ? { ...it, data } : it));
 		} catch (e) {
-			console.error(e);
+			console.error(`Failed to load data for ${q.type}`, e);
+			ui.notify("Query Failed", `Could not load ${q.type}`, "error");
 		} finally {
 			loading = false;
 		}
 	}
 
-	async function addToDashboard() {
-		if (!selectedType || !selectedDashboardId) return;
-		pinning = true;
-		try {
-			const isSeries = explorerData[0]?.label !== undefined;
-			const widget = {
-				type: isSeries ? "semantic_series" : "semantic_top",
-				title: `${selectedType.split(".").pop()?.toUpperCase()} Trend`,
-				width_span: selectedWidth,
-				config: {
-					semantic_type: selectedType,
-					days: timeframe,
-				},
-			};
-			await api.addWidget(selectedDashboardId, widget);
-			ui.notify(
-				"Widget Added",
-				`Pinned ${selectedType} to dashboard`,
-				"success",
-			);
-			dashboardsQuery.refetch();
-		} catch (e) {
-			ui.notify("Failed to pin", "Check logs for details", "error");
-		} finally {
-			pinning = false;
+	async function refreshAll() {
+		for (const q of queries) {
+			await refreshQuery(q.id);
 		}
 	}
 
+	// Normalization: Map all values to 0-100 range for visual comparison
+	function getProcessedData(query: Query) {
+		if (query.data.length === 0) return [];
+		if (!normalize) return query.data.map(d => d.value);
+
+		const values = query.data.map((d) => d.value);
+		const min = Math.min(...values);
+		const max = Math.max(...values);
+		const range = max - min;
+
+		if (range === 0) return values.map(() => 50); // Flat line in middle if no variance
+		return values.map((v) => ((v - min) / range) * 100);
+	}
+
 	$effect(() => {
-		if (selectedType || timeframe) loadExplorerData();
+		if (timeframe || interval) {
+			untrack(() => refreshAll());
+		}
 	});
 
 	$effect(() => {
-		if (explorerCanvas && explorerData.length > 0) {
-			if (explorerChart) explorerChart.destroy();
-			const isSeries = explorerData[0].label !== undefined;
-			const labels = explorerData.map((d) => d.label || d.key);
-			const values = explorerData.map((d) =>
-				d.value !== undefined ? d.value : d.count,
-			);
+		if (canvas && queries.length > 0) {
+			if (chart) chart.destroy();
 
-			explorerChart = new Chart(explorerCanvas, {
-				type: isSeries ? "line" : "bar",
+			// Use the first query with data to determine the labels (X-axis)
+			const firstWithData = queries.find(q => q.data.length > 0);
+			const labels = firstWithData ? firstWithData.data.map(d => d.label) : [];
+
+			chart = new Chart(canvas, {
+				type: "line",
 				data: {
 					labels,
-					datasets: [
-						{
-							data: values,
-							backgroundColor: isSeries
-								? "rgba(59, 130, 246, 0.1)"
-								: "rgba(59, 130, 246, 0.4)",
-							borderColor: "rgb(59, 130, 246)",
-							borderWidth: 2,
-							fill: isSeries,
-							tension: 0.4,
-							pointRadius: isSeries ? 4 : 0,
-						},
-					],
+					datasets: queries.filter(q => q.visible).map((q) => ({
+						label: q.label,
+						data: getProcessedData(q),
+						borderColor: q.color,
+						backgroundColor: `${q.color}10`,
+						borderWidth: 2,
+						fill: true,
+						tension: 0.4,
+						pointRadius: 2,
+					})),
 				},
 				options: {
 					responsive: true,
 					maintainAspectRatio: false,
+					animation: { duration: 400 },
+					interaction: { mode: 'index', intersect: false },
 					scales: {
-						y: { beginAtZero: true, grid: { color: "rgba(128,128,128,0.05)" } },
-						x: { grid: { display: false } },
+						y: { 
+							beginAtZero: true, 
+							grid: { color: "rgba(128,128,128,0.05)" },
+							ticks: {
+								color: 'rgba(128,128,128,0.4)',
+								font: { size: 10, family: 'monospace' },
+								callback: (val) => normalize ? `${val}%` : val
+							}
+						},
+						x: { 
+							grid: { display: false },
+							ticks: {
+								color: 'rgba(128,128,128,0.4)',
+								font: { size: 10, family: 'monospace' },
+								maxRotation: 0,
+								autoSkip: true,
+								maxTicksLimit: 12
+							}
+						},
 					},
-					plugins: { legend: { display: false } },
+					plugins: { 
+						legend: { display: false },
+						tooltip: {
+							backgroundColor: 'rgba(0,0,0,0.85)',
+							padding: 12,
+							cornerRadius: 12,
+							titleFont: { size: 10, family: 'monospace' },
+							bodyFont: { size: 12, family: 'monospace' },
+							callbacks: {
+								label: (context) => {
+									const q = queries[context.datasetIndex];
+									const rawValue = q.data[context.dataIndex]?.value;
+									return `${q.label}: ${rawValue} ${normalize ? `(${context.parsed.y.toFixed(1)}%)` : ''}`;
+								}
+							}
+						}
+					},
 				},
 			});
 		}
 		return () => {
-			if (explorerChart) explorerChart.destroy();
+			if (chart) chart.destroy();
 		};
 	});
+
+	onMount(loadCatalog);
 </script>
 
-<div class="space-y-10 animate-in fade-in duration-500 w-full">
-	<div class="flex items-center justify-between">
-		<div class="join border border-base-300">
-			{#each [1, 7, 30, 90, 365] as d}
-				<button
-					class="btn btn-xs join-item font-mono {timeframe === d
-						? 'btn-active'
-						: 'btn-ghost opacity-50'}"
-					onclick={() => (timeframe = d)}>{d === 365 ? '1Y' : d + 'D'}</button
-				>
-			{/each}
+<div class="flex flex-col h-full space-y-8 animate-in fade-in duration-500">
+	<!-- Header / Workbench Controls -->
+	<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-base-300 pb-8">
+		<div class="flex flex-col gap-1">
+			<h2 class="text-3xl font-black font-mono italic tracking-tighter uppercase leading-none">
+				Laboratory <span class="text-primary opacity-20">/ Workbench</span>
+			</h2>
+			<div class="flex items-center gap-4">
+				<p class="text-[10px] opacity-40 uppercase tracking-[0.2em] font-bold">
+					Experimental hypothesis testing & multi-stream analysis
+				</p>
+				<div class="badge badge-outline badge-xs opacity-40 font-mono tracking-tighter italic">v2.1_TIMEFIX</div>
+			</div>
 		</div>
-	</div>
 
-	<div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-		<aside class="lg:col-span-1 space-y-6">
-			<div class="card bg-base-100 border border-base-300 shadow-sm">
-				<div class="card-body p-4">
-					<span
-						class="text-[10px] font-black uppercase opacity-30 mb-4 tracking-widest text-center"
-						>Available Metrics</span
-					>
-					<div class="flex flex-col gap-1">
-						{#each Object.keys(catalog) as type}
-							<button
-								class="btn btn-ghost btn-sm justify-start {selectedType === type
-									? 'btn-active bg-info/10 text-info'
-									: 'opacity-60'}"
-								onclick={() => (selectedType = type)}
-							>
-								<div
-									class="w-1.5 h-1.5 rounded-full {selectedType === type
-										? 'bg-info'
-										: 'bg-base-300'} mr-2"
-								></div>
-								{type}
-							</button>
-						{/each}
-					</div>
+		<!-- Time Workbench -->
+		<div class="flex flex-wrap items-center gap-4 bg-base-200/50 p-2 rounded-2xl border border-base-300">
+			<div class="flex flex-col px-2">
+				<span class="text-[8px] font-black opacity-30 uppercase tracking-widest mb-1">Timeframe</span>
+				<div class="join border border-base-300/50 bg-base-100 shadow-sm">
+					{#each [1, 7, 30, 90, 365] as d}
+						<button
+							class="btn btn-xs join-item font-mono px-3 {timeframe === d ? 'btn-primary' : 'btn-ghost opacity-60'}"
+							onclick={() => (timeframe = d)}
+						>
+							{d === 365 ? '1Y' : d + 'D'}
+						</button>
+					{/each}
 				</div>
 			</div>
 
-			{#if selectedType}
-				<div
-					class="card bg-base-100 border border-base-300 shadow-sm animate-in slide-in-from-left-4"
-				>
-					<div class="card-body p-4 space-y-4">
-						<span
-							class="text-[10px] font-black uppercase opacity-30 tracking-widest text-center"
-							>Pin to Dashboard</span
-						>
+			<div class="w-px h-8 bg-base-300 opacity-50"></div>
 
-						<div class="form-control">
-							<label class="label py-1" for="dash-select"
-								><span class="label-text text-[10px] opacity-50">DASHBOARD</span
-								></label
-							>
-							<select
-								id="dash-select"
-								bind:value={selectedDashboardId}
-								class="select select-bordered select-xs font-mono"
-							>
-								{#each dashboardsQuery.data ?? [] as dash}
-									<option value={dash.id}>{dash.name}</option>
-								{/each}
-							</select>
-						</div>
-
-						<div class="form-control">
-							<label class="label py-1" for="width-select"
-								><span class="label-text text-[10px] opacity-50"
-									>WIDTH SPAN</span
-								></label
-							>
-							<select
-								id="width-select"
-								bind:value={selectedWidth}
-								class="select select-bordered select-xs font-mono"
-							>
-								<option value={1}>Compact (1/4)</option>
-								<option value={2}>Half (2/4)</option>
-								<option value={4}>Full (4/4)</option>
-							</select>
-						</div>
-
+			<div class="flex flex-col px-2">
+				<span class="text-[8px] font-black opacity-30 uppercase tracking-widest mb-1">Resolution</span>
+				<div class="join border border-base-300/50 bg-base-100 shadow-sm">
+					{#each INTERVALS as int}
 						<button
-							class="btn btn-info btn-xs w-full font-black tracking-tighter"
-							onclick={addToDashboard}
-							disabled={pinning}
+							class="btn btn-xs join-item font-mono px-3 {interval === int.id ? 'btn-secondary' : 'btn-ghost opacity-60'}"
+							onclick={() => (interval = int.id)}
 						>
-							{#if pinning}<span class="loading loading-spinner loading-xs"
-								></span>{/if}
-							ADD_TO_DASHBOARD
+							{int.label.split(' ').pop()}
 						</button>
+					{/each}
+				</div>
+			</div>
+
+			<div class="w-px h-8 bg-base-300 opacity-50"></div>
+
+			<button 
+				class="btn btn-sm btn-ghost gap-2 px-4 rounded-xl transition-all {normalize ? 'bg-primary/10 text-primary border-primary/20' : 'opacity-40 hover:opacity-100'}"
+				onclick={() => normalize = !normalize}
+			>
+				<Icon icon={normalize ? "lucide:layers-2" : "lucide:layers"} class="w-4 h-4" />
+				<span class="text-[10px] font-black uppercase tracking-widest">Normalize</span>
+			</button>
+		</div>
+	</div>
+
+	<div class="grid grid-cols-1 xl:grid-cols-4 gap-8 flex-1">
+		<!-- Query Editor Sidebar -->
+		<aside class="xl:col-span-1 space-y-6">
+			<div class="card bg-base-100 border border-base-300 shadow-sm overflow-hidden rounded-[2rem]">
+				<div class="p-5 bg-base-200/50 border-b border-base-300 flex items-center justify-between">
+					<span class="text-[10px] font-black uppercase opacity-60 tracking-widest">Active Queries</span>
+					<div class="badge badge-primary badge-xs font-mono">{queries.length}</div>
+				</div>
+				<div class="p-3 space-y-2 max-h-[400px] overflow-y-auto">
+					{#each queries as q}
+						<div class="flex items-center gap-3 p-3 bg-base-200/50 hover:bg-base-200 rounded-2xl group transition-all border border-transparent hover:border-base-300/50">
+							<div class="w-1.5 h-10 rounded-full shrink-0" style="background-color: {q.color}"></div>
+							<div class="flex-1 min-w-0">
+								<div class="text-[10px] font-black truncate opacity-80 uppercase tracking-tighter">{q.label}</div>
+								<div class="text-[8px] opacity-40 truncate font-mono">{q.type}</div>
+							</div>
+							<button 
+								class="btn btn-ghost btn-xs btn-square opacity-0 group-hover:opacity-100 transition-opacity"
+								onclick={() => removeQuery(q.id)}
+							>
+								<Icon icon="lucide:trash-2" class="w-3.5 h-3.5 text-error" />
+							</button>
+						</div>
+					{:else}
+						<div class="py-16 text-center">
+							<div class="w-12 h-12 bg-base-200 rounded-2xl flex items-center justify-center mx-auto mb-4 opacity-40">
+								<Icon icon="lucide:flask-conical" class="w-6 h-6" />
+							</div>
+							<p class="text-[10px] opacity-30 uppercase font-black tracking-widest">No queries defined</p>
+						</div>
+					{/each}
+				</div>
+			</div>
+
+			<div class="card bg-base-100 border border-base-300 shadow-sm overflow-hidden rounded-[2rem]">
+				<div class="p-5 bg-base-200/50 border-b border-base-300">
+					<span class="text-[10px] font-black uppercase opacity-60 tracking-widest">Data Catalog</span>
+				</div>
+				<div class="p-3 space-y-1 max-h-[300px] overflow-y-auto">
+					{#each Object.keys(catalog) as type}
+						<button
+							class="btn btn-ghost btn-sm btn-block justify-start text-[10px] font-bold opacity-60 hover:opacity-100 hover:text-primary rounded-xl"
+							onclick={() => addQuery(type)}
+							disabled={queries.some(q => q.type === type)}
+						>
+							<Icon icon="lucide:plus" class="w-3 h-3 mr-2" />
+							{type}
+						</button>
+					{/each}
+				</div>
+			</div>
+		</aside>
+
+		<!-- Main Result Area -->
+		<div class="xl:col-span-3 space-y-6 flex flex-col min-h-0">
+			<!-- Chart Area -->
+			<div class="bg-base-100 border border-base-300 rounded-[2.5rem] p-10 shadow-sm relative flex-1 min-h-[500px] overflow-hidden">
+				<!-- Subtle Grid Decoration -->
+				<div class="absolute inset-0 opacity-[0.03] pointer-events-none" style="background-image: linear-gradient(#ccc 1px, transparent 1px), linear-gradient(90deg, #ccc 1px, transparent 1px); background-size: 50px 50px;"></div>
+				
+				{#if loading && queries.length === 0}
+					<div class="h-full flex flex-col items-center justify-center opacity-20">
+						<span class="loading loading-infinity loading-lg text-primary"></span>
+						<p class="mt-4 font-mono text-[10px] uppercase tracking-widest">Initializing engine...</p>
+					</div>
+				{:else if queries.length === 0}
+					<div class="h-full flex flex-col items-center justify-center">
+						<div class="w-24 h-24 bg-base-200 rounded-[2rem] flex items-center justify-center mb-10 opacity-40 animate-pulse border-2 border-dashed border-base-300">
+							<Icon icon="lucide:search" class="w-10 h-10" />
+						</div>
+						<p class="font-mono text-xs uppercase tracking-[0.4em] font-black opacity-30">
+							Select data streams to start analysis
+						</p>
+					</div>
+				{:else}
+					<div class="h-full w-full relative z-10">
+						<canvas bind:this={canvas}></canvas>
+					</div>
+				{/if}
+
+				{#if loading && queries.length > 0}
+					<div class="absolute top-6 right-8">
+						<span class="loading loading-spinner loading-xs opacity-20"></span>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Data Inspector Switch -->
+			<div class="flex justify-center">
+				<button 
+					class="btn btn-ghost btn-xs gap-3 font-mono uppercase tracking-[0.3em] opacity-40 hover:opacity-100 transition-all bg-base-200/50 px-6 rounded-full"
+					onclick={() => showTable = !showTable}
+				>
+					<Icon icon={showTable ? "lucide:chevron-up" : "lucide:chevron-down"} class="w-3 h-3" />
+					{showTable ? 'Hide' : 'Show'} Raw Data Inspector
+				</button>
+			</div>
+
+			<!-- Data Table -->
+			{#if showTable && queries.length > 0}
+				<div class="card bg-base-100 border border-base-300 shadow-xl overflow-hidden animate-in slide-in-from-bottom-6 rounded-[2rem]">
+					<div class="overflow-x-auto">
+						<table class="table table-xs font-mono">
+							<thead class="bg-base-200">
+								<tr>
+									<th class="p-4">TIMESTAMP</th>
+									{#each queries as q}
+										<th class="p-4" style="color: {q.color}">{q.label.toUpperCase()}</th>
+									{/each}
+								</tr>
+							</thead>
+							<tbody>
+								{#each queries[0].data as _, rowIndex}
+									<tr class="hover:bg-base-200/50 transition-colors border-base-300/50">
+										<td class="p-4 opacity-40">{queries[0].data[rowIndex].label}</td>
+										{#each queries as q}
+											<td class="p-4 font-bold">
+												{q.data[rowIndex]?.value ?? 'N/A'}
+											</td>
+										{/each}
+									</tr>
+								{/each}
+							</tbody>
+						</table>
 					</div>
 				</div>
 			{/if}
-		</aside>
-
-		<div class="lg:col-span-3">
-			<Card
-				title={selectedType || "Select a stream"}
-				subtitle={`TIME_SERIES / ${timeframe} DAYS`}
-			>
-				{#if loading}
-					<div class="flex justify-center py-32">
-						<span
-							class="loading loading-infinity loading-lg text-info opacity-40"
-						></span>
-					</div>
-				{:else if selectedType}
-					<div class="h-[500px] w-full p-4">
-						<canvas bind:this={explorerCanvas}></canvas>
-					</div>
-				{:else}
-					<div
-						class="flex flex-col items-center justify-center py-32 opacity-10"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-20 w-20 mb-6"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							><path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="1"
-								d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1V18.5M6 18l-2-1m2 1l2-1m-2 1V15.5M18 18l2-1m-2 1l-2-1m2 1V15.5"
-							/></svg
-						>
-						<p class="font-mono text-xs uppercase tracking-[0.3em] font-black">
-							Select a semantic node to visualize
-						</p>
-					</div>
-				{/if}
-			</Card>
 		</div>
 	</div>
 </div>
+
+<style>
+	canvas {
+		filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.08));
+	}
+	
+	/* Custom scrollbar for catalogs */
+	.overflow-y-auto::-webkit-scrollbar {
+		width: 4px;
+	}
+	.overflow-y-auto::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	.overflow-y-auto::-webkit-scrollbar-thumb {
+		background: rgba(128, 128, 128, 0.1);
+		border-radius: 10px;
+	}
+</style>
