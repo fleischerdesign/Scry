@@ -27,7 +27,7 @@
     }
 </script>
 
-<section class="relative">
+<section id="group-{date}" class="relative">
     <!-- Sticky Date Header -->
     <div class="sticky top-16 z-10 py-4 bg-base-200/80 backdrop-blur-md -mx-4 px-4 flex items-center justify-between">
         <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-base-content/40 flex items-center gap-3">

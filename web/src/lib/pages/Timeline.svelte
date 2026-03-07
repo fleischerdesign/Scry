@@ -1,6 +1,7 @@
 <script lang="ts">
 	import TimelineItem from "../components/TimelineItem.svelte";
 	import TimelineGroup from "../components/TimelineGroup.svelte";
+	import TimeTravelNav from "../components/TimeTravelNav.svelte";
 	import { createTimelineQuery } from "../queries/timeline";
 	import { router } from "../router.svelte";
 	import PageHeader from "../components/PageHeader.svelte";
@@ -106,32 +107,31 @@
 		{/snippet}
 	</PageHeader>
 
-	<div class="space-y-4">
-		{#each groupedEvents as [date, events]}
-			<TimelineGroup {date} {events} />
-		{:else}
-			{#if !timelineQuery.isLoading}
-				<div class="flex flex-col items-center justify-center py-32 opacity-20 border-2 border-dashed border-base-300 rounded-[3rem]">
-					<Icon icon="lucide:ghost" class="w-12 h-12 mb-4" />
-					<p class="font-mono text-xs uppercase tracking-[0.3em] font-black">
-						{selectedNamespace ? `No ${selectedNamespace} events found` : 'No events in current epoch'}
-					</p>
+	<!-- Professional 2-Column Layout -->
+	<div class="flex items-start">
+		<!-- Sidebar Navigation Index (Left for better reading flow) -->
+		<TimeTravelNav groups={groupedEvents} />
+
+		<!-- Main Timeline Feed -->
+		<div class="flex-1 space-y-4">
+			{#each groupedEvents as [date, events]}
+				<TimelineGroup {date} {events} />
+			{:else}
+				{#if !timelineQuery.isLoading}
+					<div class="flex flex-col items-center justify-center py-32 opacity-20 border-2 border-dashed border-base-300 rounded-[3rem]">
+						<Icon icon="lucide:ghost" class="w-12 h-12 mb-4" />
+						<p class="font-mono text-xs uppercase tracking-[0.3em] font-black">
+							{selectedNamespace ? `No ${selectedNamespace} events found` : 'No events in current epoch'}
+						</p>
+					</div>
+				{/if}
+			{/each}
+
+			{#if timelineQuery.isLoading}
+				<div class="flex flex-col items-center justify-center py-20 opacity-50">
+					<span class="loading loading-spinner loading-lg text-primary"></span>
 				</div>
 			{/if}
-		{/each}
+		</div>
 	</div>
-
-	{#if timelineQuery.isLoading}
-		<div class="flex flex-col items-center justify-center py-20 opacity-50">
-			<span class="loading loading-spinner loading-lg text-primary"></span>
-		</div>
-	{:else if (timelineQuery.data ?? []).length === 0}
-		<div
-			class="flex flex-col items-center justify-center py-20 opacity-20 border-2 border-dashed border-base-300 rounded-3xl"
-		>
-			<p class="font-mono text-xs uppercase tracking-widest">
-				No events in current epoch
-			</p>
-		</div>
-	{/if}
 </div>
