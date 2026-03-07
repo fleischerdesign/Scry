@@ -7,6 +7,7 @@
     import EntityLabel from '../components/EntityLabel.svelte';
     import Icon from "@iconify/svelte";
     import PageHeader from '../components/PageHeader.svelte';
+    import EntityGraph from '../components/EntityGraph.svelte';
 
     const params = $derived(router.getParams('/entity/:ns/:type/:id'));
     
@@ -18,6 +19,7 @@
     let displayImage = $state<string | null>(null);
     let displayIcon = $state<string | null>(null);
     let loading = $state(true);
+    let viewMode = $state<"list" | "graph">("list");
 
     async function loadData(ns: string, type: string, id: string) {
         loading = true;
@@ -124,22 +126,54 @@
                 <!-- Relationships -->
                 {#if relationships.length > 0}
                     <div class="space-y-6">
-                        <h3 class="text-xs font-black uppercase tracking-[0.3em] opacity-30 px-2 border-l-2 border-primary/20 ml-2">Knowledge Graph</h3>
-                        
-                        {#each Object.entries(groupedRelationships) as [predicate, rels]}
-                            <div class="space-y-2">
-                                <h4 class="text-[9px] font-bold uppercase opacity-20 px-2 tracking-widest">{predicate}</h4>
-                                <div class="grid grid-cols-1 gap-2">
-                                    {#each rels as rel}
-                                        {@const isSource = rel.source.id === params.id}
-                                        {@const target = isSource ? rel.target : rel.source}
-                                        <div class="p-3 bg-base-200 hover:bg-base-300 transition-all rounded-2xl border border-base-300/50">
-                                            <EntityLabel namespace={target.ns} typ={target.typ} id={target.id} />
-                                        </div>
-                                    {/each}
-                                </div>
+                        <div class="flex items-center justify-between px-2">
+                            <h3 class="text-xs font-black uppercase tracking-[0.3em] opacity-30 border-l-2 border-primary/20 pl-2">Knowledge Graph</h3>
+                            
+                            <!-- View Toggle -->
+                            <div class="join bg-base-200 p-0.5 rounded-lg border border-base-300">
+                                <button 
+                                    class="btn btn-[8px] btn-ghost join-item btn-xs h-6 min-h-0 px-2 {viewMode === 'list' ? 'bg-base-100 shadow-sm opacity-100' : 'opacity-40'}"
+                                    onclick={() => viewMode = 'list'}
+                                >
+                                    <Icon icon="lucide:list" class="w-3 h-3" />
+                                </button>
+                                <button 
+                                    class="btn btn-[8px] btn-ghost join-item btn-xs h-6 min-h-0 px-2 {viewMode === 'graph' ? 'bg-base-100 shadow-sm opacity-100' : 'opacity-40'}"
+                                    onclick={() => viewMode = 'graph'}
+                                >
+                                    <Icon icon="lucide:share-2" class="w-3 h-3" />
+                                </button>
                             </div>
-                        {/each}
+                        </div>
+                        
+                        {#if viewMode === 'list'}
+                            <div class="space-y-6 animate-in fade-in duration-300">
+                                {#each Object.entries(groupedRelationships) as [predicate, rels]}
+                                    <div class="space-y-2">
+                                        <h4 class="text-[9px] font-bold uppercase opacity-20 px-2 tracking-widest">{predicate}</h4>
+                                        <div class="grid grid-cols-1 gap-2">
+                                            {#each rels as rel}
+                                                {@const isSource = rel.source.id === params.id}
+                                                {@const target = isSource ? rel.target : rel.source}
+                                                <div class="p-3 bg-base-200 hover:bg-base-300 transition-all rounded-2xl border border-base-300/50">
+                                                    <EntityLabel namespace={target.ns} typ={target.typ} id={target.id} />
+                                                </div>
+                                            {/each}
+                                        </div>
+                                    </div>
+                                {/each}
+                            </div>
+                        {:else}
+                            <div class="animate-in zoom-in-95 duration-300">
+                                <EntityGraph 
+                                    {relationships} 
+                                    centralEntityId={params.id} 
+                                    centralTitle={displayTitle}
+                                    centralImage={displayImage}
+                                    centralIcon={displayIcon}
+                                />
+                            </div>
+                        {/if}
                     </div>
                 {/if}
 
