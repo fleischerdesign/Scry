@@ -28,7 +28,7 @@ impl ScryPlugin for GithubPlugin {
         scry_plugin_sdk::Manifest {
             id: "github".to_string(),
             name: "GitHub".to_string(),
-            version: "0.2.0".to_string(),
+            version: "0.2.1".to_string(),
             description: "Synchronisiert GitHub Aktivitäten (Push, PR, Issues) mit ETag-Caching und Graph-Mapping.".to_string(),
             subscriptions: vec!["github.*".to_string()],
             capabilities: vec![
@@ -132,34 +132,48 @@ impl ScryPlugin for GithubPlugin {
         });
 
         let event_type = ev.category.replace("github.", "");
+        
+        // Handle payload nesting differences
+        let github_payload = if ev.payload["payload"].is_object() {
+            &ev.payload["payload"]
+        } else {
+            &ev.payload
+        };
+
         match event_type.as_str() {
             "PushEvent" => {
-                let size = ev.payload["payload"]["size"].as_u64().unwrap_or(0);
-                let msg = ev.payload["payload"]["commits"][0]["message"].as_str().unwrap_or("New commits");
+                let size = github_payload["size"].as_u64()
+                    .or_else(|| github_payload["commits"].as_array().map(|a| a.len() as u64))
+                    .unwrap_or(0);
+                
+                let msg = github_payload["commits"][0]["message"].as_str()
+                    .or_else(|| github_payload["commits"].as_array().and_then(|a| a.first()).and_then(|c| c["message"].as_str()))
+                    .unwrap_or("New commits");
+                
                 ev.display_title = Some(format!("Push ({} commits) to {}", size, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
                 ev.display_subtitle = Some(msg.to_string());
             },
             "PullRequestEvent" => {
-                let action = ev.payload["payload"]["action"].as_str().unwrap_or("updated");
-                let title = ev.payload["payload"]["pull_request"]["title"].as_str().unwrap_or("PR");
+                let action = github_payload["action"].as_str().unwrap_or("updated");
+                let title = github_payload["pull_request"]["title"].as_str().unwrap_or("PR");
                 ev.display_title = Some(format!("PR {} in {}", action, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
                 ev.display_subtitle = Some(title.to_string());
             },
             "IssuesEvent" => {
-                let action = ev.payload["payload"]["action"].as_str().unwrap_or("updated");
-                let title = ev.payload["payload"]["issue"]["title"].as_str().unwrap_or("Issue");
+                let action = github_payload["action"].as_str().unwrap_or("updated");
+                let title = github_payload["issue"]["title"].as_str().unwrap_or("Issue");
                 ev.display_title = Some(format!("Issue {} in {}", action, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
                 ev.display_subtitle = Some(title.to_string());
             },
             "IssueCommentEvent" => {
-                let action = ev.payload["payload"]["action"].as_str().unwrap_or("created");
-                let body = ev.payload["payload"]["comment"]["body"].as_str().unwrap_or("Comment");
+                let action = github_payload["action"].as_str().unwrap_or("created");
+                let body = github_payload["comment"]["body"].as_str().unwrap_or("Comment");
                 ev.display_title = Some(format!("Issue comment {} in {}", action, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
                 ev.display_subtitle = Some(body.chars().take(100).collect::<String>());
             },
             "CreateEvent" => {
-                let ref_type = ev.payload["payload"]["ref_type"].as_str().unwrap_or("entity");
-                let ref_name = ev.payload["payload"]["ref"].as_str().unwrap_or("");
+                let ref_type = github_payload["ref_type"].as_str().unwrap_or("entity");
+                let ref_name = github_payload["ref"].as_str().unwrap_or("");
                 ev.display_title = Some(format!("Created {} {} in {}", ref_type, ref_name, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
             },
             _ => {
@@ -201,7 +215,6 @@ impl GithubPlugin {
             headers.push(("If-None-Match".to_string(), etag));
         }
 
-        // Removed /public to fetch both public AND private events (authorized by oauth token)
         let url = format!("https://api.github.com/users/{}/events", username);
         let resp = match host::http_request("GET", &url, None, headers) {
             Ok(r) => r,
@@ -251,26 +264,55 @@ impl GithubPlugin {
         sdk_events
     }
 
-        fn ensure_repo_entity(&self, repo_data: &serde_json::Value) -> String {
-            let name = repo_data["name"].as_str().unwrap_or("unknown");
-            let id = identity::create_id(namespaces::SOFTWARE, &["repo", name]);
-            host::set_entity_trait(namespaces::SOFTWARE, "repo", &id, traits::NAME, &serde_json::json!(name).to_string());
-            host::set_entity_trait(namespaces::SOFTWARE, "repo", &id, traits::ICON, &serde_json::json!("lucide:code-2").to_string());
-            id
+    fn ensure_repo_entity(&self, repo_data: &serde_json::Value) -> String {
+        let name = repo_data["name"].as_str().unwrap_or("unknown");
+        let id = identity::create_id(namespaces::SOFTWARE, &["repo", name]);
+        host::set_entity_trait(namespaces::SOFTWARE, "repo", &id, traits::NAME, &serde_json::json!(name).to_string());
+        host::set_entity_trait(namespaces::SOFTWARE, "repo", &id, traits::ICON, &serde_json::json!("lucide:code-2").to_string());
+        
+        // Add agnostic external link
+        let repo_url = format!("https://github.com/{}/{}", 
+            repo_data["owner"]["login"].as_str().unwrap_or(""), 
+            repo_data["name"].as_str().unwrap_or("")
+        ).replace("//", "/").replace("https:/", "https://");
+        
+        // Simple fallback if owner is not in payload
+        let final_url = if name.contains('/') {
+            format!("https://github.com/{}", name)
+        } else {
+            repo_url
+        };
+
+        let links = serde_json::json!([{
+            "label": "GitHub",
+            "url": final_url,
+            "icon": "lucide:github"
+        }]);
+        host::set_entity_trait(namespaces::SOFTWARE, "repo", &id, traits::LINKS, &links.to_string());
+        
+        id
+    }
+
+    fn ensure_user_entity(&self, actor_data: &serde_json::Value) -> String {
+        let login = actor_data["login"].as_str().unwrap_or("unknown");
+        let id = identity::create_id(namespaces::SOFTWARE, &["user", login]);
+        
+        host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::NAME, &serde_json::json!(login).to_string());
+        host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::ICON, &serde_json::json!("lucide:user").to_string());
+        if let Some(avatar) = actor_data["avatar_url"].as_str() {
+            host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::AVATAR, &serde_json::json!(avatar).to_string());
         }
-    
-        fn ensure_user_entity(&self, actor_data: &serde_json::Value) -> String {
-            let login = actor_data["login"].as_str().unwrap_or("unknown");
-            let id = identity::create_id(namespaces::SOFTWARE, &["user", login]);
-            
-            host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::NAME, &serde_json::json!(login).to_string());
-            host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::ICON, &serde_json::json!("lucide:user").to_string());
-            if let Some(avatar) = actor_data["avatar_url"].as_str() {
-                host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::AVATAR, &serde_json::json!(avatar).to_string());
-            }
-            id
-        }
-    
+
+        // Add agnostic external link
+        let links = serde_json::json!([{
+            "label": "GitHub Profile",
+            "url": format!("https://github.com/{}", login),
+            "icon": "lucide:external-link"
+        }]);
+        host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::LINKS, &links.to_string());
+
+        id
+    }
 }
 
 scry_plugin!(GithubPlugin);
