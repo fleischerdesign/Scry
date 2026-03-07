@@ -4,6 +4,7 @@
 	import { router } from "../router.svelte";
 	import type { ApiEntityType } from "../types/ApiEntityType";
 	import Icon from "@iconify/svelte";
+	import PageHeader from "../components/PageHeader.svelte";
 
 	let { ns } = $derived(router.getParams("/entity/:ns"));
 	let types = $state<ApiEntityType[]>([]);
@@ -31,16 +32,10 @@
 </script>
 
 <div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-	<div class="flex items-center justify-between">
-		<div>
-			<h2 class="text-2xl font-black font-mono tracking-tighter italic uppercase">
-				<span class="text-primary opacity-40">NAMESPACE /</span> {ns}
-			</h2>
-			<p class="text-[10px] opacity-40 uppercase tracking-widest font-bold">
-				Available entity types within this semantic namespace
-			</p>
-		</div>
-	</div>
+	<PageHeader 
+		title={ns || 'Namespace'} 
+		subtitle="Browse and explore available entity types within this semantic domain."
+	/>
 
 	{#if loading}
 		<div class="flex justify-center py-32">

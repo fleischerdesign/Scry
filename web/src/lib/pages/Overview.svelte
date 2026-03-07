@@ -4,6 +4,8 @@
 	import { createPluginsQuery } from "../queries/plugins";
 	import { createDashboardsQuery } from "../queries/dashboards";
 	import { router } from "../router.svelte";
+	import PageHeader from "../components/PageHeader.svelte";
+	import Icon from "@iconify/svelte";
 
 	let { dailySummary = [] } = $props();
 
@@ -23,6 +25,21 @@
 </script>
 
 <div class="space-y-12 animate-in fade-in duration-700 w-full pb-20">
+	<PageHeader 
+		title="Overview" 
+		subtitle="A snapshot of your digitized life streams and platform intelligence."
+	>
+		{#snippet actions()}
+			<button
+				class="btn btn-sm btn-ghost gap-2 font-bold opacity-60 hover:opacity-100 transition-all border border-base-300 rounded-xl"
+				onclick={syncKernel}
+			>
+				<Icon icon="lucide:refresh-cw" class="w-4 h-4" />
+				Sync Kernel
+			</button>
+		{/snippet}
+	</PageHeader>
+
 	<!-- Daily Perspective Hero (Managed by Plugins) -->
 	{#if dailySummary && dailySummary.length > 0}
 		<div
@@ -104,15 +121,6 @@
 				was 1.2°C lower.
 			</div>
 		</div>
-	</div>
-
-	<div
-		class="flex flex-col items-center gap-4 pt-10 border-t border-base-300 opacity-20 hover:opacity-100 transition-all duration-500"
-	>
-		<button
-			class="btn btn-outline btn-xs font-mono tracking-widest px-8 hover:btn-primary uppercase"
-			onclick={syncKernel}>Sync_Kernel</button
-		>
 	</div>
 </div>
 

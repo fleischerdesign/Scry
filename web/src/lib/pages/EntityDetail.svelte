@@ -6,6 +6,7 @@
     import TimelineItem from '../components/TimelineItem.svelte';
     import EntityLabel from '../components/EntityLabel.svelte';
     import Icon from "@iconify/svelte";
+    import PageHeader from '../components/PageHeader.svelte';
 
     const params = $derived(router.getParams('/entity/:ns/:type/:id'));
     
@@ -64,41 +65,53 @@
 </script>
 
 <div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-4xl pb-20">
-    <!-- Header -->
-    <div class="flex items-start gap-6 border-b border-base-300 pb-8">
-        <button class="btn btn-ghost btn-sm btn-square mt-2" onclick={() => window.history.back()}>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-        </button>
+    <PageHeader title={displayTitle}>
+        {#snippet actions()}
+            <button class="btn btn-ghost btn-sm btn-square rounded-xl border border-base-300" onclick={() => window.history.back()}>
+                <Icon icon="lucide:arrow-left" class="w-4 h-4" />
+            </button>
+        {/snippet}
 
-        {#if displayImage}
-            <div class="avatar">
-                <div class="w-24 h-24 rounded-3xl shadow-2xl ring ring-primary/20 overflow-hidden bg-base-300">
-                    <img src={displayImage} alt={displayTitle} class="object-cover w-full h-full" />
+        <div class="flex items-start gap-6 pt-4">
+            {#if displayImage}
+                <div class="avatar">
+                    <div class="w-24 h-24 rounded-3xl shadow-xl ring-4 ring-base-100 overflow-hidden bg-base-300">
+                        <img src={displayImage} alt={displayTitle} class="object-cover w-full h-full" />
+                    </div>
+                </div>
+            {:else if displayIcon}
+                <div class="w-24 h-24 rounded-3xl bg-base-200 flex items-center justify-center shadow-inner border border-base-300/50">
+                    <Icon icon={displayIcon} class="w-10 h-10 opacity-30" />
+                </div>
+            {:else}
+                <div class="w-24 h-24 rounded-3xl bg-base-200 flex items-center justify-center text-3xl font-black opacity-30">
+                    {displayTitle.charAt(0).toUpperCase()}
+                </div>
+            {/if}
+
+            <div class="flex-1 space-y-3">
+                <div class="flex flex-wrap gap-2">
+                    <div class="badge badge-primary badge-outline font-bold text-[10px] uppercase tracking-wider">{params.ns}</div>
+                    <div class="badge badge-ghost bg-base-200 font-bold text-[10px] uppercase tracking-wider opacity-60">{params.type}</div>
+                </div>
+                
+                {#if displaySubtitle}
+                    <p class="text-sm font-medium opacity-60 leading-relaxed max-w-xl">{displaySubtitle}</p>
+                {/if}
+
+                <div class="flex gap-6 text-[10px] font-black uppercase tracking-[0.1em] opacity-30">
+                    <div class="flex items-center gap-1.5">
+                        <Icon icon="lucide:activity" class="w-3 h-3" />
+                        <span>{events.length} Events</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <Icon icon="lucide:share-2" class="w-3 h-3" />
+                        <span>{relationships.length} Relationships</span>
+                    </div>
                 </div>
             </div>
-        {:else if displayIcon}
-            <div class="w-24 h-24 rounded-3xl bg-base-300 flex items-center justify-center shadow-inner border border-base-300/50">
-                <Icon icon={displayIcon} class="w-12 h-12 opacity-20" />
-            </div>
-        {:else}
-            <div class="w-24 h-24 rounded-3xl bg-base-300 flex items-center justify-center text-3xl font-black opacity-20">
-                {displayTitle.charAt(0).toUpperCase()}
-            </div>
-        {/if}
-
-        <div class="flex-1">
-            <div class="badge badge-primary badge-outline font-mono text-[9px] uppercase tracking-widest mb-2">{params.ns} / {params.type}</div>
-            <h2 class="text-4xl font-black tracking-tighter italic uppercase text-base-content">{displayTitle}</h2>
-            {#if displaySubtitle}
-                <p class="text-xs font-mono opacity-40 uppercase tracking-widest mt-2">{displaySubtitle}</p>
-            {/if}
-            <div class="flex gap-4 mt-4 text-[10px] font-mono opacity-40 uppercase tracking-widest">
-                <span>{events.length} Events Logged</span>
-                <span>•</span>
-                <span>{relationships.length} Relationships</span>
-            </div>
         </div>
-    </div>
+    </PageHeader>
 
     {#if loading}
         <div class="flex justify-center py-20">

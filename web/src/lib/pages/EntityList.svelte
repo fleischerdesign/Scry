@@ -3,6 +3,7 @@
 	import { api } from "../api";
 	import { router } from "../router.svelte";
 	import Card from "../components/Card.svelte";
+	import PageHeader from "../components/PageHeader.svelte";
 	import type { ApiEntity } from "../types/ApiEntity";
 
 	let { ns, type } = $derived(router.getParams("/entity/:ns/:type"));
@@ -31,16 +32,10 @@
 </script>
 
 <div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-	<div class="flex items-center justify-between">
-		<div>
-			<h2 class="text-2xl font-black font-mono tracking-tighter italic uppercase">
-				{type} <span class="text-primary opacity-40">/ {ns}</span>
-			</h2>
-			<p class="text-[10px] opacity-40 uppercase tracking-widest font-bold">
-				Discovery and exploration of all registered entities
-			</p>
-		</div>
-	</div>
+	<PageHeader 
+		title={type || 'Entities'} 
+		subtitle={`Discovery and exploration of all registered ${type} entities within the ${ns} namespace.`}
+	/>
 
 	{#if loading}
 		<div class="flex justify-center py-32">

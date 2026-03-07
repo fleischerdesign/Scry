@@ -4,6 +4,8 @@
 	import Card from "../components/Card.svelte";
 	import { ui } from "../ui.svelte";
 	import { router } from "../router.svelte";
+	import PageHeader from "../components/PageHeader.svelte";
+	import Icon from "@iconify/svelte";
 
 	let discoveries = $state<any[]>([]);
 	let loading = $state(true);
@@ -56,33 +58,26 @@
 <div
 	class="space-y-12 animate-in slide-in-from-bottom-4 duration-700 w-full pb-20"
 >
-	<div class="flex items-center justify-between pb-6">
-		<button
-			class="btn btn-primary gap-2"
-			onclick={runDiscovery}
-			disabled={discovering}
-		>
-			{#if discovering}
-				<span class="loading loading-spinner loading-xs"></span>
-				ANALYZING_LIFE_STREAMS...
-			{:else}
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-3 w-3"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					><path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M13 10V3L4 14h7v7l9-11h-7z"
-					/></svg
-				>
-				Run Engine
-			{/if}
-		</button>
-	</div>
+	<PageHeader 
+		title="Insights" 
+		subtitle="Automated pattern recognition and cross-plugin inferences discovered by the Scry engine."
+	>
+		{#snippet actions()}
+			<button
+				class="btn btn-sm btn-ghost gap-2 border border-base-300 rounded-xl font-bold opacity-60 hover:opacity-100 transition-all"
+				onclick={runDiscovery}
+				disabled={discovering}
+			>
+				{#if discovering}
+					<span class="loading loading-spinner loading-xs"></span>
+					ANALYZING...
+				{:else}
+					<Icon icon="lucide:zap" class="w-4 h-4 text-primary" />
+					Run Engine
+				{/if}
+			</button>
+		{/snippet}
+	</PageHeader>
 
 	{#if loading}
 		<div class="flex flex-col items-center justify-center py-32 opacity-20">

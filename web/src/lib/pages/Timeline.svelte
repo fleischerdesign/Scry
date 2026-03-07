@@ -2,6 +2,8 @@
 	import TimelineItem from "../components/TimelineItem.svelte";
 	import { createTimelineQuery } from "../queries/timeline";
 	import { router } from "../router.svelte";
+	import PageHeader from "../components/PageHeader.svelte";
+	import Icon from "@iconify/svelte";
 	
 	const timelineQuery = createTimelineQuery();
 
@@ -11,14 +13,25 @@
 </script>
 
 <div class="space-y-10 animate-in fade-in duration-500 w-full">
-	<div class="flex items-center justify-between px-2">
-		<button class="btn btn-primary" onclick={() => timelineQuery.refetch()} disabled={timelineQuery.isFetching}>
-			{#if timelineQuery.isFetching}
-				<span class="loading loading-spinner loading-sm"></span>
-			{/if}
-			Refresh
-		</button>
-	</div>
+	<PageHeader 
+		title="Timeline" 
+		subtitle="A real-time, chronological stream of all ingested life events across your connected nodes."
+	>
+		{#snippet actions()}
+			<button 
+				class="btn btn-sm btn-ghost gap-2 border border-base-300 rounded-xl font-bold opacity-60 hover:opacity-100 transition-all" 
+				onclick={() => timelineQuery.refetch()} 
+				disabled={timelineQuery.isFetching}
+			>
+				{#if timelineQuery.isFetching}
+					<span class="loading loading-spinner loading-xs"></span>
+				{:else}
+					<Icon icon="lucide:refresh-cw" class="w-4 h-4" />
+				{/if}
+				Refresh
+			</button>
+		{/snippet}
+	</PageHeader>
 
 	<ul class="timeline timeline-vertical timeline-compact">
 		{#each timelineQuery.data ?? [] as item, i}

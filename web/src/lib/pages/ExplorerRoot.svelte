@@ -3,6 +3,7 @@
 	import { api } from "../api";
 	import { router } from "../router.svelte";
 	import Icon from "@iconify/svelte";
+	import PageHeader from "../components/PageHeader.svelte";
 	import type { ApiNamespace } from "../types/ApiNamespace";
 
 	let namespaces = $state<ApiNamespace[]>([]);
@@ -27,14 +28,10 @@
 </script>
 
 <div class="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-	<div class="flex flex-col gap-2">
-		<h2 class="text-4xl font-black font-mono tracking-tighter italic uppercase text-base-content">
-			Explorer <span class="text-primary opacity-20">/ Root</span>
-		</h2>
-		<p class="text-[10px] opacity-40 uppercase tracking-[0.2em] font-bold">
-			Unified semantic exploration of your digitized life
-		</p>
-	</div>
+	<PageHeader 
+		title="Explorer" 
+		subtitle="Unified semantic exploration of your digitized life across multiple namespaces and domains."
+	/>
 
 	{#if loading}
 		<div class="flex justify-center py-32">

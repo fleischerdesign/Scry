@@ -5,6 +5,7 @@
 	import { ui } from "../ui.svelte";
 	import { router } from "../router.svelte";
 	import Icon from "@iconify/svelte";
+	import PageHeader from "../components/PageHeader.svelte";
 
 	Chart.register(...registerables);
 
@@ -208,63 +209,54 @@
 </script>
 
 <div class="flex flex-col h-full space-y-8 animate-in fade-in duration-500">
-	<!-- Header / Workbench Controls -->
-	<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-base-300 pb-8">
-		<div class="flex flex-col gap-1">
-			<h2 class="text-3xl font-black font-mono italic tracking-tighter uppercase leading-none">
-				Laboratory <span class="text-primary opacity-20">/ Workbench</span>
-			</h2>
-			<div class="flex items-center gap-4">
-				<p class="text-[10px] opacity-40 uppercase tracking-[0.2em] font-bold">
-					Experimental hypothesis testing & multi-stream analysis
-				</p>
-				<div class="badge badge-outline badge-xs opacity-40 font-mono tracking-tighter italic">v2.1_TIMEFIX</div>
-			</div>
-		</div>
-
-		<!-- Time Workbench -->
-		<div class="flex flex-wrap items-center gap-4 bg-base-200/50 p-2 rounded-2xl border border-base-300">
-			<div class="flex flex-col px-2">
-				<span class="text-[8px] font-black opacity-30 uppercase tracking-widest mb-1">Timeframe</span>
-				<div class="join border border-base-300/50 bg-base-100 shadow-sm">
-					{#each [1, 7, 30, 90, 365] as d}
-						<button
-							class="btn btn-xs join-item font-mono px-3 {timeframe === d ? 'btn-primary' : 'btn-ghost opacity-60'}"
-							onclick={() => (timeframe = d)}
-						>
-							{d === 365 ? '1Y' : d + 'D'}
-						</button>
-					{/each}
+	<PageHeader 
+		title="Laboratory" 
+		subtitle="Multi-stream workbench for experimental hypothesis testing and pattern analysis."
+	>
+		{#snippet actions()}
+			<div class="flex items-center gap-4 bg-base-200/50 p-1.5 rounded-2xl border border-base-300">
+				<div class="flex items-center gap-1.5 px-2">
+					<span class="text-[9px] font-black opacity-30 uppercase tracking-widest mr-1">Timeframe</span>
+					<div class="join border border-base-300/50 bg-base-100">
+						{#each [1, 7, 30, 90, 365] as d}
+							<button
+								class="btn btn-xs join-item font-mono {timeframe === d ? 'btn-primary' : 'btn-ghost opacity-60'}"
+								onclick={() => (timeframe = d)}
+							>
+								{d === 365 ? '1Y' : d + 'D'}
+							</button>
+						{/each}
+					</div>
 				</div>
-			</div>
 
-			<div class="w-px h-8 bg-base-300 opacity-50"></div>
+				<div class="w-px h-6 bg-base-300 opacity-50"></div>
 
-			<div class="flex flex-col px-2">
-				<span class="text-[8px] font-black opacity-30 uppercase tracking-widest mb-1">Resolution</span>
-				<div class="join border border-base-300/50 bg-base-100 shadow-sm">
-					{#each INTERVALS as int}
-						<button
-							class="btn btn-xs join-item font-mono px-3 {interval === int.id ? 'btn-secondary' : 'btn-ghost opacity-60'}"
-							onclick={() => (interval = int.id)}
-						>
-							{int.label.split(' ').pop()}
-						</button>
-					{/each}
+				<div class="flex items-center gap-1.5 px-2">
+					<span class="text-[9px] font-black opacity-30 uppercase tracking-widest mr-1">Resolution</span>
+					<div class="join border border-base-300/50 bg-base-100">
+						{#each INTERVALS as int}
+							<button
+								class="btn btn-xs join-item font-mono {interval === int.id ? 'btn-secondary' : 'btn-ghost opacity-60'}"
+								onclick={() => (interval = int.id)}
+							>
+								{int.label.split(' ').pop()}
+							</button>
+						{/each}
+					</div>
 				</div>
+
+				<div class="w-px h-6 bg-base-300 opacity-50"></div>
+
+				<button 
+					class="btn btn-xs btn-ghost gap-2 transition-all {normalize ? 'text-primary' : 'opacity-40 hover:opacity-100'}"
+					onclick={() => normalize = !normalize}
+				>
+					<Icon icon={normalize ? "lucide:layers-2" : "lucide:layers"} class="w-3.5 h-3.5" />
+					<span class="text-[9px] font-black uppercase tracking-widest">Normalize</span>
+				</button>
 			</div>
-
-			<div class="w-px h-8 bg-base-300 opacity-50"></div>
-
-			<button 
-				class="btn btn-sm btn-ghost gap-2 px-4 rounded-xl transition-all {normalize ? 'bg-primary/10 text-primary border-primary/20' : 'opacity-40 hover:opacity-100'}"
-				onclick={() => normalize = !normalize}
-			>
-				<Icon icon={normalize ? "lucide:layers-2" : "lucide:layers"} class="w-4 h-4" />
-				<span class="text-[10px] font-black uppercase tracking-widest">Normalize</span>
-			</button>
-		</div>
-	</div>
+		{/snippet}
+	</PageHeader>
 
 	<div class="grid grid-cols-1 xl:grid-cols-4 gap-8 flex-1">
 		<!-- Query Editor Sidebar -->
