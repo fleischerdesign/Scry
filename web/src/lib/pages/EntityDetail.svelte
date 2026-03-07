@@ -68,48 +68,48 @@
 
 <div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-4xl pb-20">
     <PageHeader title={displayTitle}>
+        {#snippet image()}
+            {#if displayImage}
+                <div class="avatar">
+                    <div class="w-20 h-20 rounded-2xl shadow-xl ring-4 ring-base-100 overflow-hidden bg-base-300">
+                        <img src={displayImage} alt={displayTitle} class="object-cover w-full h-full" />
+                    </div>
+                </div>
+            {:else if displayIcon}
+                <div class="w-20 h-20 rounded-2xl bg-base-200 flex items-center justify-center shadow-inner border border-base-300/50">
+                    <Icon icon={displayIcon} class="w-8 h-8 opacity-30" />
+                </div>
+            {:else}
+                <div class="w-20 h-20 rounded-2xl bg-base-200 flex items-center justify-center text-2xl font-black opacity-30">
+                    {displayTitle.charAt(0).toUpperCase()}
+                </div>
+            {/if}
+        {/snippet}
+
         {#snippet actions()}
             <button class="btn btn-ghost btn-sm btn-square rounded-xl border border-base-300" onclick={() => window.history.back()}>
                 <Icon icon="lucide:arrow-left" class="w-4 h-4" />
             </button>
         {/snippet}
 
-        <div class="flex items-start gap-6 pt-4">
-            {#if displayImage}
-                <div class="avatar">
-                    <div class="w-24 h-24 rounded-3xl shadow-xl ring-4 ring-base-100 overflow-hidden bg-base-300">
-                        <img src={displayImage} alt={displayTitle} class="object-cover w-full h-full" />
-                    </div>
-                </div>
-            {:else if displayIcon}
-                <div class="w-24 h-24 rounded-3xl bg-base-200 flex items-center justify-center shadow-inner border border-base-300/50">
-                    <Icon icon={displayIcon} class="w-10 h-10 opacity-30" />
-                </div>
-            {:else}
-                <div class="w-24 h-24 rounded-3xl bg-base-200 flex items-center justify-center text-3xl font-black opacity-30">
-                    {displayTitle.charAt(0).toUpperCase()}
-                </div>
+        <div class="space-y-3">
+            <div class="flex flex-wrap gap-2">
+                <div class="badge badge-primary badge-outline font-bold text-[9px] uppercase tracking-widest">{params.ns}</div>
+                <div class="badge badge-ghost bg-base-200 font-bold text-[9px] uppercase tracking-widest opacity-60">{params.type}</div>
+            </div>
+            
+            {#if displaySubtitle}
+                <p class="text-sm font-medium opacity-60 leading-relaxed max-w-xl">{displaySubtitle}</p>
             {/if}
 
-            <div class="flex-1 space-y-3">
-                <div class="flex flex-wrap gap-2">
-                    <div class="badge badge-primary badge-outline font-bold text-[10px] uppercase tracking-wider">{params.ns}</div>
-                    <div class="badge badge-ghost bg-base-200 font-bold text-[10px] uppercase tracking-wider opacity-60">{params.type}</div>
+            <div class="flex gap-6 text-[10px] font-black uppercase tracking-[0.1em] opacity-30">
+                <div class="flex items-center gap-1.5">
+                    <Icon icon="lucide:activity" class="w-3 h-3" />
+                    <span>{events.length} Events</span>
                 </div>
-                
-                {#if displaySubtitle}
-                    <p class="text-sm font-medium opacity-60 leading-relaxed max-w-xl">{displaySubtitle}</p>
-                {/if}
-
-                <div class="flex gap-6 text-[10px] font-black uppercase tracking-[0.1em] opacity-30">
-                    <div class="flex items-center gap-1.5">
-                        <Icon icon="lucide:activity" class="w-3 h-3" />
-                        <span>{events.length} Events</span>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <Icon icon="lucide:share-2" class="w-3 h-3" />
-                        <span>{relationships.length} Relationships</span>
-                    </div>
+                <div class="flex items-center gap-1.5">
+                    <Icon icon="lucide:share-2" class="w-3 h-3" />
+                    <span>{relationships.length} Relationships</span>
                 </div>
             </div>
         </div>

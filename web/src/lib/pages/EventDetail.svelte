@@ -3,11 +3,12 @@
 	import { router } from "../router.svelte";
 	import { semanticService } from "../services/semantic.svelte";
 	import Card from "../components/Card.svelte";
-	import EntityLabel from "../components/EntityLabel.svelte";
-	import Icon from "@iconify/svelte";
-	import type { Event } from "../types/Event";
+    import EntityLabel from "../components/EntityLabel.svelte";
+    import Icon from "@iconify/svelte";
+    import PageHeader from "../components/PageHeader.svelte";
+    import type { Event } from "../types/Event";
 
-	const params = $derived(router.getParams("/event/:id"));
+    const params = $derived(router.getParams("/event/:id"));
 	let event = $state<Event | null>(null);
 	let loading = $state(true);
 
@@ -33,58 +34,60 @@
 	}
 </script>
 
-<div
-	class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-4xl pb-20"
->
-	<!-- Header consistent with EntityDetail -->
-	<div class="flex items-start gap-6 border-b border-base-300 pb-8">
-		<button
-			class="btn btn-ghost btn-sm btn-square mt-2"
-			onclick={() => window.history.back()}
-		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-5 w-5"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				><path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					stroke-width="2"
-					d="M15 19l-7-7 7-7"
-				/></svg
-			>
-		</button>
+<div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-4xl pb-20">
+    <PageHeader title={event?.display_title || "Event Detail"}>
+        {#snippet image()}
+            {#if event?.display_image}
+                <div class="avatar">
+                    <div class="w-20 h-20 rounded-2xl shadow-xl ring-4 ring-base-100 overflow-hidden bg-base-300">
+                        <img src={event.display_image} alt={event.display_title || ''} class="object-cover w-full h-full" />
+                    </div>
+                </div>
+            {:else if event?.display_icon}
+                <div class="w-20 h-20 rounded-2xl bg-base-200 flex items-center justify-center shadow-inner border border-base-300/50">
+                    <Icon icon={event.display_icon} class="w-8 h-8 opacity-30" />
+                </div>
+            {:else}
+                <div class="w-20 h-20 rounded-2xl bg-base-200 flex items-center justify-center text-2xl font-black opacity-30">
+                    {(event?.display_title || "E").charAt(0).toUpperCase()}
+                </div>
+            {/if}
+        {/snippet}
 
-		{#if !loading && event?.display_image}
-			<div class="avatar">
-				<div class="w-24 h-24 rounded-3xl shadow-2xl ring ring-primary/20 overflow-hidden bg-base-300">
-					<img src={event.display_image} alt={event.display_title || ''} class="object-cover w-full h-full" />
-				</div>
-			</div>
-		{:else if !loading && event?.display_icon}
-			<div class="w-24 h-24 rounded-3xl bg-base-300 flex items-center justify-center shadow-inner border border-base-300/50">
-				<Icon icon={event.display_icon} class="w-12 h-12 opacity-20" />
-			</div>
-		{:else if !loading}
-			<div class="w-24 h-24 rounded-3xl bg-base-300 flex items-center justify-center text-3xl font-black opacity-20 uppercase">
-				{(event?.display_title || "E").charAt(0)}
-			</div>
-		{/if}
+        {#snippet actions()}
+            <button class="btn btn-ghost btn-sm btn-square rounded-xl border border-base-300" onclick={() => window.history.back()}>
+                <Icon icon="lucide:arrow-left" class="w-4 h-4" />
+            </button>
+        {/snippet}
 
-		<div class="flex-1">
-			<div class="badge badge-secondary badge-outline font-mono text-[9px] uppercase tracking-widest mb-2">Event / {event?.category.split('.').pop()}</div>
-			<h2 class="text-4xl font-black tracking-tighter italic uppercase text-base-content">
-				{event?.display_title || "EVENT_DETAIL"}
-			</h2>
-			{#if event?.display_subtitle}
-				<p class="text-[10px] font-mono opacity-40 uppercase tracking-widest mt-2">
-					{event.display_subtitle}
-				</p>
-			{/if}
-		</div>
-	</div>
+        <div class="space-y-3">
+            <div class="flex flex-wrap gap-2">
+                <div class="badge badge-secondary badge-outline font-bold text-[9px] uppercase tracking-widest">Event</div>
+                {#if event}
+                    <div class="badge badge-ghost bg-base-200 font-bold text-[9px] uppercase tracking-widest opacity-60">
+                        {event.category.split('.').pop()}
+                    </div>
+                {/if}
+            </div>
+            
+            {#if event?.display_subtitle}
+                <p class="text-sm font-medium opacity-60 leading-relaxed max-w-xl">{event.display_subtitle}</p>
+            {/if}
+
+            <div class="flex gap-6 text-[10px] font-black uppercase tracking-[0.1em] opacity-30">
+                <div class="flex items-center gap-1.5">
+                    <Icon icon="lucide:clock" class="w-3 h-3" />
+                    <span>{event ? new Date(event.timestamp).toLocaleString() : 'Loading...'}</span>
+                </div>
+                {#if event?.source}
+                    <div class="flex items-center gap-1.5">
+                        <Icon icon="lucide:hard-drive" class="w-3 h-3" />
+                        <span>{event.source}</span>
+                    </div>
+                {/if}
+            </div>
+        </div>
+    </PageHeader>
 
 	{#if loading}
 		<div class="flex justify-center py-20">
