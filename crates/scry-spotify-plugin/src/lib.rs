@@ -309,6 +309,14 @@ impl ScryPlugin for SpotifyPlugin {
             }
             if let Some(track_id_spotify) = ev.payload.get("track_id").and_then(|v| v.as_str()) {
                  host::set_entity_trait(namespaces::MUSIC, "track", &track_id, "scry.spotify/track_id", &json!(track_id_spotify).to_string());
+                 
+                 // Add agnostic external link
+                 let spotify_link = json!([{
+                     "label": "Spotify",
+                     "url": format!("https://open.spotify.com/track/{}", track_id_spotify),
+                     "icon": "lucide:external-link"
+                 }]);
+                 host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::LINKS, &spotify_link.to_string());
             }
 
             // --- Artist Entities ---
@@ -329,6 +337,14 @@ impl ScryPlugin for SpotifyPlugin {
                 
                 if let Some(sid) = artist_ids_spotify.get(i) {
                     host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, "scry.spotify/artist_id", &json!(sid).to_string());
+                    
+                    // Add agnostic external link
+                    let spotify_link = json!([{
+                        "label": "Spotify",
+                        "url": format!("https://open.spotify.com/artist/{}", sid),
+                        "icon": "lucide:external-link"
+                    }]);
+                    host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::LINKS, &spotify_link.to_string());
                 }
 
                 // Track → played_by → Artist relationship
@@ -355,6 +371,15 @@ impl ScryPlugin for SpotifyPlugin {
             host::set_entity_trait(namespaces::MUSIC, "album", &album_id, traits::ICON, &json!("lucide:disc").to_string());
             if let Some(img) = album_image {
                 host::set_entity_trait(namespaces::MUSIC, "album", &album_id, traits::PHOTO, &json!(img).to_string());
+            }
+            if let Some(album_id_spotify) = ev.payload.get("album_id").and_then(|v| v.as_str()) {
+                // Add agnostic external link
+                let spotify_link = json!([{
+                    "label": "Spotify",
+                    "url": format!("https://open.spotify.com/album/{}", album_id_spotify),
+                    "icon": "lucide:external-link"
+                }]);
+                host::set_entity_trait(namespaces::MUSIC, "album", &album_id, traits::LINKS, &spotify_link.to_string());
             }
             
             // Track → belongs_to → Album relationship
@@ -640,13 +665,44 @@ impl SpotifyPlugin {
             if let Some(img) = track.album.as_ref().and_then(|a| a.images.as_ref()).and_then(|imgs| imgs.first()).and_then(|i| i.url.clone()) {
                 host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::PHOTO, &json!(img).to_string());
             }
+            
+            // Add agnostic external link for real-time focus
+            let spotify_link = json!([{
+                "label": "Spotify",
+                "url": format!("https://open.spotify.com/track/{}", track_id_spotify),
+                "icon": "lucide:external-link"
+            }]);
+            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::LINKS, &spotify_link.to_string());
 
             // 3. Set relationships and artist metadata immediately
-            for artist_name in &artist_names {
+            let (_, artist_ids_spotify) = Self::extract_artists(&track);
+            for (i, artist_name) in artist_names.iter().enumerate() {
                 let artist_id = identity::create_id(namespaces::MUSIC, &["artist", artist_name]);
                 
-                // Store artist name so the ID is resolvable to a human-readable title
+                // Store artist metadata
                 host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::NAME, &json!(artist_name).to_string());
+                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::ICON, &json!("lucide:mic").to_string());
+
+                if let Some(sid) = artist_ids_spotify.get(i) {
+                    if !sid.is_empty() {
+                        host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, "scry.spotify/artist_id", &json!(sid).to_string());
+                        
+                        // Add agnostic external link
+                        let spotify_link = json!([{
+                            "label": "Spotify",
+                            "url": format!("https://open.spotify.com/artist/{}", sid),
+                            "icon": "lucide:external-link"
+                        }]);
+                        host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::LINKS, &spotify_link.to_string());
+
+                        // Proactively resolve photo if missing
+                        if host::get_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO).is_none() {
+                            if let Ok(Some(photo_url_json)) = self.resolve_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO) {
+                                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO, &photo_url_json);
+                            }
+                        }
+                    }
+                }
 
                 host::set_relationship(scry_plugin_sdk::Relationship {
                     source_namespace: namespaces::MUSIC.to_string(),

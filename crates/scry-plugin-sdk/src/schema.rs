@@ -33,6 +33,7 @@ pub mod traits {
     pub const ICON: &str = "scry.visual/icon";
     pub const AVATAR: &str = "scry.core/avatar";
     pub const URL: &str = "scry.core/url";
+    pub const LINKS: &str = "scry.core/links";
 
     // --- Music ---
     pub const ISRC: &str = "scry.music/isrc";

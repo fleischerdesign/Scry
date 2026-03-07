@@ -55,6 +55,16 @@
         return groups;
     });
 
+    const externalLinks = $derived.by(() => {
+        const linksJson = traits['scry.core/links'];
+        if (!linksJson) return [];
+        try {
+            return typeof linksJson === 'string' ? JSON.parse(linksJson) : linksJson;
+        } catch (e) {
+            return [];
+        }
+    });
+
     $effect(() => {
         if (params.ns && params.type && params.id) {
             loadData(params.ns, params.type, params.id);
@@ -87,6 +97,20 @@
                     {displayTitle.charAt(0).toUpperCase()}
                 </div>
             {/if}
+        {/snippet}
+
+        {#snippet actions()}
+            {#each externalLinks as link}
+                <a 
+                    href={link.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    class="btn btn-sm btn-ghost gap-2 border border-base-300 rounded-xl font-bold opacity-60 hover:opacity-100 transition-all"
+                >
+                    <Icon icon={link.icon || 'lucide:external-link'} class="w-4 h-4" />
+                    {link.label}
+                </a>
+            {/each}
         {/snippet}
 
         <div class="space-y-3">
