@@ -9,7 +9,7 @@
 	let loading = $state(true);
 
 	$effect(() => {
-		router.title = "DISCOVERY";
+		router.title = "EXPLORER";
 	});
 
 	async function loadNamespaces() {
@@ -29,7 +29,7 @@
 <div class="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
 	<div class="flex flex-col gap-2">
 		<h2 class="text-4xl font-black font-mono tracking-tighter italic uppercase text-base-content">
-			Discovery <span class="text-primary opacity-20">/ Root</span>
+			Explorer <span class="text-primary opacity-20">/ Root</span>
 		</h2>
 		<p class="text-[10px] opacity-40 uppercase tracking-[0.2em] font-bold">
 			Unified semantic exploration of your digitized life
