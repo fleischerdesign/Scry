@@ -2,6 +2,7 @@
 	import { onMount } from "svelte";
 	import { api } from "../../api";
 	import Card from "../../components/Card.svelte";
+	import PageLoading from "../../components/PageLoading.svelte";
 	import { router } from "../../router.svelte";
 
 	let profile = $state<Record<string, any>>({});
@@ -51,9 +52,7 @@
 	{/if}
 
 	{#if loading}
-		<div class="flex justify-center py-20">
-			<span class="loading loading-spinner loading-lg opacity-60"></span>
-		</div>
+		<PageLoading />
 	{:else}
 		<Card title="User Profile" subtitle="Profile">
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-6 py-2">
@@ -68,7 +67,7 @@
 						id="profile-name"
 						bind:value={profile["name"]}
 						placeholder="Your Name"
-						class="input input-bordered font-mono text-sm"
+						class="input input-bordered input-sm font-mono"
 					/>
 				</div>
 				<div class="form-control w-full">
@@ -82,7 +81,7 @@
 						id="profile-avatar"
 						bind:value={profile["avatar"]}
 						placeholder="https://..."
-						class="input input-bordered font-mono text-sm"
+						class="input input-bordered input-sm font-mono"
 					/>
 				</div>
 				<div class="form-control w-full">
@@ -96,13 +95,13 @@
 						id="profile-city"
 						bind:value={profile["city"]}
 						placeholder="Berlin, London..."
-						class="input input-bordered font-mono text-sm"
+						class="input input-bordered input-sm font-mono"
 					/>
 				</div>
 			</div>
 			{#snippet actions()}
 				<button
-					class="btn btn-primary btn-xs "
+					class="btn btn-primary btn-sm"
 					onclick={saveProfile}
 					disabled={saving}
 				>

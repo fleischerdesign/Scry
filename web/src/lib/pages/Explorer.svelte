@@ -4,8 +4,11 @@
 	import { api } from "../api";
 	import { ui } from "../ui.svelte";
 	import { router } from "../router.svelte";
+	import { getThemeCSS } from "../theme";
 	import Icon from "@iconify/svelte";
 	import PageHeader from "../components/PageHeader.svelte";
+	import PageLoading from "../components/PageLoading.svelte";
+	import EmptyState from "../components/EmptyState.svelte";
 
 	Chart.register(...registerables);
 
@@ -135,6 +138,10 @@
 		if (canvas && queries.length > 0) {
 			if (chart) chart.destroy();
 
+			const gridColor = getThemeCSS("--color-base-300", "#d1d5db");
+			const tickColor = getThemeCSS("--color-base-content", "#888");
+			const tooltipBg = getThemeCSS("--color-base-300", "#1f2937");
+
 			// Use the first query with data to determine the labels (X-axis)
 			const firstWithData = queries.find(q => q.data.length > 0);
 			const labels = firstWithData ? firstWithData.data.map(d => d.label) : [];
@@ -162,9 +169,9 @@
 					scales: {
 						y: { 
 							beginAtZero: true, 
-							grid: { color: "rgba(128,128,128,0.05)" },
+							grid: { color: gridColor + '14' },
 							ticks: {
-								color: 'rgba(128,128,128,0.4)',
+								color: tickColor + '66',
 								font: { size: 10, family: 'monospace' },
 								callback: (val) => normalize ? `${val}%` : val
 							}
@@ -172,7 +179,7 @@
 						x: { 
 							grid: { display: false },
 							ticks: {
-								color: 'rgba(128,128,128,0.4)',
+								color: tickColor + '66',
 								font: { size: 10, family: 'monospace' },
 								maxRotation: 0,
 								autoSkip: true,
@@ -183,7 +190,7 @@
 					plugins: { 
 						legend: { display: false },
 						tooltip: {
-							backgroundColor: 'rgba(0,0,0,0.85)',
+							backgroundColor: tooltipBg,
 							padding: 12,
 							cornerRadius: 12,
 							titleFont: { size: 10, family: 'monospace' },
@@ -261,7 +268,7 @@
 	<div class="grid grid-cols-1 xl:grid-cols-4 gap-8 flex-1">
 		<!-- Query Editor Sidebar -->
 		<aside class="xl:col-span-1 space-y-6">
-			<div class="card bg-base-100 border border-base-300 shadow-sm overflow-hidden rounded-[2rem]">
+			<div class="card bg-base-100 border border-base-300 shadow-sm overflow-hidden rounded-2xl">
 				<div class="p-5 bg-base-200/50 border-b border-base-300 flex items-center justify-between">
 					<span class="text-xs font-bold opacity-60 tracking-wide">Active Queries</span>
 					<div class="badge badge-primary badge-xs font-mono">{queries.length}</div>
@@ -277,22 +284,21 @@
 							<button 
 								class="btn btn-ghost btn-xs btn-square opacity-0 group-hover:opacity-100 transition-opacity"
 								onclick={() => removeQuery(q.id)}
+								aria-label="Remove query"
 							>
 								<Icon icon="lucide:trash-2" class="w-3.5 h-3.5 text-error" />
 							</button>
 						</div>
 					{:else}
-						<div class="py-16 text-center">
-							<div class="w-12 h-12 bg-base-200 rounded-2xl flex items-center justify-center mx-auto mb-4 opacity-70">
-								<Icon icon="lucide:flask-conical" class="w-6 h-6" />
-							</div>
-							<p class="text-xs opacity-60 font-bold tracking-wide">No queries defined</p>
+					<div class="py-16 text-center opacity-60">
+						<Icon icon="lucide:flask-conical" class="w-10 h-10 mx-auto mb-3" />
+						<p class="text-xs font-bold tracking-wide">No queries defined</p>
 						</div>
 					{/each}
 				</div>
 			</div>
 
-			<div class="card bg-base-100 border border-base-300 shadow-sm overflow-hidden rounded-[2rem]">
+			<div class="card bg-base-100 border border-base-300 shadow-sm overflow-hidden rounded-2xl">
 				<div class="p-5 bg-base-200/50 border-b border-base-300">
 					<span class="text-xs font-bold opacity-60 tracking-wide">Data Catalog</span>
 				</div>
@@ -314,24 +320,14 @@
 		<!-- Main Result Area -->
 		<div class="xl:col-span-3 space-y-6 flex flex-col min-h-0">
 			<!-- Chart Area -->
-			<div class="bg-base-100 border border-base-300 rounded-[2.5rem] p-10 shadow-sm relative flex-1 min-h-[500px] overflow-hidden">
+			<div class="bg-base-100 border border-base-300 rounded-3xl p-10 shadow-sm relative flex-1 min-h-[500px] overflow-hidden">
 				<!-- Subtle Grid Decoration -->
 				<div class="absolute inset-0 opacity-[0.03] pointer-events-none" style="background-image: linear-gradient(#ccc 1px, transparent 1px), linear-gradient(90deg, #ccc 1px, transparent 1px); background-size: 50px 50px;"></div>
 				
 				{#if loading && queries.length === 0}
-					<div class="h-full flex flex-col items-center justify-center opacity-60">
-						<span class="loading loading-spinner loading-lg text-primary"></span>
-						<p class="mt-4 text-xs tracking-wide">Initializing engine...</p>
-					</div>
+					<PageLoading label="Initializing engine..." />
 				{:else if queries.length === 0}
-					<div class="h-full flex flex-col items-center justify-center">
-						<div class="w-24 h-24 bg-base-200 rounded-[2rem] flex items-center justify-center mb-10 opacity-70 animate-pulse border-2 border-dashed border-base-300">
-							<Icon icon="lucide:search" class="w-10 h-10" />
-						</div>
-						<p class="text-xs tracking-wide font-bold opacity-60">
-							Select data streams to start analysis
-						</p>
-					</div>
+					<EmptyState icon="lucide:search" title="No data streams selected" description="Select data streams from the sidebar to start analysis." />
 				{:else}
 					<div class="h-full w-full relative z-10">
 						<canvas bind:this={canvas}></canvas>
@@ -358,7 +354,7 @@
 
 			<!-- Data Table -->
 			{#if showTable && queries.length > 0}
-				<div class="card bg-base-100 border border-base-300 shadow-xl overflow-hidden animate-in slide-in-from-bottom-6 rounded-[2rem]">
+				<div class="card bg-base-100 border border-base-300 shadow-xl overflow-hidden animate-in slide-in-from-bottom-6 rounded-2xl">
 					<div class="overflow-x-auto">
 						<table class="table table-xs font-mono">
 							<thead class="bg-base-200">
@@ -391,7 +387,7 @@
 
 <style>
 	canvas {
-		filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.08));
+		filter: drop-shadow(0 0 15px color-mix(in oklch, var(--color-primary) 8%, transparent));
 	}
 	
 	/* Custom scrollbar for catalogs */
@@ -402,7 +398,7 @@
 		background: transparent;
 	}
 	.overflow-y-auto::-webkit-scrollbar-thumb {
-		background: rgba(128, 128, 128, 0.1);
+		background: color-mix(in oklch, var(--color-base-content) 10%, transparent);
 		border-radius: 10px;
 	}
 </style>

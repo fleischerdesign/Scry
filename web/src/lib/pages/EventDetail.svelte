@@ -6,6 +6,7 @@
  import EntityLabel from "../components/EntityLabel.svelte";
  import Icon from "@iconify/svelte";
  import PageHeader from "../components/PageHeader.svelte";
+ import PageLoading from "../components/PageLoading.svelte";
  import type { Event } from "../types/Event";
 
  const params = $derived(router.getParams("/event/:id"));
@@ -87,9 +88,7 @@
  </PageHeader>
 
 	{#if loading}
-		<div class="flex justify-center py-20">
-			<span class="loading loading-spinner loading-lg opacity-60"></span>
-		</div>
+		<PageLoading />
 	{:else if event}
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 			<!-- Main Content -->

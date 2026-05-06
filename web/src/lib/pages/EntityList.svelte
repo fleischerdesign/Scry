@@ -4,6 +4,8 @@
 	import { router } from "../router.svelte";
 	import Card from "../components/Card.svelte";
 	import PageHeader from "../components/PageHeader.svelte";
+	import PageLoading from "../components/PageLoading.svelte";
+	import EmptyState from "../components/EmptyState.svelte";
 	import type { ApiEntity } from "../types/ApiEntity";
 
 	let { ns, type } = $derived(router.getParams("/entity/:ns/:type"));
@@ -38,9 +40,7 @@
 	/>
 
 	{#if loading}
-		<div class="flex justify-center py-32">
-			<span class="loading loading-spinner loading-lg text-primary opacity-60"></span>
-		</div>
+		<PageLoading />
 	{:else}
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 			{#each entities as entity}
@@ -69,9 +69,7 @@
 					</div>
 				</button>
 			{:else}
-				<div class="col-span-full py-20 text-center opacity-60 text-xs tracking-wide">
-					No entities found for this type.
-				</div>
+			<EmptyState icon="lucide:database" title="No entities found" description="This type has no entities yet." />
 			{/each}
 		</div>
 	{/if}

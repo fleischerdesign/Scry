@@ -5,6 +5,9 @@
 	import { ui } from "../ui.svelte";
 	import { router } from "../router.svelte";
 	import PageHeader from "../components/PageHeader.svelte";
+	import PageLoading from "../components/PageLoading.svelte";
+	import EmptyState from "../components/EmptyState.svelte";
+	import SectionHeader from "../components/SectionHeader.svelte";
 	import Icon from "@iconify/svelte";
 
 	let discoveries = $state<any[]>([]);
@@ -80,44 +83,9 @@
 	</PageHeader>
 
 	{#if loading}
-		<div class="flex flex-col items-center justify-center py-32 opacity-60">
-			<span class="loading loading-spinner loading-lg mb-4"></span>
-			<p class="text-xs font-bold tracking-wide">
-				Loading discoveries...
-			</p>
-		</div>
+		<PageLoading label="Loading discoveries..." />
 	{:else if discoveries.length === 0}
-		<div class="card bg-base-200 border-2 border-dashed border-base-300">
-			<div class="card-body items-center text-center py-20">
-				<div
-					class="w-16 h-16 bg-base-300 rounded-full flex items-center justify-center mb-6 opacity-70"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-8 w-8"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						><path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-						/></svg
-					>
-				</div>
-				<h2 class="card-title font-black tracking-tighter">
-					No Insights Found Yet
-				</h2>
-				<p class="text-xs opacity-70 max-w-sm mb-8">
-					The system needs more data or a manual trigger to find
-					correlations between your life streams.
-				</p>
-				<button class="btn btn-primary btn-sm px-8" onclick={runDiscovery}
-					>Start First Analysis</button
-				>
-			</div>
-		</div>
+		<EmptyState icon="lucide:compass" title="No Insights Found Yet" description="The system needs more data or a manual trigger to find correlations between your life streams." cta="Start First Analysis" oncta={runDiscovery} />
 	{:else}
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 			{#each discoveries as discovery}
@@ -199,9 +167,7 @@
 	<!-- Manual Lab Section -->
 	<section class="mt-20 pt-12 space-y-8">
 		<div class="flex flex-col gap-2">
-			<h3 class="text-xs font-black tracking-wide opacity-60">
-				Manual Analysis
-			</h3>
+			<SectionHeader label="Manual Analysis" />
 			<p class="text-xs opacity-70 tracking-wide font-bold">
 				Experimental manual correlation and hypothesis testing
 			</p>

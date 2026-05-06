@@ -23,7 +23,7 @@
 
 	<!-- Home Assistant Style Vertical List -->
 	<div
-		class="flex flex-col bg-base-100 rounded-[2rem] overflow-hidden border border-base-300 divide-y divide-base-300/50 shadow-sm"
+		class="flex flex-col bg-base-100 rounded-2xl overflow-hidden border border-base-300 divide-y divide-base-300/50 shadow-sm"
 	>
 		<button
 			onclick={() => router.navigate("/settings/general")}

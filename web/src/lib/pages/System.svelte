@@ -32,7 +32,7 @@
      <button class="btn btn-ghost btn-xs" onclick={() => selectedReport = null}>Close</button>
     {/snippet}
     {#if loadingReport}
-     <div class="flex justify-center py-10"><span class="loading loading-spinner opacity-60"></span></div>
+     <div class="flex justify-center py-10"><span class="loading loading-spinner opacity-60 text-primary"></span></div>
     {:else if reportData}
      {@const rows = JSON.parse(reportData.data_json)}
      <div class="overflow-x-auto mt-4">

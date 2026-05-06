@@ -5,6 +5,8 @@
  import Card from '../components/Card.svelte';
  import TimelineItem from '../components/TimelineItem.svelte';
  import EntityLabel from '../components/EntityLabel.svelte';
+ import PageLoading from '../components/PageLoading.svelte';
+ import SectionHeader from '../components/SectionHeader.svelte';
  import Icon from "@iconify/svelte";
  import PageHeader from '../components/PageHeader.svelte';
  import EntityGraph from '../components/EntityGraph.svelte';
@@ -137,9 +139,7 @@
  </PageHeader>
 
  {#if loading}
-  <div class="flex justify-center py-20">
-   <span class="loading loading-spinner loading-lg opacity-60"></span>
-  </div>
+  <PageLoading />
  {:else}
   <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
    <!-- Left: Knowledge & Relationships -->
@@ -155,12 +155,14 @@
         <button 
          class="btn btn-[8px] btn-ghost join-item btn-xs h-6 min-h-0 px-2 {viewMode === 'list' ? 'bg-base-100 shadow-sm opacity-100' : 'opacity-70'}"
          onclick={() => viewMode = 'list'}
+         aria-label="List view"
         >
          <Icon icon="lucide:list" class="w-3 h-3" />
         </button>
         <button 
          class="btn btn-[8px] btn-ghost join-item btn-xs h-6 min-h-0 px-2 {viewMode === 'graph' ? 'bg-base-100 shadow-sm opacity-100' : 'opacity-70'}"
          onclick={() => viewMode = 'graph'}
+         aria-label="Graph view"
         >
          <Icon icon="lucide:share-2" class="w-3 h-3" />
         </button>
@@ -171,7 +173,7 @@
        <div class="space-y-6 animate-in fade-in duration-300">
         {#each Object.entries(groupedRelationships) as [predicate, rels]}
          <div class="space-y-2">
-          <h4 class="text-xs font-black opacity-60 px-2 tracking-wide">{predicate}</h4>
+          <SectionHeader label={predicate} />
           <div class="grid grid-cols-1 gap-2">
            {#each rels as rel}
             {@const isSource = rel.source.id === params.id}
@@ -199,8 +201,8 @@
     {/if}
 
     <!-- Traits -->
-    <div class="space-y-4">
-     <h3 class="text-xs font-black tracking-wide opacity-60 px-2">Entity Traits</h3>
+     <div class="space-y-4">
+      <SectionHeader label="Entity Traits" />
      <div class="grid grid-cols-1 gap-3">
       {#each Object.entries(traits) as [traitId, value]}
        <!-- Filter out redundant display traits -->
@@ -225,8 +227,8 @@
    </div>
 
    <!-- Right: Event History -->
-   <div class="md:col-span-2 space-y-6">
-    <h3 class="text-xs font-black tracking-wide opacity-60 px-2">Activity Timeline</h3>
+    <div class="md:col-span-2 space-y-6">
+     <SectionHeader label="Activity Timeline" />
     <div class="bg-base-100/50 rounded-3xl p-2 border border-base-300/30">
      <ul class="timeline timeline-vertical timeline-compact">
       {#each events as item, i}

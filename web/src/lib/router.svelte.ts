@@ -6,7 +6,7 @@ interface RouteConfig {
 const ROUTES: RouteConfig[] = [
 	{ path: "/overview", label: "Overview" },
 	{ path: "/timeline", label: "Timeline" },
-	{ path: "/explorer", label: "Explorer" },
+	{ path: "/lab", label: "Lab" },
 	{ path: "/analytics", label: "Insights" },
 	{ path: "/settings", label: "Settings" },
 	{ path: "/settings/general", label: "General" },

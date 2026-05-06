@@ -2,6 +2,8 @@
 	import { router } from "../../router.svelte";
 	import { createPluginsQuery } from "../../queries/plugins";
 	import PageHeader from "../../components/PageHeader.svelte";
+	import PageLoading from "../../components/PageLoading.svelte";
+	import EmptyState from "../../components/EmptyState.svelte";
 	import Icon from "@iconify/svelte";
 
 	const pluginsQuery = createPluginsQuery();
@@ -15,15 +17,13 @@
 	/>
 
 	{#if pluginsQuery.isLoading}
-		<div class="flex justify-center py-20 opacity-60">
-			<span class="loading loading-spinner loading-lg text-primary"></span>
-		</div>
+		<PageLoading />
 	{:else if pluginsQuery.data}
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 			{#each pluginsQuery.data as plugin}
 				<button 
 					onclick={() => router.navigate(`/settings/plugins/${plugin.id}`)}
-					class="card bg-base-100 border border-base-300 shadow-sm hover:border-primary transition-all group text-left rounded-[2rem] overflow-hidden"
+					class="card bg-base-100 border border-base-300 shadow-sm hover:border-primary transition-all group text-left rounded-2xl overflow-hidden"
 				>
 					<div class="card-body p-6">
 						<div class="flex items-center justify-between mb-4">
@@ -61,9 +61,6 @@
 			{/each}
 		</div>
 	{:else}
-		<div class="card bg-base-200 border-2 border-dashed border-base-300 p-20 text-center rounded-[3rem]">
-			<Icon icon="lucide:alert-circle" class="w-12 h-12 mx-auto mb-4 opacity-60" />
-			<p class="text-xs tracking-wide opacity-70">No extensions detected</p>
-		</div>
+		<EmptyState icon="lucide:package-open" title="No extensions detected" description="Install plugin .wasm files into the plugins directory to get started." />
 	{/if}
 </div>

@@ -69,14 +69,14 @@
 	</PageHeader>
 
 	<!-- Agnostic Identity Hero (Full Width) -->
-	<div class="flex flex-col md:flex-row items-center gap-10 bg-base-100 border border-base-300 rounded-[3rem] p-10 shadow-sm relative overflow-hidden group w-full">
+	<div class="flex flex-col md:flex-row items-center gap-10 bg-base-100 border border-base-300 rounded-3xl p-10 shadow-sm relative overflow-hidden group w-full">
 		<!-- Visual Ambient Background -->
 		<div class="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-[120px] -mr-48 -mt-48"></div>
 		
 		<!-- Avatar Section -->
 		<div class="relative shrink-0">
 			<div class="avatar">
-				<div class="w-32 h-32 rounded-[2.5rem] shadow-2xl ring-8 ring-base-200 group-hover:ring-primary/10 transition-all duration-500 overflow-hidden bg-base-300">
+				<div class="w-32 h-32 rounded-3xl shadow-2xl ring-8 ring-base-200 group-hover:ring-primary/10 transition-all duration-500 overflow-hidden bg-base-300">
 					{#if userPhoto}
 						<img src={userPhoto} alt={userName} class="object-cover" />
 					{:else}

@@ -14,7 +14,7 @@
   { id: 'nav-overview', label: 'Go to Overview', category: 'Navigation', icon: 'lucide:layout-dashboard', execute: () => router.navigate('/overview') },
   { id: 'nav-timeline', label: 'Go to Timeline', category: 'Navigation', icon: 'lucide:clock', execute: () => router.navigate('/timeline') },
   { id: 'nav-explorer', label: 'Go to Explorer', category: 'Navigation', icon: 'lucide:search', execute: () => router.navigate('/entity') },
-  { id: 'nav-laboratory', label: 'Go to Laboratory', category: 'Navigation', icon: 'lucide:flask-conical', execute: () => router.navigate('/explorer') },
+  { id: 'nav-laboratory', label: 'Go to Laboratory', category: 'Navigation', icon: 'lucide:flask-conical', execute: () => router.navigate('/lab') },
   { id: 'nav-analytics', label: 'Go to Insights', category: 'Navigation', icon: 'lucide:zap', execute: () => router.navigate('/analytics') },
   { id: 'nav-settings', label: 'Go to Settings', category: 'Navigation', icon: 'lucide:settings', execute: () => router.navigate('/settings') },
  ];
@@ -207,7 +207,7 @@
   {:else}
   <div class="py-24 text-center space-y-4 opacity-60">
    <Icon icon="lucide:search-slash" class="w-12 h-12 mx-auto" />
-   <p class="text-xs font-bold tracking-wide">No matching entries found</p>
+   <p class="text-sm font-bold tracking-wide">No matching entries found</p>
   </div>
   {/if}
  </div>

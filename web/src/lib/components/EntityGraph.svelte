@@ -148,7 +148,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div 
- class="w-full bg-base-200/30 rounded-[2.5rem] border border-base-300 relative overflow-hidden h-[500px] cursor-grab active:cursor-grabbing" 
+ class="w-full bg-base-200/30 rounded-3xl border border-base-300 relative overflow-hidden h-[500px] cursor-grab active:cursor-grabbing" 
  bind:clientWidth={containerWidth} 
  bind:clientHeight={containerHeight}
  onwheel={handleWheel}

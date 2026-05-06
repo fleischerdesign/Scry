@@ -5,6 +5,8 @@
 	import { createTimelineQuery } from "../queries/timeline";
 	import { router } from "../router.svelte";
 	import PageHeader from "../components/PageHeader.svelte";
+	import PageLoading from "../components/PageLoading.svelte";
+	import EmptyState from "../components/EmptyState.svelte";
 	import Icon from "@iconify/svelte";
 	import type { Event } from "../types/Event";
 	
@@ -118,19 +120,12 @@
 				<TimelineGroup {date} {events} />
 			{:else}
 				{#if !timelineQuery.isLoading}
-					<div class="flex flex-col items-center justify-center py-32 opacity-60 border-2 border-dashed border-base-300 rounded-[3rem]">
-						<Icon icon="lucide:ghost" class="w-12 h-12 mb-4" />
-						<p class="text-xs tracking-wide font-bold">
-							{selectedNamespace ? `No ${selectedNamespace} events found` : 'No events found'}
-						</p>
-					</div>
+					<EmptyState icon="lucide:ghost" title={selectedNamespace ? `No ${selectedNamespace} events found` : 'No events found'} />
 				{/if}
 			{/each}
 
 			{#if timelineQuery.isLoading}
-				<div class="flex flex-col items-center justify-center py-20 opacity-70">
-					<span class="loading loading-spinner loading-lg text-primary"></span>
-				</div>
+				<PageLoading />
 			{/if}
 		</div>
 	</div>

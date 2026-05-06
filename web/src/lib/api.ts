@@ -1,5 +1,4 @@
 import { auth } from "./auth.svelte";
-import { ui } from "./ui.svelte";
 import type { Event } from "./types/Event";
 import type { ApiNamespace } from "./types/ApiNamespace";
 import type { ApiEntity } from "./types/ApiEntity";
@@ -27,9 +26,6 @@ class ScryAPI {
 		if (!response.ok) {
 			const error = await response.json().catch(() => ({ error: "Unknown error" }));
 			const errorMessage = error.error || `API Error: ${response.statusText}`;
-			
-			// Global error notification
-			ui.notify("API Fehler", errorMessage, "error");
 			
 			throw new Error(errorMessage);
 		}

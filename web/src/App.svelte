@@ -164,7 +164,7 @@
 						<Overview />
 					{:else if router.path === "/timeline"}
 						<Timeline />
-					{:else if router.path === "/explorer"}
+					{:else if router.path === "/lab"}
 						<Explorer />
 					{:else if router.path.startsWith("/dashboard/")}
 						<Dashboard />
@@ -255,8 +255,8 @@
 						</li>
 						<li>
 							<button
-								class:active={router.path === "/explorer"}
-								onclick={() => router.navigate("/explorer")}
+								class:active={router.path === "/lab"}
+							onclick={() => router.navigate("/lab")}
 								class="gap-4 font-bold tracking-tight"
 							>
 								<Icon icon="lucide:flask-conical" class="w-4 h-4" />
@@ -339,6 +339,7 @@
 							<button
 								class="btn btn-ghost btn-circle btn-sm text-error/60"
 								onclick={() => auth.logout()}
+								aria-label="Logout"
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"

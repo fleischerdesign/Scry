@@ -4,6 +4,7 @@
   import { api } from '../api';
   import { semanticService } from '../services/semantic.svelte';
   import Card from './Card.svelte';
+  import { getThemeCSS } from '../theme';
  
   Chart.register(...registerables);
  
@@ -65,6 +66,9 @@
   if (plotData.length === 0) return;
   if (chart) chart.destroy();
 
+  const primary = getThemeCSS("--color-primary", "#3b82f6");
+  const gridColor = getThemeCSS("--color-base-300", "#d1d5db");
+
   const labels = plotData.map(d => d.display_title || d.label || d.key);
   const values = plotData.map(d => d.value !== undefined ? d.value : d.count);
 
@@ -74,8 +78,8 @@
     labels,
     datasets: [{
      data: values,
-     backgroundColor: 'rgba(59, 130, 246, 0.1)',
-     borderColor: 'rgb(59, 130, 246)',
+     backgroundColor: primary + '20',
+     borderColor: primary,
      borderWidth: 2,
      fill: true,
      tension: 0.4,
@@ -86,7 +90,7 @@
     responsive: true,
     maintainAspectRatio: false,
     scales: {
-     y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.05)' }, ticks: { font: { size: 10 } } },
+     y: { beginAtZero: true, grid: { color: gridColor + '20' }, ticks: { font: { size: 10 } } },
      x: { grid: { display: false }, ticks: { display: widget.width_span > 1, font: { size: 10 } } }
     },
     plugins: { legend: { display: false } }
@@ -103,7 +107,7 @@
   <div class="h-40 w-full relative flex flex-col justify-center">
    {#if loading}
     <div class="absolute inset-0 flex justify-center items-center opacity-60">
-     <span class="loading loading-spinner loading-md"></span>
+     <span class="loading loading-spinner loading-md text-primary"></span>
     </div>
    {:else if widget.type === 'Metric' || widget.type === 'stat'}
     <div class="flex flex-col items-center">
@@ -151,7 +155,7 @@
    {:else if data.length > 0}
     <canvas bind:this={canvas}></canvas>
    {:else}
-    <div class="absolute inset-0 flex justify-center items-center opacity-10 text-xs font-bold tracking-wide">
+    <div class="absolute inset-0 flex justify-center items-center opacity-40 text-xs font-bold tracking-wide">
      No data available
     </div>
    {/if}

@@ -43,11 +43,11 @@
 				<h2 class="card-title justify-center mb-4 text-xs tracking-wide opacity-70 font-black">{isRegistering ? 'Register' : 'Login'}</h2>
 				<div class="form-control">
 					<label class="label" for="username"><span class="label-text font-bold text-xs opacity-70">Username</span></label>
-					<input type="text" id="username" bind:value={username} placeholder="philipp" class="input input-bordered font-mono text-sm" required />
+					<input type="text" id="username" bind:value={username} placeholder="philipp" class="input input-bordered input-sm font-mono" required />
 				</div>
 				<div class="form-control mt-2">
 					<label class="label" for="password"><span class="label-text font-bold text-xs opacity-70">Password</span></label>
-					<input type="password" id="password" bind:value={password} placeholder="••••••••" class="input input-bordered font-mono text-sm" required />
+					<input type="password" id="password" bind:value={password} placeholder="••••••••" class="input input-bordered input-sm font-mono" required />
 				</div>
 				{#if error}
 					<div class="alert alert-error mt-4 py-2 text-xs rounded-lg">

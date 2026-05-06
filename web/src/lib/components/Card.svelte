@@ -5,11 +5,17 @@
   subtitle?: string;
   children: Snippet;
   actions?: Snippet;
+  header?: Snippet;
  }
- let { title = "", subtitle = "", children, actions }: Props = $props();
+ let { title = "", subtitle = "", children, actions, header }: Props = $props();
 </script>
 
-<div class="card card-bordered bg-base-100 shadow-sm hover:shadow-md transition-shadow">
+<div class="card card-bordered bg-base-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+ {#if header}
+  <div class="p-6 bg-base-200/50 border-b border-base-300 flex items-center gap-3">
+   {@render header()}
+  </div>
+ {/if}
  <div class="card-body">
   {#if title || subtitle}
    <div class="flex justify-between items-start">

@@ -5,6 +5,8 @@
 	import { router } from "../router.svelte";
 	import { createDashboardsQuery } from "../queries/dashboards";
 	import { createPluginsQuery } from "../queries/plugins";
+	import PageLoading from "../components/PageLoading.svelte";
+	import EmptyState from "../components/EmptyState.svelte";
 	import type { ApiWidgetDefinition } from "../types/ApiWidgetDefinition";
 
 	let isEditing = $state(false);
@@ -127,6 +129,9 @@
 			</div>
 		</div>
 	{/if}
+	{#if dashboardsQuery.isLoading}
+		<PageLoading />
+	{:else}
 
 	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 		{#if activeDashboard}
@@ -139,6 +144,7 @@
 							class="absolute -top-2 -right-2 btn btn-circle btn-error btn-xs shadow-lg animate-in zoom-in-50 z-10"
 							onclick={() => removeWidget(widget.id)}
 							disabled={deletingId === widget.id}
+							aria-label="Remove widget"
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -191,30 +197,10 @@
 	</div>
 
 	{#if !activeDashboard || (activeDashboard.widgets.length === 0 && !isEditing)}
-		<div
-			class="flex flex-col items-center justify-center py-40 opacity-60 border-2 border-dashed border-base-300 rounded-3xl"
-		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-16 w-16 mb-6"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				><path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					stroke-width="1"
-					d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-				/></svg
-			>
-			<p class="text-sm tracking-wide font-bold">
-				Dashboard empty
-			</p>
-			<p class="text-xs mt-2">
-				Enter Edit Mode to add suggested widgets from your plugins.
-			</p>
-		</div>
+		<EmptyState icon="lucide:layout-dashboard" title="Dashboard empty" description="Enter Edit Mode to add suggested widgets from your plugins." />
 	{/if}
+
+{/if}
 </div>
 
 <!-- Widget Marketplace Modal -->
@@ -234,7 +220,8 @@
 				</div>
 				<button
 					class="btn btn-sm btn-circle btn-ghost"
-					onclick={() => (isAddingWidget = false)}>✕</button
+					onclick={() => (isAddingWidget = false)}
+					aria-label="Close">✕</button
 				>
 			</div>
 
@@ -262,11 +249,7 @@
 						>
 					</button>
 				{:else}
-					<div class="col-span-2 py-20 text-center opacity-60">
-						<p class="text-xs tracking-wide">
-							No suggested widgets found
-						</p>
-					</div>
+					<EmptyState icon="lucide:puzzle" title="No suggested widgets found" description="More widgets coming soon from your plugins." />
 				{/each}
 			</div>
 
