@@ -44,7 +44,7 @@
 <div class="space-y-6 animate-in slide-in-from-right-4 duration-300">
 	{#if successMessage}
 		<div
-			class="badge badge-success font-mono text-[10px] py-3 px-4 animate-bounce fixed top-24 right-10 z-50"
+			class="badge badge-success text-xs py-3 px-4 animate-bounce fixed top-24 right-10 z-50"
 		>
 			{successMessage}
 		</div>
@@ -52,14 +52,14 @@
 
 	{#if loading}
 		<div class="flex justify-center py-20">
-			<span class="loading loading-ring loading-lg opacity-20"></span>
+			<span class="loading loading-spinner loading-lg opacity-60"></span>
 		</div>
 	{:else}
-		<Card title="User Profile" subtitle="CORE_IDENTITY">
+		<Card title="User Profile" subtitle="Profile">
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-6 py-2">
 				<div class="form-control w-full">
 					<label class="label" for="profile-name">
-						<span class="label-text text-[10px] font-bold uppercase opacity-50"
+						<span class="label-text text-xs font-bold opacity-70"
 							>Display Name</span
 						>
 					</label>
@@ -73,7 +73,7 @@
 				</div>
 				<div class="form-control w-full">
 					<label class="label" for="profile-avatar">
-						<span class="label-text text-[10px] font-bold uppercase opacity-50"
+						<span class="label-text text-xs font-bold opacity-70"
 							>Avatar URL</span
 						>
 					</label>
@@ -87,7 +87,7 @@
 				</div>
 				<div class="form-control w-full">
 					<label class="label" for="profile-city">
-						<span class="label-text text-[10px] font-bold uppercase opacity-50"
+						<span class="label-text text-xs font-bold opacity-70"
 							>Home City (Global)</span
 						>
 					</label>
@@ -102,11 +102,11 @@
 			</div>
 			{#snippet actions()}
 				<button
-					class="btn btn-primary btn-xs font-mono"
+					class="btn btn-primary btn-xs "
 					onclick={saveProfile}
 					disabled={saving}
 				>
-					{saving ? "SAVING..." : "SYNC_PROFILE"}
+					{saving ? "Saving..." : "Save Profile"}
 				</button>
 			{/snippet}
 		</Card>

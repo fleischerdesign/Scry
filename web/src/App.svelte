@@ -79,7 +79,7 @@
 						>
 						<div class="hidden lg:flex px-4">
 							<div
-								class="text-[10px] breadcrumbs font-black tracking-[0.2em] opacity-40 uppercase"
+								class="text-xs breadcrumbs font-bold tracking-wide opacity-70 "
 							>
 								<ul>
 									{#each router.breadcrumbs as crumb, i}
@@ -98,7 +98,7 @@
 												{/if}
 											</li>
 										{:else if i === 1}
-											<li><span class="opacity-20">...</span></li>
+											<li><span class="opacity-60">...</span></li>
 										{/if}
 									{/each}
 								</ul>
@@ -125,7 +125,7 @@
 									/></svg
 								>Search anything...</span
 							>
-							<kbd class="kbd kbd-xs bg-base-100 opacity-50">CTRL K</kbd>
+							<kbd class="kbd kbd-xs bg-base-100 opacity-70">CTRL K</kbd>
 						</button>
 					</div>
 					<div class="navbar-end">
@@ -133,7 +133,7 @@
 							<div
 								tabindex="0"
 								role="button"
-								class="btn btn-ghost btn-sm font-mono uppercase tracking-tighter opacity-60"
+								class="btn btn-ghost btn-sm tracking-tighter opacity-60"
 							>
 								Theme
 							</div>
@@ -146,7 +146,7 @@
 										<input
 											type="radio"
 											name="theme-dropdown"
-											class="theme-controller btn btn-sm btn-block btn-ghost justify-start font-mono text-[10px] uppercase"
+											class="theme-controller btn btn-sm btn-block btn-ghost justify-start text-xs "
 											aria-label={theme}
 											value={theme}
 											checked={currentTheme === theme}
@@ -204,13 +204,13 @@
 				>
 					<div class="flex px-4 py-4 items-center gap-4">
 						<div
-							class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-primary-content font-black text-2xl italic tracking-tighter shadow-lg shadow-primary/20"
+							class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-primary-content font-bold text-2xl tracking-tighter shadow-lg shadow-primary/20"
 						>
 							S
 						</div>
 						<div>
 							<h2
-								class="text-2xl font-black font-mono tracking-tighter italic text-base-content"
+								class="text-2xl font-bold tracking-tighter text-base-content"
 							>
 								SCRY
 							</h2>
@@ -219,7 +219,7 @@
 
 					<ul class="space-y-1 flex-1 overflow-y-auto">
 						<li
-							class="menu-title opacity-40 text-[10px] uppercase tracking-widest font-black pt-4"
+							class="menu-title opacity-70 text-xs uppercase tracking-wide font-bold pt-4"
 						>
 							Navigation
 						</li>
@@ -285,7 +285,7 @@
 						</li>
 
 						<li
-							class="menu-title opacity-40 text-[10px] uppercase tracking-widest font-black pt-8"
+							class="menu-title opacity-70 text-xs uppercase tracking-wide font-bold pt-8"
 						>
 							Dashboards
 						</li>
@@ -331,8 +331,8 @@
 										>@{auth.user?.username}</span
 									>
 									<span
-										class="text-[8px] opacity-40 uppercase tracking-widest truncate group-hover:text-primary transition-colors italic"
-										>View Identity_</span
+									class="text-xs opacity-70 tracking-wide truncate group-hover:text-primary transition-colors"
+									>View Profile</span
 									>
 								</div>
 							</button>

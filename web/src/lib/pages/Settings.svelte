@@ -35,14 +35,14 @@
 				<Icon icon="lucide:settings" class="w-6 h-6" />
 			</div>
 			<div class="flex-1">
-				<h3 class="font-bold text-base tracking-tight">
+				<h3 class="font-black text-base tracking-tight">
 					General
 				</h3>
-				<p class="text-[10px] opacity-40 uppercase font-black tracking-widest mt-1">
+				<p class="text-xs opacity-70 font-bold tracking-wide mt-1">
 					Identity, Appearance & API Keys
 				</p>
 			</div>
-			<Icon icon="lucide:chevron-right" class="h-4 w-4 opacity-20" />
+			<Icon icon="lucide:chevron-right" class="h-4 w-4 opacity-60" />
 		</button>
 
 		<button
@@ -55,16 +55,16 @@
 				<Icon icon="lucide:puzzle" class="w-6 h-6" />
 			</div>
 			<div class="flex-1">
-				<h3 class="font-bold text-base tracking-tight">
+				<h3 class="font-black text-base tracking-tight">
 					Extensions
 				</h3>
-				<p class="text-[10px] opacity-40 uppercase font-black tracking-widest mt-1">
+				<p class="text-xs opacity-70 font-bold tracking-wide mt-1">
 					Manage WASM Nodes, Sources & Enrichers
 				</p>
 			</div>
 			<div class="flex items-center gap-3">
-				<div class="badge badge-secondary badge-outline badge-sm opacity-40 font-mono text-[9px]">{pluginsQuery.data?.length ?? 0}</div>
-				<Icon icon="lucide:chevron-right" class="h-4 w-4 opacity-20" />
+				<div class="badge badge-secondary badge-outline badge-sm opacity-70 font-mono text-xs">{pluginsQuery.data?.length ?? 0}</div>
+				<Icon icon="lucide:chevron-right" class="h-4 w-4 opacity-60" />
 			</div>
 		</button>
 
@@ -78,16 +78,16 @@
 				<Icon icon="lucide:layout" class="w-6 h-6" />
 			</div>
 			<div class="flex-1">
-				<h3 class="font-bold text-base tracking-tight">
+				<h3 class="font-black text-base tracking-tight">
 					Dashboards
 				</h3>
-				<p class="text-[10px] opacity-40 uppercase font-black tracking-widest mt-1">
+				<p class="text-xs opacity-70 font-bold tracking-wide mt-1">
 					Layouts, Widgets & Visualization
 				</p>
 			</div>
 			<div class="flex items-center gap-3">
-				<div class="badge badge-warning badge-outline badge-sm opacity-40 font-mono text-[9px]">{dashboardsQuery.data?.length ?? 0}</div>
-				<Icon icon="lucide:chevron-right" class="h-4 w-4 opacity-20" />
+				<div class="badge badge-warning badge-outline badge-sm opacity-70 font-mono text-xs">{dashboardsQuery.data?.length ?? 0}</div>
+				<Icon icon="lucide:chevron-right" class="h-4 w-4 opacity-60" />
 			</div>
 		</button>
 	</div>

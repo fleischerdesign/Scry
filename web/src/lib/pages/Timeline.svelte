@@ -46,7 +46,7 @@
 <div class="space-y-8 animate-in fade-in duration-500 w-full">
 	<PageHeader 
 		title="Timeline" 
-		subtitle="A real-time, chronological stream of all ingested life events across your connected nodes."
+		subtitle="A chronological view of all events across your connected plugins."
 	>
 		{#snippet actions()}
 			<div class="flex items-center gap-2">
@@ -66,7 +66,7 @@
 								class="flex justify-between items-center {selectedNamespace === null ? 'active' : ''}"
 								onclick={() => selectedNamespace = null}
 							>
-								<span class="font-bold text-[10px] uppercase tracking-widest">All Events</span>
+								<span class="font-bold text-xs tracking-wide">All Events</span>
 								{#if selectedNamespace === null}
 									<Icon icon="lucide:check" class="w-3 h-3" />
 								{/if}
@@ -79,14 +79,14 @@
 									class="flex justify-between items-center {selectedNamespace === ns ? 'active' : ''}"
 									onclick={() => selectedNamespace = ns}
 								>
-									<span class="font-bold text-[10px] uppercase tracking-widest">{ns}</span>
+									<span class="font-bold text-xs tracking-wide">{ns}</span>
 									{#if selectedNamespace === ns}
 										<Icon icon="lucide:check" class="w-3 h-3" />
 									{/if}
 								</button>
 							</li>
 						{:else}
-							<li class="disabled"><span class="text-[10px] opacity-40 italic">No namespaces found</span></li>
+							<li class="disabled"><span class="text-xs opacity-70">No namespaces found</span></li>
 						{/each}
 					</ul>
 				</div>
@@ -118,17 +118,17 @@
 				<TimelineGroup {date} {events} />
 			{:else}
 				{#if !timelineQuery.isLoading}
-					<div class="flex flex-col items-center justify-center py-32 opacity-20 border-2 border-dashed border-base-300 rounded-[3rem]">
+					<div class="flex flex-col items-center justify-center py-32 opacity-60 border-2 border-dashed border-base-300 rounded-[3rem]">
 						<Icon icon="lucide:ghost" class="w-12 h-12 mb-4" />
-						<p class="font-mono text-xs uppercase tracking-[0.3em] font-black">
-							{selectedNamespace ? `No ${selectedNamespace} events found` : 'No events in current epoch'}
+						<p class="text-xs tracking-wide font-bold">
+							{selectedNamespace ? `No ${selectedNamespace} events found` : 'No events found'}
 						</p>
 					</div>
 				{/if}
 			{/each}
 
 			{#if timelineQuery.isLoading}
-				<div class="flex flex-col items-center justify-center py-20 opacity-50">
+				<div class="flex flex-col items-center justify-center py-20 opacity-70">
 					<span class="loading loading-spinner loading-lg text-primary"></span>
 				</div>
 			{/if}

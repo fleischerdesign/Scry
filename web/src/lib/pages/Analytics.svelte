@@ -60,7 +60,7 @@
 >
 	<PageHeader 
 		title="Insights" 
-		subtitle="Automated pattern recognition and cross-plugin inferences discovered by the Scry engine."
+		subtitle="Automated pattern recognition and cross-plugin correlations discovered from your data."
 	>
 		{#snippet actions()}
 			<button
@@ -80,17 +80,17 @@
 	</PageHeader>
 
 	{#if loading}
-		<div class="flex flex-col items-center justify-center py-32 opacity-20">
-			<span class="loading loading-ring loading-lg mb-4"></span>
-			<p class="text-[10px] font-black uppercase tracking-widest">
-				Scanning knowledge graph...
+		<div class="flex flex-col items-center justify-center py-32 opacity-60">
+			<span class="loading loading-spinner loading-lg mb-4"></span>
+			<p class="text-xs font-bold tracking-wide">
+				Loading discoveries...
 			</p>
 		</div>
 	{:else if discoveries.length === 0}
 		<div class="card bg-base-200 border-2 border-dashed border-base-300">
 			<div class="card-body items-center text-center py-20">
 				<div
-					class="w-16 h-16 bg-base-300 rounded-full flex items-center justify-center mb-6 opacity-50"
+					class="w-16 h-16 bg-base-300 rounded-full flex items-center justify-center mb-6 opacity-70"
 				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
@@ -106,11 +106,11 @@
 						/></svg
 					>
 				</div>
-				<h2 class="card-title font-black uppercase tracking-tighter">
+				<h2 class="card-title font-black tracking-tighter">
 					No Insights Found Yet
 				</h2>
-				<p class="text-xs opacity-50 max-w-sm mb-8">
-					The discovery engine needs more data or a manual trigger to find
+				<p class="text-xs opacity-70 max-w-sm mb-8">
+					The system needs more data or a manual trigger to find
 					correlations between your life streams.
 				</p>
 				<button class="btn btn-primary btn-sm px-8" onclick={runDiscovery}
@@ -129,32 +129,32 @@
 						<div class="flex justify-between items-start mb-4">
 							<div class="flex flex-col">
 								<span
-									class="text-[8px] font-black uppercase opacity-30 tracking-[0.2em] mb-1"
-									>Observation_</span
+									class="text-xs font-bold opacity-60 tracking-wide mb-1"
+									>Observation</span
 								>
 								<div
-									class="badge badge-ghost badge-xs font-mono text-[8px] opacity-50"
+									class="badge badge-ghost badge-xs font-mono text-xs opacity-70"
 								>
-									PEARSON_CORR
+									Correlation
 								</div>
 							</div>
 							<div class="text-right">
 								<div
-									class="text-2xl font-black italic tracking-tighter"
+									class="text-2xl font-bold tracking-tighter"
 									class:text-success={stats.type === "positive"}
 									class:text-secondary={stats.type === "negative"}
 								>
 									{stats.percent}%
 								</div>
 								<span
-									class="text-[8px] font-bold uppercase opacity-30 tracking-widest"
+									class="text-xs font-bold opacity-60 tracking-wide"
 									>{stats.type} Match</span
 								>
 							</div>
 						</div>
 
 						<h3
-							class="font-black text-lg leading-tight mb-4 group-hover:text-primary transition-colors italic"
+							class="font-bold text-lg leading-tight mb-4 group-hover:text-primary transition-colors"
 						>
 							There is a strong connection between <span class="text-secondary"
 								>{discovery.source.split(".").pop()}</span
@@ -170,18 +170,18 @@
 						>
 							<div class="flex -space-x-2">
 								<div
-									class="w-6 h-6 rounded-full bg-base-300 border-2 border-base-100 flex items-center justify-center text-[8px] font-bold"
+									class="w-6 h-6 rounded-full bg-base-300 border-2 border-base-100 flex items-center justify-center text-xs font-bold"
 								>
 									A
 								</div>
 								<div
-									class="w-6 h-6 rounded-full bg-primary/20 border-2 border-base-100 flex items-center justify-center text-[8px] font-bold text-primary"
+									class="w-6 h-6 rounded-full bg-primary/20 border-2 border-base-100 flex items-center justify-center text-xs font-bold text-primary"
 								>
 									B
 								</div>
 							</div>
 							<span
-								class="text-[9px] font-mono opacity-40 uppercase tracking-tighter"
+								class="text-xs opacity-70 tracking-tighter"
 								>Cross-Plugin Inference</span
 							>
 						</div>
@@ -199,23 +199,23 @@
 	<!-- Manual Lab Section -->
 	<section class="mt-20 pt-12 space-y-8">
 		<div class="flex flex-col gap-2">
-			<h3 class="text-xs font-black uppercase tracking-[0.4em] opacity-30">
-				The Discovery Lab
+			<h3 class="text-xs font-black tracking-wide opacity-60">
+				Manual Analysis
 			</h3>
-			<p class="text-[9px] opacity-40 uppercase tracking-widest font-bold">
-				Experimental manual correlation & hypothesis testing
+			<p class="text-xs opacity-70 tracking-wide font-bold">
+				Experimental manual correlation and hypothesis testing
 			</p>
 		</div>
 
 		<div
-			class="grid grid-cols-1 md:grid-cols-2 gap-8 opacity-50 hover:opacity-100 transition-opacity grayscale hover:grayscale-0"
+			class="grid grid-cols-1 md:grid-cols-2 gap-8 opacity-70 hover:opacity-100 transition-opacity grayscale hover:grayscale-0"
 		>
 			<div class="card bg-base-200 border border-base-300">
 				<div class="card-body p-8 items-center text-center">
-					<h4 class="font-black uppercase tracking-tighter">
-						Manual Join Engine
+					<h4 class="font-black tracking-tighter">
+						Manual Correlation
 					</h4>
-					<p class="text-[10px] opacity-50 mb-6">
+					<p class="text-xs opacity-70 mb-6">
 						Test specific categories against each other in real-time.
 					</p>
 					<button class="btn btn-ghost btn-xs border-base-300">Open Lab</button>
@@ -223,8 +223,8 @@
 			</div>
 			<div class="card bg-base-200 border border-base-300">
 				<div class="card-body p-8 items-center text-center">
-					<h4 class="font-black uppercase tracking-tighter">Semantic Stats</h4>
-					<p class="text-[10px] opacity-50 mb-6">
+					<h4 class="font-black tracking-tighter">Semantic Stats</h4>
+					<p class="text-xs opacity-70 mb-6">
 						Detailed distribution analysis of individual traits.
 					</p>
 					<button class="btn btn-ghost btn-xs border-base-300"

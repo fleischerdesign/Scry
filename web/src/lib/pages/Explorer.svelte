@@ -10,7 +10,7 @@
 	Chart.register(...registerables);
 
 	$effect(() => {
-		router.title = "LABORATORY";
+		router.title = "Lab";
 	});
 
 	// --- State ---
@@ -216,11 +216,11 @@
 		{#snippet actions()}
 			<div class="flex items-center gap-4 bg-base-200/50 p-1.5 rounded-2xl border border-base-300">
 				<div class="flex items-center gap-1.5 px-2">
-					<span class="text-[9px] font-black opacity-30 uppercase tracking-widest mr-1">Timeframe</span>
+					<span class="text-xs font-bold opacity-60 tracking-wide mr-1">Timeframe</span>
 					<div class="join border border-base-300/50 bg-base-100">
 						{#each [1, 7, 30, 90, 365] as d}
 							<button
-								class="btn btn-xs join-item font-mono {timeframe === d ? 'btn-primary' : 'btn-ghost opacity-60'}"
+								class="btn btn-xs join-item {timeframe === d ? 'btn-primary' : 'btn-ghost opacity-60'}"
 								onclick={() => (timeframe = d)}
 							>
 								{d === 365 ? '1Y' : d + 'D'}
@@ -229,14 +229,14 @@
 					</div>
 				</div>
 
-				<div class="w-px h-6 bg-base-300 opacity-50"></div>
+				<div class="w-px h-6 bg-base-300 opacity-70"></div>
 
 				<div class="flex items-center gap-1.5 px-2">
-					<span class="text-[9px] font-black opacity-30 uppercase tracking-widest mr-1">Resolution</span>
+					<span class="text-xs font-bold opacity-60 tracking-wide mr-1">Resolution</span>
 					<div class="join border border-base-300/50 bg-base-100">
 						{#each INTERVALS as int}
 							<button
-								class="btn btn-xs join-item font-mono {interval === int.id ? 'btn-secondary' : 'btn-ghost opacity-60'}"
+								class="btn btn-xs join-item {interval === int.id ? 'btn-secondary' : 'btn-ghost opacity-60'}"
 								onclick={() => (interval = int.id)}
 							>
 								{int.label.split(' ').pop()}
@@ -245,14 +245,14 @@
 					</div>
 				</div>
 
-				<div class="w-px h-6 bg-base-300 opacity-50"></div>
+				<div class="w-px h-6 bg-base-300 opacity-70"></div>
 
 				<button 
-					class="btn btn-xs btn-ghost gap-2 transition-all {normalize ? 'text-primary' : 'opacity-40 hover:opacity-100'}"
+					class="btn btn-xs btn-ghost gap-2 transition-all {normalize ? 'text-primary' : 'opacity-70 hover:opacity-100'}"
 					onclick={() => normalize = !normalize}
 				>
 					<Icon icon={normalize ? "lucide:layers-2" : "lucide:layers"} class="w-3.5 h-3.5" />
-					<span class="text-[9px] font-black uppercase tracking-widest">Normalize</span>
+					<span class="text-xs font-bold tracking-wide">Normalize</span>
 				</button>
 			</div>
 		{/snippet}
@@ -263,7 +263,7 @@
 		<aside class="xl:col-span-1 space-y-6">
 			<div class="card bg-base-100 border border-base-300 shadow-sm overflow-hidden rounded-[2rem]">
 				<div class="p-5 bg-base-200/50 border-b border-base-300 flex items-center justify-between">
-					<span class="text-[10px] font-black uppercase opacity-60 tracking-widest">Active Queries</span>
+					<span class="text-xs font-bold opacity-60 tracking-wide">Active Queries</span>
 					<div class="badge badge-primary badge-xs font-mono">{queries.length}</div>
 				</div>
 				<div class="p-3 space-y-2 max-h-[400px] overflow-y-auto">
@@ -271,8 +271,8 @@
 						<div class="flex items-center gap-3 p-3 bg-base-200/50 hover:bg-base-200 rounded-2xl group transition-all border border-transparent hover:border-base-300/50">
 							<div class="w-1.5 h-10 rounded-full shrink-0" style="background-color: {q.color}"></div>
 							<div class="flex-1 min-w-0">
-								<div class="text-[10px] font-black truncate opacity-80 uppercase tracking-tighter">{q.label}</div>
-								<div class="text-[8px] opacity-40 truncate font-mono">{q.type}</div>
+								<div class="text-xs font-bold truncate opacity-80 tracking-tighter">{q.label}</div>
+								<div class="text-xs opacity-70 truncate font-mono">{q.type}</div>
 							</div>
 							<button 
 								class="btn btn-ghost btn-xs btn-square opacity-0 group-hover:opacity-100 transition-opacity"
@@ -283,10 +283,10 @@
 						</div>
 					{:else}
 						<div class="py-16 text-center">
-							<div class="w-12 h-12 bg-base-200 rounded-2xl flex items-center justify-center mx-auto mb-4 opacity-40">
+							<div class="w-12 h-12 bg-base-200 rounded-2xl flex items-center justify-center mx-auto mb-4 opacity-70">
 								<Icon icon="lucide:flask-conical" class="w-6 h-6" />
 							</div>
-							<p class="text-[10px] opacity-30 uppercase font-black tracking-widest">No queries defined</p>
+							<p class="text-xs opacity-60 font-bold tracking-wide">No queries defined</p>
 						</div>
 					{/each}
 				</div>
@@ -294,12 +294,12 @@
 
 			<div class="card bg-base-100 border border-base-300 shadow-sm overflow-hidden rounded-[2rem]">
 				<div class="p-5 bg-base-200/50 border-b border-base-300">
-					<span class="text-[10px] font-black uppercase opacity-60 tracking-widest">Data Catalog</span>
+					<span class="text-xs font-bold opacity-60 tracking-wide">Data Catalog</span>
 				</div>
 				<div class="p-3 space-y-1 max-h-[300px] overflow-y-auto">
 					{#each Object.keys(catalog) as type}
 						<button
-							class="btn btn-ghost btn-sm btn-block justify-start text-[10px] font-bold opacity-60 hover:opacity-100 hover:text-primary rounded-xl"
+							class="btn btn-ghost btn-sm btn-block justify-start text-xs font-bold opacity-60 hover:opacity-100 hover:text-primary rounded-xl"
 							onclick={() => addQuery(type)}
 							disabled={queries.some(q => q.type === type)}
 						>
@@ -319,16 +319,16 @@
 				<div class="absolute inset-0 opacity-[0.03] pointer-events-none" style="background-image: linear-gradient(#ccc 1px, transparent 1px), linear-gradient(90deg, #ccc 1px, transparent 1px); background-size: 50px 50px;"></div>
 				
 				{#if loading && queries.length === 0}
-					<div class="h-full flex flex-col items-center justify-center opacity-20">
-						<span class="loading loading-infinity loading-lg text-primary"></span>
-						<p class="mt-4 font-mono text-[10px] uppercase tracking-widest">Initializing engine...</p>
+					<div class="h-full flex flex-col items-center justify-center opacity-60">
+						<span class="loading loading-spinner loading-lg text-primary"></span>
+						<p class="mt-4 text-xs tracking-wide">Initializing engine...</p>
 					</div>
 				{:else if queries.length === 0}
 					<div class="h-full flex flex-col items-center justify-center">
-						<div class="w-24 h-24 bg-base-200 rounded-[2rem] flex items-center justify-center mb-10 opacity-40 animate-pulse border-2 border-dashed border-base-300">
+						<div class="w-24 h-24 bg-base-200 rounded-[2rem] flex items-center justify-center mb-10 opacity-70 animate-pulse border-2 border-dashed border-base-300">
 							<Icon icon="lucide:search" class="w-10 h-10" />
 						</div>
-						<p class="font-mono text-xs uppercase tracking-[0.4em] font-black opacity-30">
+						<p class="text-xs tracking-wide font-bold opacity-60">
 							Select data streams to start analysis
 						</p>
 					</div>
@@ -340,7 +340,7 @@
 
 				{#if loading && queries.length > 0}
 					<div class="absolute top-6 right-8">
-						<span class="loading loading-spinner loading-xs opacity-20"></span>
+						<span class="loading loading-spinner loading-xs opacity-60"></span>
 					</div>
 				{/if}
 			</div>
@@ -348,7 +348,7 @@
 			<!-- Data Inspector Switch -->
 			<div class="flex justify-center">
 				<button 
-					class="btn btn-ghost btn-xs gap-3 font-mono uppercase tracking-[0.3em] opacity-40 hover:opacity-100 transition-all bg-base-200/50 px-6 rounded-full"
+					class="btn btn-ghost btn-xs gap-3 tracking-wide opacity-70 hover:opacity-100 transition-all bg-base-200/50 px-6 rounded-full"
 					onclick={() => showTable = !showTable}
 				>
 					<Icon icon={showTable ? "lucide:chevron-up" : "lucide:chevron-down"} class="w-3 h-3" />
@@ -372,7 +372,7 @@
 							<tbody>
 								{#each queries[0].data as _, rowIndex}
 									<tr class="hover:bg-base-200/50 transition-colors border-base-300/50">
-										<td class="p-4 opacity-40">{queries[0].data[rowIndex].label}</td>
+										<td class="p-4 opacity-70">{queries[0].data[rowIndex].label}</td>
 										{#each queries as q}
 											<td class="p-4 font-bold">
 												{q.data[rowIndex]?.value ?? 'N/A'}

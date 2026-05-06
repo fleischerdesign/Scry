@@ -55,7 +55,7 @@
 <div class="space-y-12 animate-in fade-in duration-700 w-full pb-20">
 	<PageHeader 
 		title="Overview" 
-		subtitle="A snapshot of your digitized life streams and platform intelligence."
+		subtitle="A snapshot of your data and platform status."
 	>
 		{#snippet actions()}
 			<button
@@ -63,7 +63,7 @@
 				onclick={syncKernel}
 			>
 				<Icon icon="lucide:refresh-cw" class="w-4 h-4" />
-				Sync Kernel
+				Refresh
 			</button>
 		{/snippet}
 	</PageHeader>
@@ -80,7 +80,7 @@
 					{#if userPhoto}
 						<img src={userPhoto} alt={userName} class="object-cover" />
 					{:else}
-						<div class="w-full h-full flex items-center justify-center text-4xl font-black opacity-20">
+						<div class="w-full h-full flex items-center justify-center text-4xl font-bold opacity-60">
 							{userName.charAt(0).toUpperCase()}
 						</div>
 					{/if}
@@ -103,7 +103,7 @@
 				{#each statusTraits as status}
 					<div class="bg-base-200/50 border border-base-300/50 rounded-2xl px-4 py-2 flex items-center gap-3">
 						<div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-						<span class="text-[10px] font-black uppercase tracking-widest opacity-40">{status.key.split('/').pop()?.replace('_', ' ')}:</span>
+						<span class="text-xs font-bold tracking-wide opacity-70">{status.key.split('/').pop()?.replace('_', ' ')}:</span>
 						
 						{#if typeof status.value === 'string' && status.value.split(':').length === 3 && status.value.includes('.')}
 							{@const parts = status.value.split(':')}
@@ -115,7 +115,7 @@
 				{/each}
 				
 				{#if statusTraits.length === 0}
-					<div class="text-[10px] font-bold opacity-20 uppercase tracking-widest italic">No active status detected</div>
+					<div class="text-xs font-bold opacity-60 tracking-wide">No active status detected</div>
 				{/if}
 			</div>
 
@@ -137,23 +137,23 @@
 	<!-- Core Platform Stats -->
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 		<Stat
-			title="Core Intelligence"
+			title="Plugins"
 			value={pluginsQuery.data?.length ?? 0}
-			desc="Semantic plugins active"
+			desc="Active plugins"
 			color="primary"
 			trend="Stable"
 		/>
 		<Stat
-			title="Event Density"
+			title="Events"
 			value={timelineQuery.data?.length ?? 0}
-			desc="Total life events logged"
+			desc="Total events logged"
 			color="secondary"
 			trend="+5%"
 		/>
 		<Stat
-			title="Interface Nodes"
+			title="Dashboards"
 			value={dashboardsQuery.data?.length ?? 0}
-			desc="Active UI layouts"
+			desc="Active dashboards"
 			color="accent"
 		/>
 	</div>
@@ -173,7 +173,7 @@
 			></path></svg
 		>
 		<div>
-			<h3 class="font-bold text-sm uppercase tracking-wider">System AI Hint</h3>
+			<h3 class="font-black text-sm tracking-wider">Daily Insight</h3>
 			<div class="text-xs opacity-60">
 				You listened to 12% more music than yesterday. Your average temperature
 				was 1.2°C lower.

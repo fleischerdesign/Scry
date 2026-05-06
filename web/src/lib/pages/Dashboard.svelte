@@ -91,16 +91,16 @@
 	<div class="flex items-center justify-between pb-6">
 		<div class="flex gap-2">
 			<button
-				class="btn btn-sm font-mono text-[10px] uppercase tracking-widest {isEditing
+				class="btn btn-sm text-xs tracking-wide {isEditing
 					? 'btn-primary'
-					: 'btn-ghost opacity-50'}"
+					: 'btn-ghost opacity-70'}"
 				onclick={() => (isEditing = !isEditing)}
 			>
-				{isEditing ? "SAVE_CHANGES" : "EDIT_LAYOUT"}
+				{isEditing ? "Save Changes" : "Edit Layout"}
 			</button>
 			<button
-				class="btn btn-sm btn-ghost opacity-50 font-mono text-[10px]"
-				onclick={() => (isCreating = true)}>NEW_BOARD+</button
+				class="btn btn-sm btn-ghost opacity-70 text-xs"
+				onclick={() => (isCreating = true)}>New Board</button
 			>
 		</div>
 	</div>
@@ -183,7 +183,7 @@
 					>
 				</div>
 				<span
-					class="text-[10px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100"
+					class="text-xs font-bold tracking-wide opacity-70 group-hover:opacity-100"
 					>Add Widget</span
 				>
 			</button>
@@ -192,7 +192,7 @@
 
 	{#if !activeDashboard || (activeDashboard.widgets.length === 0 && !isEditing)}
 		<div
-			class="flex flex-col items-center justify-center py-40 opacity-20 border-2 border-dashed border-base-300 rounded-3xl"
+			class="flex flex-col items-center justify-center py-40 opacity-60 border-2 border-dashed border-base-300 rounded-3xl"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -207,11 +207,11 @@
 					d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
 				/></svg
 			>
-			<p class="font-mono text-sm uppercase tracking-[0.3em] font-black">
+			<p class="text-sm tracking-wide font-bold">
 				Dashboard empty
 			</p>
 			<p class="text-xs mt-2">
-				Enter Edit Mode to add suggested widgets from your nodes.
+				Enter Edit Mode to add suggested widgets from your plugins.
 			</p>
 		</div>
 	{/if}
@@ -228,8 +228,8 @@
 			>
 				<div>
 					<h3 class="font-black text-xl tracking-tight">Widget Marketplace</h3>
-					<p class="text-[10px] uppercase opacity-40 tracking-widest font-bold">
-						Suggested by active nodes
+					<p class="text-xs opacity-70 tracking-wide font-bold">
+						Suggested by active plugins
 					</p>
 				</div>
 				<button
@@ -248,7 +248,7 @@
 					>
 						<div class="flex justify-between w-full items-start mb-3">
 							<div
-								class="badge badge-outline badge-xs font-mono opacity-40 uppercase"
+								class="badge badge-outline badge-xs font-mono opacity-70 uppercase"
 							>
 								{w.pluginName}
 							</div>
@@ -257,13 +257,13 @@
 							</div>
 						</div>
 						<span class="font-bold text-sm truncate w-full">{w.title}</span>
-						<span class="text-[9px] opacity-40 mt-1 uppercase tracking-tighter"
+						<span class="text-xs opacity-70 mt-1 tracking-tighter"
 							>Click to install recipe</span
 						>
 					</button>
 				{:else}
-					<div class="col-span-2 py-20 text-center opacity-20">
-						<p class="font-mono text-xs uppercase tracking-widest">
+					<div class="col-span-2 py-20 text-center opacity-60">
+						<p class="text-xs tracking-wide">
 							No suggested widgets found
 						</p>
 					</div>
@@ -271,8 +271,8 @@
 			</div>
 
 			<div class="p-4 bg-base-200/50 border-t border-base-200 text-center">
-				<p class="text-[9px] font-black uppercase opacity-30 tracking-[0.2em]">
-					More widgets coming soon from your local nodes
+				<p class="text-xs font-bold opacity-60 tracking-wide">
+					More widgets coming soon from your plugins
 				</p>
 			</div>
 		</div>

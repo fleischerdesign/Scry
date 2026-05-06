@@ -35,22 +35,22 @@
 <div class="hero min-h-screen bg-base-300">
 	<div class="hero-content flex-col">
 		<div class="text-center mb-8">
-			<h1 class="text-5xl font-bold font-mono tracking-tighter italic">SCRY_</h1>
-			<p class="py-6 opacity-70 text-xl text-balance tracking-tight">Your Life, Digitally Orchestrated.</p>
+			<h1 class="text-5xl font-black tracking-tighter">Scry</h1>
+			<p class="py-6 opacity-70 text-xl text-balance tracking-tight">Your Personal Data Dashboard.</p>
 		</div>
 		<div class="card shrink-0 w-full max-w-sm shadow-2xl bg-base-100 border border-base-300">
 			<form class="card-body" onsubmit={(e) => { e.preventDefault(); handleAuth(); }}>
-				<h2 class="card-title justify-center mb-4 text-xs uppercase tracking-[0.2em] opacity-50 font-black">{isRegistering ? 'Create Node' : 'Initialize Session'}</h2>
+				<h2 class="card-title justify-center mb-4 text-xs tracking-wide opacity-70 font-black">{isRegistering ? 'Register' : 'Login'}</h2>
 				<div class="form-control">
-					<label class="label" for="username"><span class="label-text font-bold text-[10px] uppercase opacity-40">Identifier</span></label>
+					<label class="label" for="username"><span class="label-text font-bold text-xs opacity-70">Username</span></label>
 					<input type="text" id="username" bind:value={username} placeholder="philipp" class="input input-bordered font-mono text-sm" required />
 				</div>
 				<div class="form-control mt-2">
-					<label class="label" for="password"><span class="label-text font-bold text-[10px] uppercase opacity-40">Secret</span></label>
+					<label class="label" for="password"><span class="label-text font-bold text-xs opacity-70">Password</span></label>
 					<input type="password" id="password" bind:value={password} placeholder="••••••••" class="input input-bordered font-mono text-sm" required />
 				</div>
 				{#if error}
-					<div class="alert alert-error mt-4 py-2 text-[10px] font-mono rounded-lg">
+					<div class="alert alert-error mt-4 py-2 text-xs rounded-lg">
 						<span>{error}</span>
 					</div>
 				{/if}
@@ -60,13 +60,13 @@
 						{isRegistering ? 'Register' : 'Login'}
 					</button>
 				</div>
-				<div class="divider text-[9px] opacity-20 font-mono uppercase tracking-widest">Protocol</div>
+				<div class="divider text-xs opacity-60 tracking-wide">Auth</div>
 				<button 
 					type="button" 
-					class="btn btn-ghost btn-sm font-mono text-[10px] opacity-40 hover:opacity-100"
+					class="btn btn-ghost btn-sm text-xs opacity-70 hover:opacity-100"
 					onclick={() => isRegistering = !isRegistering}
 				>
-					{isRegistering ? 'Existing Identity? Login' : 'New Identity? Register'}
+					{isRegistering ? 'Already have an account? Login' : 'New here? Register'}
 				</button>
 			</form>
 		</div>

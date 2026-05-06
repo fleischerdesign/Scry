@@ -39,7 +39,7 @@
 
 	{#if loading}
 		<div class="flex justify-center py-32">
-			<span class="loading loading-infinity loading-lg text-primary opacity-20"></span>
+			<span class="loading loading-spinner loading-lg text-primary opacity-60"></span>
 		</div>
 	{:else}
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -62,14 +62,14 @@
 								</div>
 							{/if}
 							<div class="flex-1 min-w-0">
-								<h3 class="font-bold text-sm truncate uppercase tracking-tight">{entity.display_title}</h3>
-								<p class="text-[10px] opacity-40 font-mono truncate italic">{entity.id}</p>
+								<h3 class="font-black text-sm truncate tracking-tight">{entity.display_title}</h3>
+								<p class="text-xs opacity-70 font-mono truncate">{entity.id}</p>
 							</div>
 						</div>
 					</div>
 				</button>
 			{:else}
-				<div class="col-span-full py-20 text-center opacity-20 italic font-mono text-xs uppercase tracking-widest">
+				<div class="col-span-full py-20 text-center opacity-60 text-xs tracking-wide">
 					No entities found for this type.
 				</div>
 			{/each}

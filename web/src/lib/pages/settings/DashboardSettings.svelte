@@ -21,7 +21,7 @@
 </script>
 
 <div class="space-y-6 animate-in slide-in-from-right-4 duration-300">
-	<Card title="Create New Dashboard" subtitle="LAYOUT_ENGINE">
+	<Card title="Create New Dashboard" subtitle="New Dashboard">
 		<div class="flex gap-4 py-2">
 			<input
 				type="text"
@@ -37,7 +37,7 @@
 
 	<div class="space-y-2">
 		<h4
-			class="text-[10px] font-black uppercase tracking-widest opacity-40 px-2"
+			class="text-xs font-bold tracking-wide opacity-70 px-2"
 		>
 			Existing Dashboards
 		</h4>
@@ -49,12 +49,12 @@
 					<div class="flex items-center gap-4">
 						<div class="w-2 h-2 rounded-full bg-secondary"></div>
 						<span class="font-bold text-sm tracking-tight">{dash.name}</span>
-						<span class="text-[10px] font-mono opacity-30 italic"
+						<span class="text-xs font-mono opacity-60"
 							>/{dash.slug}</span
 						>
 					</div>
 					<button
-						class="btn btn-ghost btn-xs text-error opacity-40 hover:opacity-100"
+						class="btn btn-ghost btn-xs text-error opacity-70 hover:opacity-100"
 						>DELETE</button
 					>
 				</div>
