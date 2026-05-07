@@ -405,7 +405,7 @@ impl EventService {
             );
         }
 
-            all_events.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
+        all_events.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
         let mut paged_events = all_events
             .into_iter()
             .skip(offset as usize)
