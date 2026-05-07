@@ -434,7 +434,8 @@ mod tests {
                 id TEXT PRIMARY KEY, user_id INTEGER, timestamp TEXT, 
                 category TEXT, source TEXT, payload TEXT, metadata TEXT,
                 entities TEXT, context TEXT, 
-                display_title TEXT, display_subtitle TEXT, display_image TEXT, display_value TEXT
+                display_title TEXT, display_subtitle TEXT, display_image TEXT, display_icon TEXT, display_value TEXT,
+                confidence REAL
             );
             INSERT INTO users (id, username, password_hash) VALUES (1, 'alice', 'hash'), (2, 'bob', 'hash');
         "#).execute(&pool).await.unwrap();

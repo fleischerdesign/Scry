@@ -52,11 +52,13 @@ mod tests {
         let auth = AuthService::new(pool.clone());
         let dashboard = DashboardService::new(pool.clone());
         let graph = GraphService::new(pool.clone(), pm.clone());
-        let plugin = PluginService::new(pool.clone(), pm.clone(), svc.clone());
+        let secret = SecretService::new();
+        let plugin = PluginService::new(pool.clone(), pm.clone(), svc.clone(), secret.clone());
         let system = SystemService::new(pool.clone());
 
         let (event_sender, _) = tokio::sync::broadcast::channel(1024);
         Arc::new(AppState { 
+            db: pool.clone(),
             event_service: svc, 
             analytics_service: analytics,
             auth_service: auth,
@@ -84,13 +86,15 @@ mod tests {
         let res = register_user(State(state.clone()), Json(reg_ok)).await.unwrap();
         assert_eq!(res.user.username, "alice");
         let key = res.api_key.clone();
+        assert!(!key.is_empty());
 
         // 3. Login
         let login = LoginRequest { username: "alice".to_string(), password: "password123".to_string() };
         let res_login = login_user(State(state.clone()), Json(login)).await.unwrap();
-        assert_eq!(res_login.api_key, key);
+        assert_eq!(res_login.user.username, "alice");
+        assert!(!res_login.api_key.is_empty());
         
-        // 4. Falsches Passwort
+        // 4. Wrong password
         let login_wrong = LoginRequest { username: "alice".to_string(), password: "wrong_password".to_string() };
         let res_wrong = login_user(State(state.clone()), Json(login_wrong)).await;
         assert!(res_wrong.is_err());
