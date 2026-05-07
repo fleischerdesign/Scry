@@ -1,10 +1,10 @@
-use sqlx::SqlitePool;
-use std::sync::Arc;
-use serde_json::json;
 use crate::domain::*;
 use crate::error::Result;
-use crate::repository::EntityRepository;
 use crate::plugins::PluginManager;
+use crate::repository::EntityRepository;
+use serde_json::json;
+use sqlx::SqlitePool;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct GraphService {
@@ -21,149 +21,201 @@ impl GraphService {
         let repo = EntityRepository::new(&self.db, user_id);
         let names = repo.get_namespaces().await?;
         let manifests = self.plugin_manager.get_plugin_manifests().await;
-        
-        let namespaces = names.into_iter().map(|name| {
-            let mut icon = None;
-            for m in manifests.values() {
-                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == name) {
-                    if domain.icon.is_some() {
+
+        let namespaces = names
+            .into_iter()
+            .map(|name| {
+                let mut icon = None;
+                for m in manifests.values() {
+                    if let Some(domain) = m.domain_info.iter().find(|d| d.ns == name)
+                        && domain.icon.is_some()
+                    {
                         icon = domain.icon.clone();
                         break;
                     }
                 }
-            }
-            if icon.is_none() && name == "scry.core" {
-                icon = Some("lucide:shield-check".to_string());
-            }
-            ApiNamespace { name, display_icon: icon }
-        }).collect();
+                if icon.is_none() && name == "scry.core" {
+                    icon = Some("lucide:shield-check".to_string());
+                }
+                ApiNamespace {
+                    name,
+                    display_icon: icon,
+                }
+            })
+            .collect();
 
         Ok(namespaces)
     }
 
-    pub async fn get_namespace_types(&self, user_id: i64, namespace: &str) -> Result<Vec<ApiEntityType>> {
+    pub async fn get_namespace_types(
+        &self,
+        user_id: i64,
+        namespace: &str,
+    ) -> Result<Vec<ApiEntityType>> {
         let repo = EntityRepository::new(&self.db, user_id);
         let names = repo.get_types_by_namespace(namespace).await?;
         let manifests = self.plugin_manager.get_plugin_manifests().await;
 
-        let types = names.into_iter().map(|name| {
-            let mut icon = None;
-            let semantic_type = format!("{}/{}", namespace, name);
-            
-            for m in manifests.values() {
-                if let Some(export) = m.exports.iter().find(|e| e.semantic_type == semantic_type) {
-                    if export.icon.is_some() {
+        let types = names
+            .into_iter()
+            .map(|name| {
+                let mut icon = None;
+                let semantic_type = format!("{}/{}", namespace, name);
+
+                for m in manifests.values() {
+                    if let Some(export) =
+                        m.exports.iter().find(|e| e.semantic_type == semantic_type)
+                        && export.icon.is_some()
+                    {
                         icon = export.icon.clone();
                         break;
                     }
                 }
-            }
 
-            ApiEntityType { name, display_icon: icon }
-        }).collect();
+                ApiEntityType {
+                    name,
+                    display_icon: icon,
+                }
+            })
+            .collect();
 
         Ok(types)
     }
 
-    pub async fn get_entities(&self, user_id: i64, namespace: &str, typ: &str) -> Result<Vec<ApiEntity>> {
+    pub async fn get_entities(
+        &self,
+        user_id: i64,
+        namespace: &str,
+        typ: &str,
+    ) -> Result<Vec<ApiEntity>> {
         let repo = EntityRepository::new(&self.db, user_id);
         let rows = repo.get_entities_by_type(namespace, typ).await?;
         let manifests = self.plugin_manager.get_plugin_manifests().await;
 
-        let entities = rows.into_iter().map(|(id, title_json, subtitle_json, photo_json)| {
-            let display_title = title_json.and_then(|json: String| {
-                serde_json::from_str::<serde_json::Value>(&json).ok()
-                    .and_then(|v| v.as_str().map(|s| s.to_string()))
-            }).unwrap_or_else(|| id.clone());
+        let entities = rows
+            .into_iter()
+            .map(|(id, title_json, subtitle_json, photo_json)| {
+                let display_title = title_json
+                    .and_then(|json: String| {
+                        serde_json::from_str::<serde_json::Value>(&json)
+                            .ok()
+                            .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    })
+                    .unwrap_or_else(|| id.clone());
 
-            let display_subtitle = subtitle_json.and_then(|json: String| {
-                serde_json::from_str::<serde_json::Value>(&json).ok()
-                    .and_then(|v| v.as_str().map(|s| s.to_string()))
-            });
+                let display_subtitle = subtitle_json.and_then(|json: String| {
+                    serde_json::from_str::<serde_json::Value>(&json)
+                        .ok()
+                        .and_then(|v| v.as_str().map(|s| s.to_string()))
+                });
 
-            let display_image = photo_json.and_then(|json: String| {
-                serde_json::from_str::<serde_json::Value>(&json).ok()
-                    .and_then(|v| v.as_str().map(|s| s.to_string()))
-            });
+                let display_image = photo_json.and_then(|json: String| {
+                    serde_json::from_str::<serde_json::Value>(&json)
+                        .ok()
+                        .and_then(|v| v.as_str().map(|s| s.to_string()))
+                });
 
-            let mut display_icon = None;
-            for m in manifests.values() {
-                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == namespace) {
-                    if domain.icon.is_some() {
+                let mut display_icon = None;
+                for m in manifests.values() {
+                    if let Some(domain) = m.domain_info.iter().find(|d| d.ns == namespace)
+                        && domain.icon.is_some()
+                    {
                         display_icon = domain.icon.clone();
                         break;
                     }
                 }
-            }
 
-            ApiEntity {
-                namespace: namespace.to_string(),
-                typ: typ.to_string(),
-                id: id.clone(),
-                display_title,
-                display_subtitle,
-                display_image,
-                display_icon,
-            }
-        }).collect();
+                ApiEntity {
+                    namespace: namespace.to_string(),
+                    typ: typ.to_string(),
+                    id: id.clone(),
+                    display_title,
+                    display_subtitle,
+                    display_image,
+                    display_icon,
+                }
+            })
+            .collect();
 
         Ok(entities)
     }
 
-    pub async fn resolve_entities(&self, user_id: i64, refs: Vec<ApiEntityRef>) -> Result<Vec<ApiEntity>> {
+    pub async fn resolve_entities(
+        &self,
+        user_id: i64,
+        refs: Vec<ApiEntityRef>,
+    ) -> Result<Vec<ApiEntity>> {
         let repo = EntityRepository::new(&self.db, user_id);
-        
-        let batch_refs = refs.into_iter().map(|r| (r.namespace, r.typ, r.id)).collect();
+
+        let batch_refs = refs
+            .into_iter()
+            .map(|r| (r.namespace, r.typ, r.id))
+            .collect();
         let rows = repo.get_entities_batch(batch_refs).await?;
         let manifests = self.plugin_manager.get_plugin_manifests().await;
 
-        let entities = rows.into_iter().map(|(ns, typ, id, title_json, subtitle_json, photo_json)| {
-            let display_title = title_json.and_then(|json: String| {
-                serde_json::from_str::<serde_json::Value>(&json).ok()
-                    .and_then(|v| v.as_str().map(|s| s.to_string()))
-            }).unwrap_or_else(|| id.clone());
+        let entities = rows
+            .into_iter()
+            .map(|(ns, typ, id, title_json, subtitle_json, photo_json)| {
+                let display_title = title_json
+                    .and_then(|json: String| {
+                        serde_json::from_str::<serde_json::Value>(&json)
+                            .ok()
+                            .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    })
+                    .unwrap_or_else(|| id.clone());
 
-            let display_subtitle = subtitle_json.and_then(|json: String| {
-                serde_json::from_str::<serde_json::Value>(&json).ok()
-                    .and_then(|v| v.as_str().map(|s| s.to_string()))
-            });
+                let display_subtitle = subtitle_json.and_then(|json: String| {
+                    serde_json::from_str::<serde_json::Value>(&json)
+                        .ok()
+                        .and_then(|v| v.as_str().map(|s| s.to_string()))
+                });
 
-            let display_image = photo_json.and_then(|json: String| {
-                serde_json::from_str::<serde_json::Value>(&json).ok()
-                    .and_then(|v| v.as_str().map(|s| s.to_string()))
-            });
+                let display_image = photo_json.and_then(|json: String| {
+                    serde_json::from_str::<serde_json::Value>(&json)
+                        .ok()
+                        .and_then(|v| v.as_str().map(|s| s.to_string()))
+                });
 
-            let mut display_icon = None;
-            for m in manifests.values() {
-                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == ns) {
-                    if domain.icon.is_some() {
+                let mut display_icon = None;
+                for m in manifests.values() {
+                    if let Some(domain) = m.domain_info.iter().find(|d| d.ns == ns)
+                        && domain.icon.is_some()
+                    {
                         display_icon = domain.icon.clone();
                         break;
                     }
                 }
-            }
 
-            ApiEntity {
-                namespace: ns,
-                typ: typ,
-                id: id,
-                display_title,
-                display_subtitle,
-                display_image,
-                display_icon,
-            }
-        }).collect();
+                ApiEntity {
+                    namespace: ns,
+                    typ,
+                    id,
+                    display_title,
+                    display_subtitle,
+                    display_image,
+                    display_icon,
+                }
+            })
+            .collect();
 
         Ok(entities)
     }
 
-    pub async fn get_entity_details(&self, user_id: i64, namespace: &str, typ: &str, id: &str) -> Result<serde_json::Value> {
+    pub async fn get_entity_details(
+        &self,
+        user_id: i64,
+        namespace: &str,
+        typ: &str,
+        id: &str,
+    ) -> Result<serde_json::Value> {
         let repo = EntityRepository::new(&self.db, user_id);
-        
+
         let trait_rows = repo.get_traits(namespace, typ, id).await?;
         let mut traits_map = serde_json::Map::new();
         for (_plugin_id, trait_id, value_json) in trait_rows {
-            let val: serde_json::Value = serde_json::from_str(&value_json).unwrap_or(serde_json::Value::Null);
+            let val: serde_json::Value =
+                serde_json::from_str(&value_json).unwrap_or(serde_json::Value::Null);
             traits_map.insert(trait_id, val);
         }
 
@@ -172,20 +224,40 @@ impl GraphService {
 
         let mut relationships = Vec::new();
         for (sn, st, si, p, tn, tt, ti) in rel_rows {
-            let direction = if sn == namespace && st == typ && si == id { "outgoing" } else { "incoming" };
-            
+            let direction = if sn == namespace && st == typ && si == id {
+                "outgoing"
+            } else {
+                "incoming"
+            };
+
             // Resolve display label for the predicate
-            let mut display_label = p.split('/').last().unwrap_or(&p).replace('_', " ");
+            let mut display_label = p.split('/').next_back().unwrap_or(&p).replace('_', " ");
             for m in manifests.values() {
-                if let Some(pred) = m.predicates.iter().find(|pr| pr.id == p || format!("{}/{}", sn, pr.id) == p || format!("{}/{}", tn, pr.id) == p) {
-                    display_label = if direction == "outgoing" { pred.label.clone() } else { pred.inverse_label.clone() };
+                if let Some(pred) = m.predicates.iter().find(|pr| {
+                    pr.id == p
+                        || format!("{}/{}", sn, pr.id) == p
+                        || format!("{}/{}", tn, pr.id) == p
+                }) {
+                    display_label = if direction == "outgoing" {
+                        pred.label.clone()
+                    } else {
+                        pred.inverse_label.clone()
+                    };
                     break;
                 }
             }
 
             // Resolve display title for the TARGET entity
-            let (t_ns, t_type, t_id) = if direction == "outgoing" { (&tn, &tt, &ti) } else { (&sn, &st, &si) };
-            let target_display_title = repo.get_trait(t_ns, t_type, t_id, scry_plugin_sdk::schema::traits::NAME).await.ok().flatten()
+            let (t_ns, t_type, t_id) = if direction == "outgoing" {
+                (&tn, &tt, &ti)
+            } else {
+                (&sn, &st, &si)
+            };
+            let target_display_title = repo
+                .get_trait(t_ns, t_type, t_id, scry_plugin_sdk::schema::traits::NAME)
+                .await
+                .ok()
+                .flatten()
                 .unwrap_or_else(|| t_id.clone());
 
             relationships.push(json!({
@@ -198,13 +270,20 @@ impl GraphService {
         }
 
         let mut result = serde_json::Map::new();
-        
-        // Resolve display fields using the centralized DRY repository method
-        let (display_title, display_subtitle, display_image, db_icon) = repo.get_display_info(namespace, typ, id).await;
 
-        result.insert("display_title".to_string(), serde_json::Value::String(display_title));
+        // Resolve display fields using the centralized DRY repository method
+        let (display_title, display_subtitle, display_image, db_icon) =
+            repo.get_display_info(namespace, typ, id).await;
+
+        result.insert(
+            "display_title".to_string(),
+            serde_json::Value::String(display_title),
+        );
         if let Some(sub) = display_subtitle {
-            result.insert("display_subtitle".to_string(), serde_json::Value::String(sub));
+            result.insert(
+                "display_subtitle".to_string(),
+                serde_json::Value::String(sub),
+            );
         }
         if let Some(img) = display_image {
             result.insert("display_image".to_string(), serde_json::Value::String(img));
@@ -213,11 +292,11 @@ impl GraphService {
         let mut display_icon = db_icon;
         if display_icon.is_none() {
             for m in manifests.values() {
-                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == namespace) {
-                    if domain.icon.is_some() {
-                        display_icon = domain.icon.clone();
-                        break;
-                    }
+                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == namespace)
+                    && domain.icon.is_some()
+                {
+                    display_icon = domain.icon.clone();
+                    break;
                 }
             }
         }
@@ -227,7 +306,10 @@ impl GraphService {
         }
 
         result.insert("traits".to_string(), serde_json::Value::Object(traits_map));
-        result.insert("relationships".to_string(), serde_json::Value::Array(relationships));
+        result.insert(
+            "relationships".to_string(),
+            serde_json::Value::Array(relationships),
+        );
 
         Ok(serde_json::Value::Object(result))
     }

@@ -199,7 +199,7 @@
 								label: (context) => {
 									const q = queries[context.datasetIndex];
 									const rawValue = q.data[context.dataIndex]?.value;
-									return `${q.label}: ${rawValue} ${normalize ? `(${context.parsed.y.toFixed(1)}%)` : ''}`;
+									return `${q.label}: ${rawValue} ${normalize && context.parsed.y != null ? `(${context.parsed.y.toFixed(1)}%)` : ''}`;
 								}
 							}
 						}

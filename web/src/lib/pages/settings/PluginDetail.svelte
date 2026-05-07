@@ -23,9 +23,9 @@
   try {
    const plugins = await api.getPlugins();
    plugin = plugins.find(p => p.id === id) || null;
-   if (plugin) {
-    configData = plugin.config || {};
-   }
+    if (plugin) {
+     configData = plugin.config_schema ? JSON.parse(plugin.config_schema) : {};
+    }
   } catch (e) {
    console.error("Failed to load plugin details", e);
   } finally {
@@ -117,7 +117,7 @@
        {#snippet header()}
         <div class="flex items-center justify-between w-full">
          <span class="text-xs font-bold tracking-wide opacity-60">Plugin Configuration</span>
-         <div class="badge badge-outline badge-xs opacity-70 font-mono tracking-tighter">ID: {plugin.id}</div>
+          <div class="badge badge-outline badge-xs opacity-70 font-mono tracking-tighter">ID: {plugin?.id}</div>
         </div>
        {/snippet}
       <div class="space-y-6">

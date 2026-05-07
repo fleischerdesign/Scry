@@ -1,7 +1,7 @@
-use sqlx::SqlitePool;
 use crate::error::Result;
-use crate::plugins::scry::plugin::host::{Relationship, QueryParam};
+use crate::plugins::scry::plugin::host::{QueryParam, Relationship};
 use crate::services::SecretService;
+use sqlx::SqlitePool;
 
 pub struct PluginStateRepository {
     pool: SqlitePool,
@@ -12,9 +12,9 @@ pub struct PluginStateRepository {
 
 impl PluginStateRepository {
     pub fn new(pool: &SqlitePool, user_id: i64, plugin_name: &str) -> Self {
-        Self { 
-            pool: pool.clone(), 
-            user_id, 
+        Self {
+            pool: pool.clone(),
+            user_id,
             plugin_name: plugin_name.to_string(),
             secret_service: SecretService::new(),
         }
@@ -27,8 +27,14 @@ impl PluginStateRepository {
     }
 
     pub async fn get_state(&self, key: &str) -> Result<Option<String>> {
-        let row = sqlx::query_scalar::<_, String>("SELECT value FROM plugin_state WHERE user_id = ? AND plugin_name = ? AND key = ?")
-            .bind(self.user_id).bind(&self.plugin_name).bind(key).fetch_optional(&self.pool).await?;
+        let row = sqlx::query_scalar::<_, String>(
+            "SELECT value FROM plugin_state WHERE user_id = ? AND plugin_name = ? AND key = ?",
+        )
+        .bind(self.user_id)
+        .bind(&self.plugin_name)
+        .bind(key)
+        .fetch_optional(&self.pool)
+        .await?;
         Ok(row)
     }
 
@@ -41,14 +47,21 @@ impl PluginStateRepository {
     pub async fn get_secret(&self, key: &str) -> Result<Option<String>> {
         let res = sqlx::query_scalar::<_, String>("SELECT value FROM plugin_config WHERE user_id = ? AND plugin_id = ? AND key = ? AND is_secret = 1")
             .bind(self.user_id).bind(&self.plugin_name).bind(key).fetch_optional(&self.pool).await?;
-        
+
         match res {
             Some(encrypted) => Ok(self.secret_service.decrypt(self.user_id, &encrypted)?),
             None => Ok(None),
         }
     }
 
-    pub async fn set_trait(&self, namespace: &str, typ: &str, id: &str, trait_id: &str, value_json: &str) -> Result<()> {
+    pub async fn set_trait(
+        &self,
+        namespace: &str,
+        typ: &str,
+        id: &str,
+        trait_id: &str,
+        value_json: &str,
+    ) -> Result<()> {
         sqlx::query("INSERT INTO entities (user_id, namespace, typ, id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
             .bind(self.user_id).bind(namespace).bind(typ).bind(id).execute(&self.pool).await?;
 
@@ -57,7 +70,13 @@ impl PluginStateRepository {
         Ok(())
     }
 
-    pub async fn get_trait(&self, namespace: &str, typ: &str, id: &str, trait_id: &str) -> Result<Option<String>> {
+    pub async fn get_trait(
+        &self,
+        namespace: &str,
+        typ: &str,
+        id: &str,
+        trait_id: &str,
+    ) -> Result<Option<String>> {
         let row = sqlx::query_scalar::<_, String>(
             "SELECT value_json FROM entity_traits WHERE user_id = ? AND namespace = ? AND entity_type = ? AND entity_id = ? AND trait_id = ? ORDER BY updated_at DESC LIMIT 1"
         )
@@ -81,25 +100,48 @@ impl PluginStateRepository {
         Ok(())
     }
 
-    pub async fn get_relationships(&self, namespace: &str, typ: &str, id: &str, direction: &str) -> Result<Vec<Relationship>> {
+    pub async fn get_relationships(
+        &self,
+        namespace: &str,
+        typ: &str,
+        id: &str,
+        direction: &str,
+    ) -> Result<Vec<Relationship>> {
         let sql = if direction == "in" {
             "SELECT source_ns, source_type, source_id, predicate, target_ns, target_type, target_id FROM entity_relationships WHERE user_id = ? AND target_ns = ? AND target_type = ? AND target_id = ?"
         } else {
             "SELECT source_ns, source_type, source_id, predicate, target_ns, target_type, target_id FROM entity_relationships WHERE user_id = ? AND source_ns = ? AND source_type = ? AND source_id = ?"
         };
 
-        let rows = sqlx::query_as::<_, (String, String, String, String, String, String, String)>(sql)
-            .bind(self.user_id).bind(namespace).bind(typ).bind(id)
-            .fetch_all(&self.pool).await?;
+        let rows =
+            sqlx::query_as::<_, (String, String, String, String, String, String, String)>(sql)
+                .bind(self.user_id)
+                .bind(namespace)
+                .bind(typ)
+                .bind(id)
+                .fetch_all(&self.pool)
+                .await?;
 
-        Ok(rows.into_iter().map(|(sn, st, si, p, tn, tt, ti)| Relationship {
-            source_namespace: sn, source_type: st, source_id: si,
-            predicate: p,
-            target_namespace: tn, target_type: tt, target_id: ti,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|(sn, st, si, p, tn, tt, ti)| Relationship {
+                source_namespace: sn,
+                source_type: st,
+                source_id: si,
+                predicate: p,
+                target_namespace: tn,
+                target_type: tt,
+                target_id: ti,
+            })
+            .collect())
     }
 
-    pub async fn raw_query(&self, sql: &str, user_id: i64, params: Vec<QueryParam>) -> Result<Vec<sqlx::sqlite::SqliteRow>> {
+    pub async fn raw_query(
+        &self,
+        sql: &str,
+        user_id: i64,
+        params: Vec<QueryParam>,
+    ) -> Result<Vec<sqlx::sqlite::SqliteRow>> {
         let safe_sql = format!(
             "WITH events AS (SELECT id, user_id, timestamp, category, source, json(payload) as payload, metadata FROM main.events WHERE user_id = ?) {}",
             sql

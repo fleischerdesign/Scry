@@ -1,5 +1,5 @@
-use sqlx::SqlitePool;
 use crate::error::Result;
+use sqlx::SqlitePool;
 
 pub struct ProfileRepository<'a> {
     pool: &'a SqlitePool,
@@ -12,10 +12,12 @@ impl<'a> ProfileRepository<'a> {
     }
 
     pub async fn get_all(&self) -> Result<Vec<(String, String)>> {
-        let rows = sqlx::query_as::<_, (String, String)>("SELECT key, value FROM user_profile WHERE user_id = ?")
-            .bind(self.user_id)
-            .fetch_all(self.pool)
-            .await?;
+        let rows = sqlx::query_as::<_, (String, String)>(
+            "SELECT key, value FROM user_profile WHERE user_id = ?",
+        )
+        .bind(self.user_id)
+        .fetch_all(self.pool)
+        .await?;
         Ok(rows)
     }
 

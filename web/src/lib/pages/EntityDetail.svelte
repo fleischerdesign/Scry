@@ -32,10 +32,10 @@
     api.getEntityEvents(ns, type, id)
    ]);
    
-   displayTitle = entityData.display_title || id;
-   displaySubtitle = entityData.display_subtitle || null;
-   displayImage = entityData.display_image || null;
-   displayIcon = entityData.display_icon || null;
+    displayTitle = entityData.display_title || id;
+    displaySubtitle = (entityData as any).display_subtitle || null;
+    displayImage = entityData.display_image || null;
+    displayIcon = (entityData as any).display_icon || null;
    
    traits = entityData.traits || {};
    relationships = entityData.relationships || [];

@@ -137,9 +137,8 @@
 							>
 								Theme
 							</div>
-							<ul
-								tabindex="0"
-								class="dropdown-content z-[1] p-2 shadow-2xl bg-base-300 rounded-box w-52 mt-4 border border-base-300"
+						<ul
+							class="dropdown-content z-[1] p-2 shadow-2xl bg-base-300 rounded-box w-52 mt-4 border border-base-300"
 							>
 								{#each ["default", "light", "dark", "retro", "cyberpunk", "synthwave", "luxury", "business"] as theme}
 									<li>

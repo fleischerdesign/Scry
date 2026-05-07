@@ -1,36 +1,36 @@
-mod plugins;
 mod domain;
-mod state;
-mod handlers;
 mod error;
+mod handlers;
+mod plugins;
 mod repository;
 mod services;
+mod state;
 
-use services::{AuthService, DashboardService, GraphService, AnalyticsService, PluginService, SystemService, EventService, SecretService};
+use services::{
+    AnalyticsService, AuthService, DashboardService, EventService, GraphService, PluginService,
+    SecretService, SystemService,
+};
 use state::AppState;
 
-use axum::{
-    http::HeaderName,
-    Router,
-};
-use sqlx::sqlite::{SqlitePool, SqliteConnectOptions};
+use crate::plugins::PluginManager;
+use axum::{Router, http::HeaderName};
+use notify::{RecursiveMode, Watcher};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
+use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
-use crate::plugins::PluginManager;
-use notify::{Watcher, RecursiveMode};
-use tower_http::cors::{Any, CorsLayer};
-use tokio_util::sync::CancellationToken;
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
         handlers::auth::register_user, handlers::auth::login_user,
-        handlers::plugins::get_catalog, handlers::analytics::search_events, 
-        handlers::events::get_data_by_type, 
-        handlers::events::get_timeline, 
+        handlers::plugins::get_catalog, handlers::analytics::search_events,
+        handlers::events::get_data_by_type,
+        handlers::events::get_timeline,
         handlers::events::get_daily_summary,
         handlers::analytics::get_semantic_top,
         handlers::analytics::get_semantic_series,
@@ -50,9 +50,9 @@ use tokio_util::sync::CancellationToken;
         handlers::system::health_check
     ),
     components(schemas(
-        scry_proto::Event, domain::User, domain::RegisterRequest, domain::LoginRequest, domain::AuthResponse, 
-        domain::ApiReportMetadata, domain::ApiReportData, domain::PluginReports, domain::CorrelationResult, 
-        domain::SemanticStats, domain::PluginStatus, domain::SemanticParams, domain::Dashboard, 
+        scry_proto::Event, domain::User, domain::RegisterRequest, domain::LoginRequest, domain::AuthResponse,
+        domain::ApiReportMetadata, domain::ApiReportData, domain::PluginReports, domain::CorrelationResult,
+        domain::SemanticStats, domain::PluginStatus, domain::SemanticParams, domain::Dashboard,
         domain::DashboardWidget, domain::ApiEntity, domain::ApiNamespace
     )),
     modifiers(&SecurityAddon),
@@ -81,12 +81,20 @@ async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "scry_core=debug,info".into()))
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "scry_core=debug,info".into()),
+        )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:scry.db".to_string());
-    let db_filename = database_url.trim_start_matches("sqlite:").split('?').next().unwrap_or("scry.db");
+    let database_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:scry.db".to_string());
+    let db_filename = database_url
+        .trim_start_matches("sqlite:")
+        .split('?')
+        .next()
+        .unwrap_or("scry.db");
 
     let pool_options = SqliteConnectOptions::new()
         .filename(db_filename)
@@ -99,7 +107,7 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!("../../migrations").run(&db).await?;
 
     let plugin_manager = Arc::new(PluginManager::new("./plugins", db.clone())?);
-    
+
     // Plugins im Hintergrund laden, um den Startvorgang nicht zu blockieren
     let pm_for_load = plugin_manager.clone();
     tokio::spawn(async move {
@@ -111,20 +119,23 @@ async fn main() -> anyhow::Result<()> {
     let pm_for_watcher = plugin_manager.clone();
     let rt_handle = tokio::runtime::Handle::current();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-        if let Ok(event) = res {
-            if event.kind.is_modify() || event.kind.is_create() {
-                let pm = pm_for_watcher.clone();
-                rt_handle.spawn(async move {
-                    for path in event.paths {
-                        if let Err(e) = pm.reload_plugin(&path).await {
-                            tracing::error!("Failed to hot-reload plugin {:?}: {}", path, e);
-                        }
+        if let Ok(event) = res
+            && (event.kind.is_modify() || event.kind.is_create())
+        {
+            let pm = pm_for_watcher.clone();
+            rt_handle.spawn(async move {
+                for path in event.paths {
+                    if let Err(e) = pm.reload_plugin(&path).await {
+                        tracing::error!("Failed to hot-reload plugin {:?}: {}", path, e);
                     }
-                });
-            }
+                }
+            });
         }
     })?;
-    watcher.watch(std::path::Path::new("./plugins"), RecursiveMode::NonRecursive)?;
+    watcher.watch(
+        std::path::Path::new("./plugins"),
+        RecursiveMode::NonRecursive,
+    )?;
 
     let cancel_token = CancellationToken::new();
     let mut event_service = EventService::new(db.clone(), plugin_manager.clone());
@@ -132,7 +143,7 @@ async fn main() -> anyhow::Result<()> {
     event_service.set_event_sender(event_sender.clone());
 
     let rate_limiter = Arc::new(crate::handlers::middleware::rate_limit::RateLimitState::new());
-    
+
     // Background task for rate limiter cleanup
     let rl_for_cleanup = rate_limiter.clone();
     tokio::spawn(async move {
@@ -142,14 +153,19 @@ async fn main() -> anyhow::Result<()> {
             rl_for_cleanup.cleanup();
         }
     });
-    
-    let shared_state = Arc::new(AppState { 
-        event_service: event_service.clone(), 
+
+    let shared_state = Arc::new(AppState {
+        event_service: event_service.clone(),
         analytics_service: AnalyticsService::new(db.clone(), plugin_manager.clone()),
         auth_service: AuthService::new(db.clone()),
         dashboard_service: DashboardService::new(db.clone()),
         graph_service: GraphService::new(db.clone(), plugin_manager.clone()),
-        plugin_service: PluginService::new(db.clone(), plugin_manager.clone(), event_service, SecretService::new()),
+        plugin_service: PluginService::new(
+            db.clone(),
+            plugin_manager.clone(),
+            event_service,
+            SecretService::new(),
+        ),
         system_service: SystemService::new(db.clone()),
         rate_limiter,
         event_sender,
@@ -161,7 +177,10 @@ async fn main() -> anyhow::Result<()> {
     let background_state = shared_state.clone();
     let background_token = cancel_token.clone();
     tokio::spawn(async move {
-        background_state.system_service.run_background_tasks(background_state.clone(), background_token).await;
+        background_state
+            .system_service
+            .run_background_tasks(background_state.clone(), background_token)
+            .await;
     });
 
     let cors = CorsLayer::new()
@@ -178,19 +197,28 @@ async fn main() -> anyhow::Result<()> {
         .merge(handlers::app_router(shared_state.clone()))
         .fallback_service(
             tower_http::services::ServeDir::new("web/dist")
-                .fallback(tower_http::services::ServeFile::new("web/dist/index.html"))
+                .fallback(tower_http::services::ServeFile::new("web/dist/index.html")),
         )
         .layer(cors);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::info!("Scry Multi-Tenant Platform on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    
+
     let final_cancel_token = cancel_token.clone();
     let shutdown = async move {
-        let ctrl_c = async { tokio::signal::ctrl_c().await.expect("failed to install Ctrl+C handler"); };
+        let ctrl_c = async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("failed to install Ctrl+C handler");
+        };
         #[cfg(unix)]
-        let terminate = async { tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).expect("failed to install signal handler").recv().await; };
+        let terminate = async {
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("failed to install signal handler")
+                .recv()
+                .await;
+        };
         #[cfg(not(unix))]
         let terminate = std::future::pending::<()>();
 
@@ -202,9 +230,12 @@ async fn main() -> anyhow::Result<()> {
         final_cancel_token.cancel();
     };
 
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(shutdown)
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown)
+    .await?;
     tracing::info!("Scry shutdown complete.");
     Ok(())
 }

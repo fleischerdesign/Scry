@@ -48,8 +48,8 @@
      </div>
      <progress 
       class="progress progress-secondary w-full h-1.5 opacity-60 hover:opacity-100 transition-opacity" 
-      value={count} 
-      max={sampleSize}
+       value={Number(count)} 
+       max={Number(sampleSize)}
      ></progress>
     </div>
    {/each}

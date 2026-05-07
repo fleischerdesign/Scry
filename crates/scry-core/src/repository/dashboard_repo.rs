@@ -1,7 +1,7 @@
-use sqlx::SqlitePool;
-use crate::error::Result;
 use crate::domain::{Dashboard, DashboardWidget};
+use crate::error::Result;
 use serde_json::json;
+use sqlx::SqlitePool;
 
 pub struct DashboardRepository<'a> {
     pool: &'a SqlitePool,
@@ -29,7 +29,7 @@ impl<'a> DashboardRepository<'a> {
             .bind(self.user_id)
             .fetch_all(self.pool)
             .await?;
-        
+
         let mut results = Vec::new();
         for (id, name, slug, is_default) in dashboards {
             let widgets_rows = sqlx::query_as::<_, (String, String, String, Option<String>, String, i32, i32)>(
@@ -38,28 +38,54 @@ impl<'a> DashboardRepository<'a> {
             .bind(&id)
             .fetch_all(self.pool)
             .await?;
-            
-            let widgets = widgets_rows.into_iter().map(|w| DashboardWidget {
-                id: w.0, dashboard_id: w.1, r#type: w.2, title: w.3,
-                config: serde_json::from_str(&w.4).unwrap_or(json!({})),
-                width_span: w.5, sort_order: w.6
-            }).collect();
-            
-            results.push(Dashboard { id, name, slug, is_default, widgets });
+
+            let widgets = widgets_rows
+                .into_iter()
+                .map(|w| DashboardWidget {
+                    id: w.0,
+                    dashboard_id: w.1,
+                    r#type: w.2,
+                    title: w.3,
+                    config: serde_json::from_str(&w.4).unwrap_or(json!({})),
+                    width_span: w.5,
+                    sort_order: w.6,
+                })
+                .collect();
+
+            results.push(Dashboard {
+                id,
+                name,
+                slug,
+                is_default,
+                widgets,
+            });
         }
         Ok(results)
     }
 
-    pub async fn add_widget(&self, widget_id: &str, dashboard_id: &str, w_type: &str, title: Option<&str>, config: &str, span: i32) -> Result<()> {
+    pub async fn add_widget(
+        &self,
+        widget_id: &str,
+        dashboard_id: &str,
+        w_type: &str,
+        title: Option<&str>,
+        config: &str,
+        span: i32,
+    ) -> Result<()> {
         // Verify dashboard ownership
-        let exists = sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM dashboards WHERE id = ? AND user_id = ?)")
-            .bind(dashboard_id)
-            .bind(self.user_id)
-            .fetch_one(self.pool)
-            .await?;
+        let exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM dashboards WHERE id = ? AND user_id = ?)",
+        )
+        .bind(dashboard_id)
+        .bind(self.user_id)
+        .fetch_one(self.pool)
+        .await?;
 
         if !exists {
-            return Err(crate::error::Error::NotFound(format!("Dashboard {} not found", dashboard_id)));
+            return Err(crate::error::Error::NotFound(format!(
+                "Dashboard {} not found",
+                dashboard_id
+            )));
         }
 
         sqlx::query("INSERT INTO dashboard_widgets (id, dashboard_id, type, title, config, width_span) VALUES (?, ?, ?, ?, ?, ?)")
@@ -85,10 +111,16 @@ impl<'a> DashboardRepository<'a> {
         .await?;
 
         if !exists {
-            return Err(crate::error::Error::NotFound(format!("Widget {} not found", widget_id)));
+            return Err(crate::error::Error::NotFound(format!(
+                "Widget {} not found",
+                widget_id
+            )));
         }
 
-        sqlx::query("DELETE FROM dashboard_widgets WHERE id = ?").bind(widget_id).execute(self.pool).await?;
+        sqlx::query("DELETE FROM dashboard_widgets WHERE id = ?")
+            .bind(widget_id)
+            .execute(self.pool)
+            .await?;
         Ok(())
     }
 }

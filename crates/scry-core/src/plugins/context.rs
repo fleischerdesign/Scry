@@ -1,9 +1,9 @@
 use crate::repository::PluginStateRepository;
 use reqwest::Client;
 use std::cell::OnceCell;
-use wasmtime::component::ResourceTable;
 use wasmtime::ResourceLimiter;
-use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
+use wasmtime::component::ResourceTable;
+use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 pub struct MyCtx {
     pub db: sqlx::SqlitePool,

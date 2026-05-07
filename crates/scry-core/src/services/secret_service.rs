@@ -1,10 +1,10 @@
 use aes_gcm::{
-    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit},
 };
-use anyhow::{anyhow, Result};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use rand::{thread_rng, Rng};
+use anyhow::{Result, anyhow};
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use rand::Rng;
 
 const NONCE_SIZE: usize = 12;
 const KEY_SIZE: usize = 32;
@@ -34,7 +34,7 @@ impl SecretService {
     }
 
     fn derive_key(&self, user_id: i64) -> [u8; KEY_SIZE] {
-        use argon2::{Argon2, PasswordHasher};
+        use argon2::Argon2;
         let salt = format!("scry-secret-{}", user_id);
         let salt_bytes = salt.as_bytes();
         let mut output = [0u8; KEY_SIZE];

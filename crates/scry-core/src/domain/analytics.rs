@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use utoipa::{IntoParams, ToSchema};
 use ts_rs::TS;
+use utoipa::{IntoParams, ToSchema};
 
 #[derive(Serialize, ToSchema, TS)]
 #[ts(export)]
@@ -20,23 +20,28 @@ pub struct SemanticStats {
 
 #[derive(Deserialize, IntoParams, TS)]
 #[ts(export)]
-pub struct SearchParams { pub q: String, pub limit: Option<u32>, pub offset: Option<u32> }
+#[allow(dead_code)]
+pub struct SearchParams {
+    pub q: String,
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+}
 
 #[derive(Deserialize, IntoParams, TS)]
 #[ts(export)]
-pub struct CorrelateParams { 
-    pub base_category: Option<String>, 
-    pub join_category: Option<String>, 
-    pub base_semantic: Option<String>, 
-    pub join_semantic: Option<String>, 
-    pub limit: Option<u32> 
+pub struct CorrelateParams {
+    pub base_category: Option<String>,
+    pub join_category: Option<String>,
+    pub base_semantic: Option<String>,
+    pub join_semantic: Option<String>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Deserialize, IntoParams, ToSchema, TS)]
 #[ts(export)]
-pub struct SemanticParams { 
-    pub semantic_type: String, 
-    pub limit: Option<u32>, 
+pub struct SemanticParams {
+    pub semantic_type: String,
+    pub limit: Option<u32>,
     pub days: Option<u32>,
     pub interval: Option<String>,
 }

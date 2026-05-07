@@ -1,9 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use std::sync::Arc;
 
 use crate::state::AppState;
@@ -17,7 +12,13 @@ pub async fn get_system_status(State(state): State<Arc<AppState>>) -> impl IntoR
 #[utoipa::path(get, path = "/health", responses((status = 200, description = "Health Check")))]
 pub async fn health_check(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     match state.system_service.health_check().await {
-        Ok(_) => (StatusCode::OK, Json(serde_json::json!({ "status": "healthy", "db": "connected" }))),
-        Err(e) => (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "status": "unhealthy", "db": e.to_string() }))),
+        Ok(_) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "status": "healthy", "db": "connected" })),
+        ),
+        Err(e) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "status": "unhealthy", "db": e.to_string() })),
+        ),
     }
 }

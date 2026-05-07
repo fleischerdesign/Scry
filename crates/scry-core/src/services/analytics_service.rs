@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use sqlx::SqlitePool;
-use crate::plugins::PluginManager;
 use crate::error::Result;
+use crate::plugins::PluginManager;
 use crate::repository::AnalyticsRepository;
 use serde_json::{Value, json};
+use sqlx::SqlitePool;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AnalyticsService {
@@ -21,18 +21,24 @@ impl AnalyticsService {
         let mut numeric_targets = Vec::new();
         for m in manifests.values() {
             for export in &m.exports {
-                let is_numeric = export.semantic_type.contains("temp") || 
-                                export.semantic_type.contains("bpm") || 
-                                export.semantic_type.contains("level") ||
-                                export.semantic_type.contains("humidity");
-                
+                let is_numeric = export.semantic_type.contains("temp")
+                    || export.semantic_type.contains("bpm")
+                    || export.semantic_type.contains("level")
+                    || export.semantic_type.contains("humidity");
+
                 if is_numeric {
-                    numeric_targets.push((export.category.clone(), export.path.clone(), export.semantic_type.clone()));
+                    numeric_targets.push((
+                        export.category.clone(),
+                        export.path.clone(),
+                        export.semantic_type.clone(),
+                    ));
                 }
             }
         }
 
-        if numeric_targets.len() < 2 { return Ok(0); }
+        if numeric_targets.len() < 2 {
+            return Ok(0);
+        }
 
         let mut discoveries = 0;
         let repo = AnalyticsRepository::new(&self.db, user_id);
@@ -45,16 +51,18 @@ impl AnalyticsService {
                 let path_a_clean = path_a.strip_prefix("payload.").unwrap_or(path_a);
                 let path_b_clean = path_b.strip_prefix("payload.").unwrap_or(path_b);
 
-                let rows = repo.calculate_pearson_series(cat_a, path_a_clean, cat_b, path_b_clean).await?;
+                let rows = repo
+                    .calculate_pearson_series(cat_a, path_a_clean, cat_b, path_b_clean)
+                    .await?;
 
-                if rows.len() >= 5 {
-                    if let Some(corr) = self.calculate_pearson_coefficient(rows) {
-                        if corr.abs() > 0.6 {
-                            let metadata = json!({ "strength": corr, "method": "pearson_1h_buckets" });
-                            repo.store_discovery(sem_a, sem_b, &serde_json::to_string(&metadata).unwrap()).await?;
-                            discoveries += 1;
-                        }
-                    }
+                if rows.len() >= 5
+                    && let Some(corr) = self.calculate_pearson_coefficient(rows)
+                    && corr.abs() > 0.6
+                {
+                    let metadata = json!({ "strength": corr, "method": "pearson_1h_buckets" });
+                    repo.store_discovery(sem_a, sem_b, &serde_json::to_string(&metadata).unwrap())
+                        .await?;
+                    discoveries += 1;
                 }
             }
         }
@@ -84,30 +92,36 @@ impl AnalyticsService {
         let repo = AnalyticsRepository::new(&self.db, user_id);
         let rows = repo.get_discoveries().await?;
 
-        Ok(rows.into_iter().map(|(s, t, m)| {
-            json!({
-                "source": s,
-                "target": t,
-                "insights": m,
-                "display_text": format!("Correlation found between {} and {}", s, t)
+        Ok(rows
+            .into_iter()
+            .map(|(s, t, m)| {
+                json!({
+                    "source": s,
+                    "target": t,
+                    "insights": m,
+                    "display_text": format!("Correlation found between {} and {}", s, t)
+                })
             })
-        }).collect())
+            .collect())
     }
 
     pub async fn search(&self, user_id: i64, query: &str, limit: u32) -> Result<Vec<Value>> {
         let repo = AnalyticsRepository::new(&self.db, user_id);
         let rows = repo.search(query, limit).await?;
 
-        let results: Vec<Value> = rows.into_iter().map(|(id, typ, snippet, subtext, link)| {
-            json!({
-                "id": id,
-                "type": typ,
-                "label": if typ == "event" { subtext.clone() } else { id.clone() },
-                "snippet": snippet,
-                "subtext": subtext,
-                "link": link
+        let results: Vec<Value> = rows
+            .into_iter()
+            .map(|(id, typ, snippet, subtext, link)| {
+                json!({
+                    "id": id,
+                    "type": typ,
+                    "label": if typ == "event" { subtext.clone() } else { id.clone() },
+                    "snippet": snippet,
+                    "subtext": subtext,
+                    "link": link
+                })
             })
-        }).collect();
+            .collect();
 
         Ok(results)
     }

@@ -5,16 +5,16 @@ pub use serde_json;
 pub use uuid;
 pub use wit_bindgen;
 
-pub mod schema;
 pub mod identity;
+pub mod schema;
 
 pub mod prelude {
-    pub use crate::schema;
-    pub use crate::identity;
     pub use crate::Event as SdkEvent;
+    pub use crate::identity;
+    pub use crate::schema;
     pub use crate::{
-        scry_plugin, DataField, EntityRef, Manifest, Relationship, ReportData, ReportMetadata,
-        ScryPlugin, Visualization, WidgetDefinition, WidgetTemplate,
+        DataField, EntityRef, Manifest, Relationship, ReportData, ReportMetadata, ScryPlugin,
+        Visualization, WidgetDefinition, WidgetTemplate, scry_plugin,
     };
     pub use serde_json::json;
 }

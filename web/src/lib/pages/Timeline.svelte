@@ -62,7 +62,7 @@
 						<Icon icon="lucide:filter" class="w-4 h-4" />
 						{selectedNamespace ? selectedNamespace.toUpperCase() : 'Filter'}
 					</div>
-					<ul tabindex="0" class="dropdown-content z-[20] menu p-2 shadow-2xl bg-base-100 border border-base-300 rounded-2xl w-52 mt-2">
+					<ul class="dropdown-content z-[20] menu p-2 shadow-2xl bg-base-100 border border-base-300 rounded-2xl w-52 mt-2">
 						<li>
 							<button 
 								class="flex justify-between items-center {selectedNamespace === null ? 'active' : ''}"

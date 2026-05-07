@@ -43,16 +43,16 @@ impl SemanticResolver {
             "scry.core/description" => "https://schema.org/description",
             "scry.visual/photo" | "scry.core/avatar" => "https://schema.org/image",
             "scry.core/city" => "https://schema.org/addressLocality",
-            
+
             // New Semantic Entity Types
             "entity.music.artist" => "https://schema.org/MusicGroup",
             "entity.music.album" => "https://schema.org/MusicAlbum",
             "entity.music.track" => "https://schema.org/MusicRecording",
             "entity.core.user" => "https://schema.org/Person",
-            
+
             // New Semantic Metric Types
             "metric.environment.temperature" => "https://schema.org/QuantitativeValue", // Specific properties like value/unitCode apply here
-            
+
             _ => return None,
         };
         Some(uri.to_string())

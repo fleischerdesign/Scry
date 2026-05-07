@@ -1,6 +1,6 @@
 use axum::{
-    extract::{State, Json, Path},
     Extension,
+    extract::{Json, Path, State},
 };
 use std::sync::Arc;
 
@@ -11,7 +11,7 @@ use crate::state::AppState;
 #[utoipa::path(get, path = "/api/v1/discovery/entities", responses((status = 200, body = [ApiNamespace])), security(("api_key" = [])))]
 pub async fn get_namespaces(
     State(state): State<Arc<AppState>>,
-    Extension(auth): Extension<AuthContext>
+    Extension(auth): Extension<AuthContext>,
 ) -> Result<Json<Vec<ApiNamespace>>> {
     let res = state.graph_service.get_namespaces(auth.user_id).await?;
     Ok(Json(res))
@@ -21,9 +21,12 @@ pub async fn get_namespaces(
 pub async fn get_namespace_types(
     State(state): State<Arc<AppState>>,
     Path(namespace): Path<String>,
-    Extension(auth): Extension<AuthContext>
+    Extension(auth): Extension<AuthContext>,
 ) -> Result<Json<Vec<ApiEntityType>>> {
-    let res = state.graph_service.get_namespace_types(auth.user_id, &namespace).await?;
+    let res = state
+        .graph_service
+        .get_namespace_types(auth.user_id, &namespace)
+        .await?;
     Ok(Json(res))
 }
 
@@ -31,9 +34,12 @@ pub async fn get_namespace_types(
 pub async fn get_entities(
     State(state): State<Arc<AppState>>,
     Path((namespace, typ)): Path<(String, String)>,
-    Extension(auth): Extension<AuthContext>
+    Extension(auth): Extension<AuthContext>,
 ) -> Result<Json<Vec<ApiEntity>>> {
-    let res = state.graph_service.get_entities(auth.user_id, &namespace, &typ).await?;
+    let res = state
+        .graph_service
+        .get_entities(auth.user_id, &namespace, &typ)
+        .await?;
     Ok(Json(res))
 }
 
@@ -41,9 +47,12 @@ pub async fn get_entities(
 pub async fn get_entity_traits(
     State(state): State<Arc<AppState>>,
     Path((namespace, typ, id)): Path<(String, String, String)>,
-    Extension(auth): Extension<AuthContext>
+    Extension(auth): Extension<AuthContext>,
 ) -> Result<Json<serde_json::Value>> {
-    let res = state.graph_service.get_entity_details(auth.user_id, &namespace, &typ, &id).await?;
+    let res = state
+        .graph_service
+        .get_entity_details(auth.user_id, &namespace, &typ, &id)
+        .await?;
     Ok(Json(res))
 }
 
@@ -53,6 +62,9 @@ pub async fn resolve_entities(
     Extension(auth): Extension<AuthContext>,
     Json(refs): Json<Vec<ApiEntityRef>>,
 ) -> Result<Json<Vec<ApiEntity>>> {
-    let res = state.graph_service.resolve_entities(auth.user_id, refs).await?;
+    let res = state
+        .graph_service
+        .resolve_entities(auth.user_id, refs)
+        .await?;
     Ok(Json(res))
 }

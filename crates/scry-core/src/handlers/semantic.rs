@@ -1,8 +1,4 @@
-use axum::{
-    extract::Query,
-    response::IntoResponse,
-    Json,
-};
+use axum::{Json, extract::Query, response::IntoResponse};
 use serde::Deserialize;
 use utoipa::IntoParams;
 

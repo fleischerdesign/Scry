@@ -1,17 +1,18 @@
+use crate::handlers::middleware::identity::Identity;
+use crate::state::AppState;
 use axum::{
     extract::State,
     http::{Request, StatusCode},
     middleware::Next,
-    response::{Response, IntoResponse},
+    response::{IntoResponse, Response},
 };
-use std::sync::Arc;
-use crate::state::AppState;
-use crate::handlers::middleware::identity::Identity;
 use governor::{Quota, RateLimiter, state::keyed::DashMapStateStore};
-use std::num::NonZeroU32;
 use serde_json::json;
+use std::num::NonZeroU32;
+use std::sync::Arc;
 
-type KeyedRateLimiter = RateLimiter<String, DashMapStateStore<String>, governor::clock::DefaultClock>;
+type KeyedRateLimiter =
+    RateLimiter<String, DashMapStateStore<String>, governor::clock::DefaultClock>;
 
 pub struct RateLimitState {
     limiter: KeyedRateLimiter,
@@ -21,14 +22,16 @@ impl RateLimitState {
     pub fn new() -> Self {
         let quota = Quota::per_second(NonZeroU32::new(25).unwrap())
             .allow_burst(NonZeroU32::new(50).unwrap());
-        
+
         Self {
             limiter: RateLimiter::dashmap(quota),
         }
     }
 
     pub fn check(&self, identity: &Identity) -> bool {
-        self.limiter.check_key(&identity.as_str().to_string()).is_ok()
+        self.limiter
+            .check_key(&identity.as_str().to_string())
+            .is_ok()
     }
 
     pub fn cleanup(&self) {
@@ -41,7 +44,9 @@ pub async fn rate_limit_middleware(
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let identity = req.extensions().get::<Identity>()
+    let identity = req
+        .extensions()
+        .get::<Identity>()
         .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if state.rate_limiter.check(identity) {
@@ -54,6 +59,7 @@ pub async fn rate_limit_middleware(
                 "error": "Rate limit exceeded",
                 "detail": "Too many requests. Please slow down."
             })),
-        ).into_response())
+        )
+            .into_response())
     }
 }

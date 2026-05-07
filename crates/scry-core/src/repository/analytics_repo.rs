@@ -1,6 +1,6 @@
-use sqlx::SqlitePool;
 use crate::error::Result;
 use serde_json::Value;
+use sqlx::SqlitePool;
 
 pub struct AnalyticsRepository<'a> {
     pool: &'a SqlitePool,
@@ -12,7 +12,12 @@ impl<'a> AnalyticsRepository<'a> {
         Self { pool, user_id }
     }
 
-    pub async fn correlate_nearest(&self, base_category: &str, join_category: &str, limit: u32) -> Result<Vec<Value>> {
+    pub async fn correlate_nearest(
+        &self,
+        base_category: &str,
+        join_category: &str,
+        limit: u32,
+    ) -> Result<Vec<Value>> {
         let sql = r#"
             SELECT 
                 CAST(b.payload AS TEXT),
@@ -29,11 +34,23 @@ impl<'a> AnalyticsRepository<'a> {
             LIMIT ?
         "#;
 
-        let rows = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<String>, Option<String>)>(sql)
-            .bind(join_category).bind(self.user_id)
-            .bind(base_category).bind(self.user_id)
-            .bind(limit)
-            .fetch_all(self.pool).await?;
+        let rows = sqlx::query_as::<
+            _,
+            (
+                String,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+            ),
+        >(sql)
+        .bind(join_category)
+        .bind(self.user_id)
+        .bind(base_category)
+        .bind(self.user_id)
+        .bind(limit)
+        .fetch_all(self.pool)
+        .await?;
 
         Ok(rows.into_iter().map(|(b, j, e, dt, ds)| {
             serde_json::json!({
@@ -46,7 +63,13 @@ impl<'a> AnalyticsRepository<'a> {
         }).collect())
     }
 
-    pub async fn get_semantic_top(&self, category: &str, path: &str, limit: u32, days: Option<u32>) -> Result<Vec<Value>> {
+    pub async fn get_semantic_top(
+        &self,
+        category: &str,
+        path: &str,
+        limit: u32,
+        days: Option<u32>,
+    ) -> Result<Vec<Value>> {
         let mut sql = format!(
             "SELECT payload ->> '{}' as key, COUNT(*) as count FROM events WHERE user_id = ? AND category = ?",
             path
@@ -59,7 +82,8 @@ impl<'a> AnalyticsRepository<'a> {
         sql.push_str(" GROUP BY key ORDER BY count DESC LIMIT ?");
 
         let mut query = sqlx::query_as::<_, (Option<String>, i64)>(&sql)
-            .bind(self.user_id).bind(category);
+            .bind(self.user_id)
+            .bind(category);
 
         if let Some(d) = days {
             query = query.bind(format!("-{} days", d));
@@ -72,7 +96,13 @@ impl<'a> AnalyticsRepository<'a> {
         }).collect())
     }
 
-    pub async fn get_semantic_series(&self, category: &str, path: &str, days: u32, interval: Option<String>) -> Result<Vec<Value>> {
+    pub async fn get_semantic_series(
+        &self,
+        category: &str,
+        path: &str,
+        days: u32,
+        interval: Option<String>,
+    ) -> Result<Vec<Value>> {
         let format_str = match interval.as_deref() {
             Some("1h") => "%Y-%m-%dT%H:00:00Z",
             _ => "%Y-%m-%d",
@@ -87,15 +117,24 @@ impl<'a> AnalyticsRepository<'a> {
             .bind(self.user_id)
             .bind(category)
             .bind(format!("-{} days", days))
-            .fetch_all(self.pool).await?;
+            .fetch_all(self.pool)
+            .await?;
 
-        Ok(rows.into_iter().map(|(l, v)| {
-            serde_json::json!({ "label": l, "value": v })
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|(l, v)| serde_json::json!({ "label": l, "value": v }))
+            .collect())
     }
 
-    pub async fn calculate_pearson_series(&self, cat_a: &str, path_a: &str, cat_b: &str, path_b: &str) -> Result<Vec<(f64, f64)>> {
-        let sql = format!(r#"
+    pub async fn calculate_pearson_series(
+        &self,
+        cat_a: &str,
+        path_a: &str,
+        cat_b: &str,
+        path_b: &str,
+    ) -> Result<Vec<(f64, f64)>> {
+        let sql = format!(
+            r#"
             WITH series_a AS (
                 SELECT strftime('%Y-%m-%d %H:00:00', timestamp) as bucket,
                        AVG(CAST(payload ->> '{}' as REAL)) as val
@@ -111,16 +150,26 @@ impl<'a> AnalyticsRepository<'a> {
             SELECT a.val as val_a, b.val as val_b
             FROM series_a a
             JOIN series_b b ON a.bucket = b.bucket
-        "#, path_a, path_b);
+        "#,
+            path_a, path_b
+        );
 
         let rows = sqlx::query_as::<_, (f64, f64)>(&sql)
-            .bind(self.user_id).bind(cat_a)
-            .bind(self.user_id).bind(cat_b)
-            .fetch_all(self.pool).await?;
+            .bind(self.user_id)
+            .bind(cat_a)
+            .bind(self.user_id)
+            .bind(cat_b)
+            .fetch_all(self.pool)
+            .await?;
         Ok(rows)
     }
 
-    pub async fn store_discovery(&self, sem_a: &str, sem_b: &str, metadata_json: &str) -> Result<()> {
+    pub async fn store_discovery(
+        &self,
+        sem_a: &str,
+        sem_b: &str,
+        metadata_json: &str,
+    ) -> Result<()> {
         sqlx::query(r#"
             INSERT INTO entity_relationships (user_id, plugin_id, source_ns, source_type, source_id, predicate, target_ns, target_type, target_id, metadata)
             VALUES (?, 'core', 'scry.core', 'semantic_type', ?, 'scry.core/correlates_with', 'scry.core', 'semantic_type', ?, ?)
@@ -139,17 +188,23 @@ impl<'a> AnalyticsRepository<'a> {
         let rows = sqlx::query_as::<_, (String, String, String)>(
             "SELECT source_id, target_id, metadata FROM entity_relationships 
              WHERE user_id = ? AND predicate = 'scry.core/correlates_with'
-             ORDER BY json_extract(metadata, '$.strength') DESC"
+             ORDER BY json_extract(metadata, '$.strength') DESC",
         )
-        .bind(self.user_id).fetch_all(self.pool).await?;
+        .bind(self.user_id)
+        .fetch_all(self.pool)
+        .await?;
         Ok(rows)
     }
 
-    pub async fn search(&self, query: &str, limit: u32) -> Result<Vec<(String, String, String, String, String)>> {
+    pub async fn search(
+        &self,
+        query: &str,
+        limit: u32,
+    ) -> Result<Vec<(String, String, String, String, String)>> {
         // Escape double quotes in the query and wrap the whole thing in quotes for FTS5 safety
         let sanitized_query = query.replace("\"", "\"\"");
         let search_term = format!("\"{}\"*", sanitized_query);
-        
+
         let rows = sqlx::query_as::<_, (String, String, String, String, String)>(
             "SELECT item_id, type, snippet(universal_search, 2, '<mark>', '</mark>', '...', 64), subtext, link FROM universal_search 
              WHERE user_id = ? AND universal_search MATCH ? 

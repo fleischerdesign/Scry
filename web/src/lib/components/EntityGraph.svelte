@@ -174,7 +174,7 @@
 
    <!-- Neighbor Nodes -->
    {#each nodes.slice(1) as node}
-    <g class="cursor-pointer group" onclick={(e) => { e.stopPropagation(); router.navigate(`/entity/${node.ns}/${node.typ}/${node.id}`); }}>
+     <g class="cursor-pointer group" role="button" tabindex="0" onclick={(e) => { e.stopPropagation(); router.navigate(`/entity/${node.ns}/${node.typ}/${node.id}`); }} onkeydown={(e) => e.key === 'Enter' && router.navigate(`/entity/${node.ns}/${node.typ}/${node.id}`)}>
      <circle cx={node.x} cy={node.y} r="28" class="fill-primary/0 group-hover:fill-primary/10 transition-all duration-300" />
      <circle cx={node.x} cy={node.y} r="22" class="fill-base-100 stroke-base-300 group-hover:stroke-primary transition-all shadow-xl" stroke-width="2" />
      {#if node.image}
