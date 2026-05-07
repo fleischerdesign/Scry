@@ -77,10 +77,11 @@ impl ScryPlugin for WeatherPlugin {
         if (lat.is_none() || lon.is_none())
             && let Some(loc_json) =
                 host::get_entity_trait(namespaces::CORE, "user", "self", "scry.geo/location")
-                && let Ok(loc) = serde_json::from_str::<GeoLocation>(&loc_json) {
-                    lat = Some(loc.latitude);
-                    lon = Some(loc.longitude);
-                }
+            && let Ok(loc) = serde_json::from_str::<GeoLocation>(&loc_json)
+        {
+            lat = Some(loc.latitude);
+            lon = Some(loc.longitude);
+        }
 
         let lat = lat.unwrap_or(52.52);
         let lon = lon.unwrap_or(13.41);
@@ -99,16 +100,18 @@ impl ScryPlugin for WeatherPlugin {
                     .and_then(|v| serde_json::from_str::<String>(&v).ok())
                     .unwrap_or_else(|| "Current Location".to_string());
 
-                vec![SdkEvent::new(
-                    "weather.current",
-                    "open-meteo",
-                    json!({ "temperature": temp, "lat": lat, "lon": lon, "city": city }),
-                )
-                .with_context("alias:self")
-                .with_value(format!("{}°C", temp))
-                .with_title(format!("Temperature in {}", city))
-                .with_subtitle(format!("Currently {}°C", temp))
-                .with_confidence(1.0)]
+                vec![
+                    SdkEvent::new(
+                        "weather.current",
+                        "open-meteo",
+                        json!({ "temperature": temp, "lat": lat, "lon": lon, "city": city }),
+                    )
+                    .with_context("alias:self")
+                    .with_value(format!("{}°C", temp))
+                    .with_title(format!("Temperature in {}", city))
+                    .with_subtitle(format!("Currently {}°C", temp))
+                    .with_confidence(1.0),
+                ]
             }
             Err(e) => {
                 host::log_error(&format!("Weather: API call failed: {}", e));
@@ -119,24 +122,43 @@ impl ScryPlugin for WeatherPlugin {
 
     fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
         if ev.category == "weather.current"
-            && let Some(city) = ev.payload.get("city").and_then(|v| v.as_str()) {
-                let place_id = identity::create_id(namespaces::PLACE, &["city", city]);
-                ev.entities.push(scry_plugin_sdk::EntityRef {
-                    path: "payload.city".to_string(),
-                    namespace: namespaces::PLACE.to_string(),
-                    typ: "city".to_string(),
-                    id: place_id.clone(),
-                });
-                host::set_entity_trait(namespaces::PLACE, "city", &place_id, traits::NAME, &json!(city).to_string());
+            && let Some(city) = ev.payload.get("city").and_then(|v| v.as_str())
+        {
+            let place_id = identity::create_id(namespaces::PLACE, &["city", city]);
+            ev.entities.push(scry_plugin_sdk::EntityRef {
+                path: "payload.city".to_string(),
+                namespace: namespaces::PLACE.to_string(),
+                typ: "city".to_string(),
+                id: place_id.clone(),
+            });
+            host::set_entity_trait(
+                namespaces::PLACE,
+                "city",
+                &place_id,
+                traits::NAME,
+                &json!(city).to_string(),
+            );
 
-                // Persist coordinates as traits for the place
-                if let Some(lat) = ev.payload.get("lat").and_then(|v| v.as_f64()) {
-                    host::set_entity_trait(namespaces::PLACE, "city", &place_id, traits::LATITUDE, &json!(lat).to_string());
-                }
-                if let Some(lon) = ev.payload.get("lon").and_then(|v| v.as_f64()) {
-                    host::set_entity_trait(namespaces::PLACE, "city", &place_id, traits::LONGITUDE, &json!(lon).to_string());
-                }
+            // Persist coordinates as traits for the place
+            if let Some(lat) = ev.payload.get("lat").and_then(|v| v.as_f64()) {
+                host::set_entity_trait(
+                    namespaces::PLACE,
+                    "city",
+                    &place_id,
+                    traits::LATITUDE,
+                    &json!(lat).to_string(),
+                );
             }
+            if let Some(lon) = ev.payload.get("lon").and_then(|v| v.as_f64()) {
+                host::set_entity_trait(
+                    namespaces::PLACE,
+                    "city",
+                    &place_id,
+                    traits::LONGITUDE,
+                    &json!(lon).to_string(),
+                );
+            }
+        }
         Ok(ev)
     }
 }

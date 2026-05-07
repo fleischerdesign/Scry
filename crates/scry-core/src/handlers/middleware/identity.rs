@@ -1,9 +1,4 @@
-use axum::{
-    http::Request,
-    middleware::Next,
-    response::Response,
-    http::StatusCode,
-};
+use axum::{http::Request, http::StatusCode, middleware::Next, response::Response};
 
 /// Represents the resolved identity of an incoming request.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -27,25 +22,35 @@ pub async fn identity_resolver(
     next: Next,
 ) -> Result<Response, StatusCode> {
     // 1. Try Authorization: Bearer <token>
-    let bearer_key = req.headers().get(axum::http::header::AUTHORIZATION)
+    let bearer_key = req
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "))
         .map(|s| s.to_string());
 
     // 2. Try X-API-Key header
-    let api_key = req.headers().get("X-API-Key")
+    let api_key = req
+        .headers()
+        .get("X-API-Key")
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string());
 
     // 3. Try api_key in query string (for SSE)
-    let query_key = req.uri().query()
-        .and_then(|q| serde_urlencoded::from_str::<std::collections::HashMap<String, String>>(q).ok())
+    let query_key = req
+        .uri()
+        .query()
+        .and_then(|q| {
+            serde_urlencoded::from_str::<std::collections::HashMap<String, String>>(q).ok()
+        })
         .and_then(|m| m.get("api_key").cloned());
 
     let identity = if let Some(key) = bearer_key.or(api_key).or(query_key) {
         Identity::ApiKey(key)
     } else {
-        let ip = req.extensions().get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        let ip = req
+            .extensions()
+            .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
             .map(|ci| ci.0.ip().to_string())
             .unwrap_or_else(|| "unknown".to_string());
         Identity::Anonymous(ip)

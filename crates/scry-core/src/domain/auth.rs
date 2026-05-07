@@ -1,8 +1,8 @@
+use crate::domain::user::User;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use utoipa::ToSchema;
 use validator::Validate;
-use crate::domain::user::User;
-use ts_rs::TS;
 
 #[derive(Deserialize, ToSchema, Validate, TS)]
 #[ts(export)]

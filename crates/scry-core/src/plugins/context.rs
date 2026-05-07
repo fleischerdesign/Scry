@@ -1,8 +1,8 @@
 use crate::repository::PluginStateRepository;
 use reqwest::Client;
 use std::cell::OnceCell;
-use wasmtime::component::ResourceTable;
 use wasmtime::ResourceLimiter;
+use wasmtime::component::ResourceTable;
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 pub struct MyCtx {

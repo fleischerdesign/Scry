@@ -1,6 +1,6 @@
-use sqlx::SqlitePool;
-use scry_proto::Event;
 use crate::error::{Error, Result};
+use scry_proto::Event;
+use sqlx::SqlitePool;
 
 #[derive(sqlx::FromRow, Debug)]
 pub struct DbEvent {
@@ -26,13 +26,20 @@ impl TryFrom<DbEvent> for Event {
     fn try_from(db_ev: DbEvent) -> std::result::Result<Self, Self::Error> {
         Ok(Self {
             id: uuid::Uuid::parse_str(&db_ev.id)?,
-            timestamp: chrono::DateTime::parse_from_rfc3339(&db_ev.timestamp)?.with_timezone(&chrono::Utc),
+            timestamp: chrono::DateTime::parse_from_rfc3339(&db_ev.timestamp)?
+                .with_timezone(&chrono::Utc),
             category: db_ev.category,
             source: db_ev.source,
             payload: serde_json::from_str(&db_ev.payload)?,
             metadata: db_ev.metadata.and_then(|m| serde_json::from_str(&m).ok()),
-            entities: db_ev.entities.and_then(|e| serde_json::from_str(&e).ok()).unwrap_or_default(),
-            context: db_ev.context.and_then(|c| serde_json::from_str(&c).ok()).unwrap_or_default(),
+            entities: db_ev
+                .entities
+                .and_then(|e| serde_json::from_str(&e).ok())
+                .unwrap_or_default(),
+            context: db_ev
+                .context
+                .and_then(|c| serde_json::from_str(&c).ok())
+                .unwrap_or_default(),
             context_info: None, // Will be populated by EventService::enrich_event_context
             display_title: db_ev.display_title,
             display_subtitle: db_ev.display_subtitle,
@@ -54,7 +61,12 @@ impl<'a> EventRepository<'a> {
         Self { pool, user_id }
     }
 
-    pub async fn list(&self, category: Option<String>, limit: u32, offset: u32) -> Result<Vec<Event>> {
+    pub async fn list(
+        &self,
+        category: Option<String>,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<Event>> {
         let db_events = if let Some(cat) = category {
             sqlx::query_as::<_, DbEvent>("SELECT id, timestamp, category, source, payload, metadata, entities, context, display_title, display_subtitle, display_image, display_icon, display_value, confidence FROM events WHERE user_id = ? AND category = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?")
                 .bind(self.user_id).bind(cat).bind(limit).bind(offset)
@@ -63,7 +75,10 @@ impl<'a> EventRepository<'a> {
                 .bind(self.user_id).bind(limit).bind(offset)
         }.fetch_all(self.pool).await?;
 
-        Ok(db_events.into_iter().filter_map(|e| Event::try_from(e).ok()).collect())
+        Ok(db_events
+            .into_iter()
+            .filter_map(|e| Event::try_from(e).ok())
+            .collect())
     }
 
     pub async fn get_by_id(&self, id: &str) -> Result<Option<Event>> {
@@ -82,7 +97,10 @@ impl<'a> EventRepository<'a> {
         )
         .bind(self.user_id).bind(namespace).bind(typ).bind(id).fetch_all(self.pool).await?;
 
-        Ok(rows.into_iter().filter_map(|r| Event::try_from(r).ok()).collect())
+        Ok(rows
+            .into_iter()
+            .filter_map(|r| Event::try_from(r).ok())
+            .collect())
     }
 
     pub async fn insert(&self, event: &Event) -> Result<()> {
@@ -113,10 +131,10 @@ impl<'a> EventRepository<'a> {
              FROM events WHERE user_id = ? AND category = ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT 1"
         )
         .bind(self.user_id).bind(category).bind(timestamp).fetch_optional(self.pool).await?;
-        
+
         match db_event {
             Some(e) => Ok(Some(Event::try_from(e).map_err(|_err| Error::Internal)?)),
-            None => Ok(None)
+            None => Ok(None),
         }
     }
 }

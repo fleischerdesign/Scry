@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use scry_plugin_sdk::prelude::*;
-use scry_plugin_sdk::schema::{namespaces, traits, predicates};
+use scry_plugin_sdk::schema::{namespaces, predicates, traits};
 use serde::Deserialize;
 
 #[derive(Default)]
@@ -109,11 +109,13 @@ impl ScryPlugin for GithubPlugin {
     }
 
     fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
-        if !ev.category.starts_with("github.") { return Ok(ev); }
+        if !ev.category.starts_with("github.") {
+            return Ok(ev);
+        }
 
         let repo_data = &ev.payload["repo"];
         let actor_data = &ev.payload["actor"];
-        
+
         let repo_id = self.ensure_repo_entity(repo_data);
         let user_id = self.ensure_user_entity(actor_data);
 
@@ -135,7 +137,7 @@ impl ScryPlugin for GithubPlugin {
         });
 
         let event_type = ev.category.replace("github.", "");
-        
+
         // Handle payload nesting differences
         let github_payload = if ev.payload["payload"].is_object() {
             &ev.payload["payload"]
@@ -145,40 +147,72 @@ impl ScryPlugin for GithubPlugin {
 
         match event_type.as_str() {
             "PushEvent" => {
-                let size = github_payload["size"].as_u64()
+                let size = github_payload["size"]
+                    .as_u64()
                     .or_else(|| github_payload["commits"].as_array().map(|a| a.len() as u64))
                     .unwrap_or(0);
-                
-                let msg = github_payload["commits"][0]["message"].as_str()
-                    .or_else(|| github_payload["commits"].as_array().and_then(|a| a.first()).and_then(|c| c["message"].as_str()))
+
+                let msg = github_payload["commits"][0]["message"]
+                    .as_str()
+                    .or_else(|| {
+                        github_payload["commits"]
+                            .as_array()
+                            .and_then(|a| a.first())
+                            .and_then(|c| c["message"].as_str())
+                    })
                     .unwrap_or("New commits");
-                
-                ev.display_title = Some(format!("Push ({} commits) to {}", size, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
+
+                ev.display_title = Some(format!(
+                    "Push ({} commits) to {}",
+                    size,
+                    ev.payload["repo"]["name"].as_str().unwrap_or("unknown")
+                ));
                 ev.display_subtitle = Some(msg.to_string());
-            },
+            }
             "PullRequestEvent" => {
                 let action = github_payload["action"].as_str().unwrap_or("updated");
-                let title = github_payload["pull_request"]["title"].as_str().unwrap_or("PR");
-                ev.display_title = Some(format!("PR {} in {}", action, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
+                let title = github_payload["pull_request"]["title"]
+                    .as_str()
+                    .unwrap_or("PR");
+                ev.display_title = Some(format!(
+                    "PR {} in {}",
+                    action,
+                    ev.payload["repo"]["name"].as_str().unwrap_or("unknown")
+                ));
                 ev.display_subtitle = Some(title.to_string());
-            },
+            }
             "IssuesEvent" => {
                 let action = github_payload["action"].as_str().unwrap_or("updated");
                 let title = github_payload["issue"]["title"].as_str().unwrap_or("Issue");
-                ev.display_title = Some(format!("Issue {} in {}", action, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
+                ev.display_title = Some(format!(
+                    "Issue {} in {}",
+                    action,
+                    ev.payload["repo"]["name"].as_str().unwrap_or("unknown")
+                ));
                 ev.display_subtitle = Some(title.to_string());
-            },
+            }
             "IssueCommentEvent" => {
                 let action = github_payload["action"].as_str().unwrap_or("created");
-                let body = github_payload["comment"]["body"].as_str().unwrap_or("Comment");
-                ev.display_title = Some(format!("Issue comment {} in {}", action, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
+                let body = github_payload["comment"]["body"]
+                    .as_str()
+                    .unwrap_or("Comment");
+                ev.display_title = Some(format!(
+                    "Issue comment {} in {}",
+                    action,
+                    ev.payload["repo"]["name"].as_str().unwrap_or("unknown")
+                ));
                 ev.display_subtitle = Some(body.chars().take(100).collect::<String>());
-            },
+            }
             "CreateEvent" => {
                 let ref_type = github_payload["ref_type"].as_str().unwrap_or("entity");
                 let ref_name = github_payload["ref"].as_str().unwrap_or("");
-                ev.display_title = Some(format!("Created {} {} in {}", ref_type, ref_name, ev.payload["repo"]["name"].as_str().unwrap_or("unknown")));
-            },
+                ev.display_title = Some(format!(
+                    "Created {} {} in {}",
+                    ref_type,
+                    ref_name,
+                    ev.payload["repo"]["name"].as_str().unwrap_or("unknown")
+                ));
+            }
             _ => {
                 ev.display_title = Some(format!("GitHub: {}", event_type));
             }
@@ -200,10 +234,11 @@ impl GithubPlugin {
         ];
 
         if let Ok(resp) = host::http_request("GET", "https://api.github.com/user", None, headers)
-            && let Ok(user) = serde_json::from_str::<GithubUser>(&resp.body) {
-                host::set_state("github_username", &user.login);
-                return Some(user.login);
-            }
+            && let Ok(user) = serde_json::from_str::<GithubUser>(&resp.body)
+        {
+            host::set_state("github_username", &user.login);
+            return Some(user.login);
+        }
         None
     }
 
@@ -231,30 +266,46 @@ impl GithubPlugin {
         }
 
         if resp.status != 200 {
-            host::log_error(&format!("GitHub: API returned status {}: {}", resp.status, resp.body));
+            host::log_error(&format!(
+                "GitHub: API returned status {}: {}",
+                resp.status, resp.body
+            ));
             return vec![];
         }
 
-        if let Some(new_etag) = resp.headers.iter().find(|(k, _)| k.to_lowercase() == "etag").map(|(_, v)| v) {
+        if let Some(new_etag) = resp
+            .headers
+            .iter()
+            .find(|(k, _)| k.to_lowercase() == "etag")
+            .map(|(_, v)| v)
+        {
             host::set_state("github_events_etag", new_etag);
         }
 
         let events: Vec<GithubEvent> = serde_json::from_str(&resp.body).unwrap_or_default();
         let last_id = host::get_state("github_last_event_id").unwrap_or_default();
-        
+
         let mut sdk_events = Vec::new();
         let mut newest_id = last_id.clone();
 
         for (i, ge) in events.into_iter().enumerate() {
-            if ge.id == last_id { break; }
-            if i == 0 { newest_id = ge.id.clone(); }
+            if ge.id == last_id {
+                break;
+            }
+            if i == 0 {
+                newest_id = ge.id.clone();
+            }
 
-            let mut ev = SdkEvent::new(format!("github.{}", ge.event_type), "github", serde_json::json!({
-                "id": ge.id,
-                "actor": ge.actor,
-                "repo": ge.repo,
-                "payload": ge.payload,
-            }))
+            let mut ev = SdkEvent::new(
+                format!("github.{}", ge.event_type),
+                "github",
+                serde_json::json!({
+                    "id": ge.id,
+                    "actor": ge.actor,
+                    "repo": ge.repo,
+                    "payload": ge.payload,
+                }),
+            )
             .with_context("alias:self")
             .with_confidence(1.0);
 
@@ -269,15 +320,30 @@ impl GithubPlugin {
     fn ensure_repo_entity(&self, repo_data: &serde_json::Value) -> String {
         let name = repo_data["name"].as_str().unwrap_or("unknown");
         let id = identity::create_id(namespaces::SOFTWARE, &["repo", name]);
-        host::set_entity_trait(namespaces::SOFTWARE, "repo", &id, traits::NAME, &serde_json::json!(name).to_string());
-        host::set_entity_trait(namespaces::SOFTWARE, "repo", &id, traits::ICON, &serde_json::json!("lucide:code-2").to_string());
-        
+        host::set_entity_trait(
+            namespaces::SOFTWARE,
+            "repo",
+            &id,
+            traits::NAME,
+            &serde_json::json!(name).to_string(),
+        );
+        host::set_entity_trait(
+            namespaces::SOFTWARE,
+            "repo",
+            &id,
+            traits::ICON,
+            &serde_json::json!("lucide:code-2").to_string(),
+        );
+
         // Add agnostic external link
-        let repo_url = format!("https://github.com/{}/{}", 
-            repo_data["owner"]["login"].as_str().unwrap_or(""), 
+        let repo_url = format!(
+            "https://github.com/{}/{}",
+            repo_data["owner"]["login"].as_str().unwrap_or(""),
             repo_data["name"].as_str().unwrap_or("")
-        ).replace("//", "/").replace("https:/", "https://");
-        
+        )
+        .replace("//", "/")
+        .replace("https:/", "https://");
+
         // Simple fallback if owner is not in payload
         let final_url = if name.contains('/') {
             format!("https://github.com/{}", name)
@@ -290,19 +356,43 @@ impl GithubPlugin {
             "url": final_url,
             "icon": "lucide:github"
         }]);
-        host::set_entity_trait(namespaces::SOFTWARE, "repo", &id, traits::LINKS, &links.to_string());
-        
+        host::set_entity_trait(
+            namespaces::SOFTWARE,
+            "repo",
+            &id,
+            traits::LINKS,
+            &links.to_string(),
+        );
+
         id
     }
 
     fn ensure_user_entity(&self, actor_data: &serde_json::Value) -> String {
         let login = actor_data["login"].as_str().unwrap_or("unknown");
         let id = identity::create_id(namespaces::SOFTWARE, &["user", login]);
-        
-        host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::NAME, &serde_json::json!(login).to_string());
-        host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::ICON, &serde_json::json!("lucide:user").to_string());
+
+        host::set_entity_trait(
+            namespaces::SOFTWARE,
+            "user",
+            &id,
+            traits::NAME,
+            &serde_json::json!(login).to_string(),
+        );
+        host::set_entity_trait(
+            namespaces::SOFTWARE,
+            "user",
+            &id,
+            traits::ICON,
+            &serde_json::json!("lucide:user").to_string(),
+        );
         if let Some(avatar) = actor_data["avatar_url"].as_str() {
-            host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::AVATAR, &serde_json::json!(avatar).to_string());
+            host::set_entity_trait(
+                namespaces::SOFTWARE,
+                "user",
+                &id,
+                traits::AVATAR,
+                &serde_json::json!(avatar).to_string(),
+            );
         }
 
         // Add agnostic external link
@@ -311,7 +401,13 @@ impl GithubPlugin {
             "url": format!("https://github.com/{}", login),
             "icon": "lucide:external-link"
         }]);
-        host::set_entity_trait(namespaces::SOFTWARE, "user", &id, traits::LINKS, &links.to_string());
+        host::set_entity_trait(
+            namespaces::SOFTWARE,
+            "user",
+            &id,
+            traits::LINKS,
+            &links.to_string(),
+        );
 
         id
     }

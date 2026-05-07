@@ -1,6 +1,6 @@
 use serde::Serialize;
-use utoipa::ToSchema;
 use ts_rs::TS;
+use utoipa::ToSchema;
 
 #[derive(Serialize, ToSchema, TS)]
 #[ts(export)]
@@ -40,7 +40,13 @@ impl From<scry_plugin_sdk::ReportData> for ApiReportData {
 
 #[derive(Serialize, ToSchema, TS)]
 #[ts(export)]
-pub enum ApiWidgetTemplate { Metric, Trend, TopList, Status, Spotlight }
+pub enum ApiWidgetTemplate {
+    Metric,
+    Trend,
+    TopList,
+    Status,
+    Spotlight,
+}
 
 impl From<scry_plugin_sdk::WidgetTemplate> for ApiWidgetTemplate {
     fn from(t: scry_plugin_sdk::WidgetTemplate) -> Self {
@@ -140,7 +146,11 @@ pub struct PluginStatus {
 }
 
 impl PluginStatus {
-    pub fn from_sdk(id: String, m: scry_plugin_sdk::Manifest, reports: Vec<scry_plugin_sdk::ReportMetadata>) -> Self {
+    pub fn from_sdk(
+        id: String,
+        m: scry_plugin_sdk::Manifest,
+        reports: Vec<scry_plugin_sdk::ReportMetadata>,
+    ) -> Self {
         Self {
             id,
             name: m.name,

@@ -1,3 +1,6 @@
+use crate::domain::AuthContext;
+use crate::handlers::middleware::identity::Identity;
+use crate::state::AppState;
 use axum::{
     extract::State,
     http::{Request, StatusCode},
@@ -5,9 +8,6 @@ use axum::{
     response::Response,
 };
 use std::sync::Arc;
-use crate::state::AppState;
-use crate::domain::AuthContext;
-use crate::handlers::middleware::identity::Identity;
 
 pub async fn auth_middleware(
     State(state): State<Arc<AppState>>,
@@ -18,7 +18,9 @@ pub async fn auth_middleware(
         return Ok(next.run(req).await);
     }
 
-    let identity = req.extensions().get::<Identity>()
+    let identity = req
+        .extensions()
+        .get::<Identity>()
         .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     match identity {
@@ -34,7 +36,7 @@ pub async fn auth_middleware(
                     StatusCode::INTERNAL_SERVER_ERROR
                 })?
             };
-            
+
             if let Some((user_id, scopes)) = auth {
                 let ctx = AuthContext { user_id, scopes };
                 req.extensions_mut().insert(ctx);
@@ -43,7 +45,7 @@ pub async fn auth_middleware(
                 tracing::warn!("Invalid API Key or JWT");
                 Err(StatusCode::UNAUTHORIZED)
             }
-        },
+        }
         Identity::Anonymous(_) => Err(StatusCode::UNAUTHORIZED),
     }
 }
