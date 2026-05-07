@@ -117,7 +117,6 @@
 					bind:value={newDashName}
 					placeholder="Dashboard Name..."
 					class="input input-bordered input-sm font-mono flex-1"
-					autofocus
 				/>
 				<button class="btn btn-secondary btn-sm" onclick={handleCreate}
 					>Create</button

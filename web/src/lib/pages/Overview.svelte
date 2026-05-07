@@ -185,6 +185,7 @@
 <style>
 	.quote {
 		background: linear-gradient(to right, hsl(var(--p)), hsl(var(--s)));
+		background-clip: text;
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		display: inline-block;
