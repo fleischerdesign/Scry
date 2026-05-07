@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Running cargo fmt check..."
+cargo fmt --all -- --check
+
+echo "Running cargo clippy..."
+cargo clippy -- -D warnings
+
+echo "Running pnpm type check..."
+pnpm --prefix web check
+
+echo "Pre-commit checks passed."

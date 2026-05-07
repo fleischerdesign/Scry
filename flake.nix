@@ -23,7 +23,15 @@
             pkgs.just
             pkgs.nodePackages.typescript-language-server
           ];
-          shellHook = "echo 'Scry Dev Shell (Rust + Node.js Latest + pnpm)'";
+          shellHook = ''
+            echo 'Scry Dev Shell (Rust + Node.js Latest + pnpm)'
+
+            # Activate git hooks
+            if git rev-parse --git-dir > /dev/null 2>&1; then
+              git config core.hooksPath .githooks
+              echo "Git hooks activated (.githooks/)"
+            fi
+          '';
         };
       });
 }
