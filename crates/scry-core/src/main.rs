@@ -111,8 +111,8 @@ async fn main() -> anyhow::Result<()> {
     let pm_for_watcher = plugin_manager.clone();
     let rt_handle = tokio::runtime::Handle::current();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-        if let Ok(event) = res {
-            if event.kind.is_modify() || event.kind.is_create() {
+        if let Ok(event) = res
+            && (event.kind.is_modify() || event.kind.is_create()) {
                 let pm = pm_for_watcher.clone();
                 rt_handle.spawn(async move {
                     for path in event.paths {
@@ -122,7 +122,6 @@ async fn main() -> anyhow::Result<()> {
                     }
                 });
             }
-        }
     })?;
     watcher.watch(std::path::Path::new("./plugins"), RecursiveMode::NonRecursive)?;
 

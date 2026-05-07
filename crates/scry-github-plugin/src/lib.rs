@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use scry_plugin_sdk::prelude::*;
 use scry_plugin_sdk::schema::{namespaces, traits, predicates};
 use serde::Deserialize;
@@ -9,6 +11,7 @@ struct GithubPlugin;
 #[derive(Debug, Deserialize)]
 struct GithubUser {
     login: String,
+    #[allow(dead_code)]
     avatar_url: Option<String>,
 }
 
@@ -196,12 +199,11 @@ impl GithubPlugin {
             ("User-Agent".to_string(), "Scry-App".to_string()),
         ];
 
-        if let Ok(resp) = host::http_request("GET", "https://api.github.com/user", None, headers) {
-            if let Ok(user) = serde_json::from_str::<GithubUser>(&resp.body) {
+        if let Ok(resp) = host::http_request("GET", "https://api.github.com/user", None, headers)
+            && let Ok(user) = serde_json::from_str::<GithubUser>(&resp.body) {
                 host::set_state("github_username", &user.login);
                 return Some(user.login);
             }
-        }
         None
     }
 

@@ -74,7 +74,7 @@ pub async fn plugin_oauth_start(
 ) -> Result<Json<serde_json::Value>> {
     let oauth_config = state.plugin_service.get_oauth_config(&id).await?;
 
-    let (client_id, client_secret) = state.plugin_service.get_oauth_credentials(auth.user_id, &id).await?;
+    let (client_id, _client_secret) = state.plugin_service.get_oauth_credentials(auth.user_id, &id).await?;
 
     let redirect_uri = format!("http://127.0.0.1:3000/api/v1/system/plugins/{}/auth/callback", id);
     
@@ -182,11 +182,10 @@ pub async fn plugin_oauth_callback(
                     }
                 }
                 
-                if !refresh_token.is_empty() {
-                    if let Err(e) = repo.set(&id, "oauth_refresh_token", refresh_token, true).await {
+                if !refresh_token.is_empty()
+                    && let Err(e) = repo.set(&id, "oauth_refresh_token", refresh_token, true).await {
                         tracing::error!(plugin_id = %id, error = %e, "Failed to save oauth refresh token to database");
                     }
-                }
                 
                 Redirect::to("/settings?oauth_connected=true")
             } else {

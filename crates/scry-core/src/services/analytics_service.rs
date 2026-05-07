@@ -47,15 +47,13 @@ impl AnalyticsService {
 
                 let rows = repo.calculate_pearson_series(cat_a, path_a_clean, cat_b, path_b_clean).await?;
 
-                if rows.len() >= 5 {
-                    if let Some(corr) = self.calculate_pearson_coefficient(rows) {
-                        if corr.abs() > 0.6 {
+                if rows.len() >= 5
+                    && let Some(corr) = self.calculate_pearson_coefficient(rows)
+                        && corr.abs() > 0.6 {
                             let metadata = json!({ "strength": corr, "method": "pearson_1h_buckets" });
                             repo.store_discovery(sem_a, sem_b, &serde_json::to_string(&metadata).unwrap()).await?;
                             discoveries += 1;
                         }
-                    }
-                }
             }
         }
 

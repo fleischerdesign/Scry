@@ -109,8 +109,8 @@ impl PluginManager {
     }
 
     fn matches_subscription(subscription: &str, category: &str) -> bool {
-        if subscription.ends_with('*') {
-            category.starts_with(&subscription[..subscription.len() - 1])
+        if let Some(prefix) = subscription.strip_suffix('*') {
+            category.starts_with(prefix)
         } else {
             category == subscription
         }

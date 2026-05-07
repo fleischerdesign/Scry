@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use scry_plugin_sdk::prelude::*;
 use scry_plugin_sdk::schema::{namespaces, traits};
 use serde::Deserialize;
@@ -72,16 +74,13 @@ impl ScryPlugin for WeatherPlugin {
         let mut lat = host::get_config("latitude").and_then(|v| v.parse::<f64>().ok());
         let mut lon = host::get_config("longitude").and_then(|v| v.parse::<f64>().ok());
 
-        if lat.is_none() || lon.is_none() {
-            if let Some(loc_json) =
+        if (lat.is_none() || lon.is_none())
+            && let Some(loc_json) =
                 host::get_entity_trait(namespaces::CORE, "user", "self", "scry.geo/location")
-            {
-                if let Ok(loc) = serde_json::from_str::<GeoLocation>(&loc_json) {
+                && let Ok(loc) = serde_json::from_str::<GeoLocation>(&loc_json) {
                     lat = Some(loc.latitude);
                     lon = Some(loc.longitude);
                 }
-            }
-        }
 
         let lat = lat.unwrap_or(52.52);
         let lon = lon.unwrap_or(13.41);
@@ -119,8 +118,8 @@ impl ScryPlugin for WeatherPlugin {
     }
 
     fn on_ingest(&self, mut ev: SdkEvent) -> Result<SdkEvent, String> {
-        if ev.category == "weather.current" {
-            if let Some(city) = ev.payload.get("city").and_then(|v| v.as_str()) {
+        if ev.category == "weather.current"
+            && let Some(city) = ev.payload.get("city").and_then(|v| v.as_str()) {
                 let place_id = identity::create_id(namespaces::PLACE, &["city", city]);
                 ev.entities.push(scry_plugin_sdk::EntityRef {
                     path: "payload.city".to_string(),
@@ -138,7 +137,6 @@ impl ScryPlugin for WeatherPlugin {
                     host::set_entity_trait(namespaces::PLACE, "city", &place_id, traits::LONGITUDE, &json!(lon).to_string());
                 }
             }
-        }
         Ok(ev)
     }
 }

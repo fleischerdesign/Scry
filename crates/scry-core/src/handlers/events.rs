@@ -34,11 +34,10 @@ pub async fn stream_live_events(
                                 .and_then(|m| m.get("user_id"))
                                 .and_then(|u| u.as_i64()) == Some(auth.user_id);
                             
-                            if is_user_event {
-                                if let Ok(data) = serde_json::to_string(&event) {
+                            if is_user_event
+                                && let Ok(data) = serde_json::to_string(&event) {
                                     yield Ok(SseEvent::default().data(data));
                                 }
-                            }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(_) => break,

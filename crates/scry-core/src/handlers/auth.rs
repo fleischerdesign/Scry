@@ -68,7 +68,7 @@ mod tests {
             system_service: system,
             event_sender,
             cancel_token: tokio_util::sync::CancellationToken::new(),
-            rate_limiter: Arc::new(crate::handlers::middleware::RateLimitState::new()),
+            rate_limiter: Arc::new(crate::handlers::middleware::rate_limit::RateLimitState::new()),
         })
     }
 

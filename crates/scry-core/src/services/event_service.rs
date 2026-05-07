@@ -102,8 +102,8 @@ impl EventService {
                 event.display_image = image;
             }
 
-            if let Ok(traits) = entity_repo.get_traits(&entity.namespace, &entity.typ, &entity.id).await {
-                if !traits.is_empty() {
+            if let Ok(traits) = entity_repo.get_traits(&entity.namespace, &entity.typ, &entity.id).await
+                && !traits.is_empty() {
                     let mut entity_info = serde_json::Map::new();
                     for (_plugin_id, k, v) in traits {
                         let json_v = serde_json::from_str::<Value>(&v).unwrap_or(Value::String(v));
@@ -112,7 +112,6 @@ impl EventService {
                     // Key the traits by the entity's semantic path (e.g., "payload.artist")
                     info.insert(format!("traits:{}", entity.path), Value::Object(entity_info));
                 }
-            }
         }
 
         if !info.is_empty() {
@@ -123,20 +122,18 @@ impl EventService {
         if event.display_icon.is_none() {
             for m in manifests.values() {
                 // Priority A: Category-specific icon from exports
-                if let Some(export) = m.exports.iter().find(|e| e.category == event.category) {
-                    if let Some(icon) = &export.icon {
+                if let Some(export) = m.exports.iter().find(|e| e.category == event.category)
+                    && let Some(icon) = &export.icon {
                         event.display_icon = Some(icon.clone());
                         break;
                     }
-                }
                 // Priority B: Domain-level icon from domain_info
                 for domain in &m.domain_info {
-                    if event.category.starts_with(&domain.ns) {
-                        if let Some(icon) = &domain.icon {
+                    if event.category.starts_with(&domain.ns)
+                        && let Some(icon) = &domain.icon {
                             event.display_icon = Some(icon.clone());
                             break;
                         }
-                    }
                 }
             }
         }
@@ -151,7 +148,7 @@ impl EventService {
         let entity_repo = EntityRepository::new(&self.db, user_id);
 
         let mut processed_event: Event = self.plugin_manager.run_ingest_pipeline(user_id, event).await
-            .map_err(|e| Error::Plugin(e))?;
+            .map_err(Error::Plugin)?;
         
         // --- Dynamic Context Resolution ---
         let hints = processed_event.context.clone();
@@ -202,11 +199,10 @@ impl EventService {
                 } else { None }
             };
 
-            if let Some(r) = entity_ref {
-                if !processed_event.entities.iter().any(|e| e.namespace == r.namespace && e.typ == r.typ && e.id == r.id) {
+            if let Some(r) = entity_ref
+                && !processed_event.entities.iter().any(|e| e.namespace == r.namespace && e.typ == r.typ && e.id == r.id) {
                     processed_event.entities.push(r);
                 }
-            }
         }
 
         let _ = self.enrich_event_context(user_id, &mut processed_event).await;
@@ -262,7 +258,7 @@ impl EventService {
 
     pub async fn poll_and_save_plugin(&self, user_id: i64, name: &str) -> Result<usize> {
         let events: Vec<Event> = self.plugin_manager.poll_plugin(user_id, name).await
-            .map_err(|e| Error::Plugin(e))?;
+            .map_err(Error::Plugin)?;
         let count = events.len();
         
         for event in events {

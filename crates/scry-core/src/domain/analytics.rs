@@ -20,6 +20,7 @@ pub struct SemanticStats {
 
 #[derive(Deserialize, IntoParams, TS)]
 #[ts(export)]
+#[allow(dead_code)]
 pub struct SearchParams { pub q: String, pub limit: Option<u32>, pub offset: Option<u32> }
 
 #[derive(Deserialize, IntoParams, TS)]

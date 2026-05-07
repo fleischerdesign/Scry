@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use base64::Engine;
 use scry_plugin_sdk::prelude::*;
 use scry_plugin_sdk::schema::{namespaces, traits, predicates};
@@ -244,7 +246,7 @@ impl ScryPlugin for SpotifyPlugin {
         let last_playing_id = host::get_state("last_playing_id").unwrap_or_default();
         
         // --- Smart-Sync Logic ---
-        if idle_cycles > 3 && (idle_cycles % 6 != 0) && last_playing_id.is_empty() {
+        if idle_cycles > 3 && !idle_cycles.is_multiple_of(6) && last_playing_id.is_empty() {
             host::set_state("internal_idle_cycles", &(idle_cycles + 1).to_string());
             return vec![]; 
         }
@@ -281,7 +283,7 @@ impl ScryPlugin for SpotifyPlugin {
         let poll_count = host::get_state("internal_poll_count").and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
         host::set_state("internal_poll_count", &(poll_count + 1).to_string());
 
-        if poll_count % 12 == 0 {
+        if poll_count.is_multiple_of(12) {
             let recent_events = self.fetch_recent_tracks(&token);
             all_events.extend(recent_events);
         }
@@ -434,6 +436,7 @@ impl SpotifyPlugin {
         })
     }
 
+    #[allow(dead_code)]
     fn refresh_access_token(&self, client_id: &str, client_secret: &str, refresh_token: &str) -> Option<String> {
         let body = format!("grant_type=refresh_token&refresh_token={}", urlencoding::encode(refresh_token));
         let credentials = base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", client_id, client_secret));
@@ -510,48 +513,47 @@ impl SpotifyPlugin {
         };
 
         let playing: SpotifyCurrentlyPlaying = serde_json::from_str(&response.body).unwrap_or_default();
-        if playing.is_playing.unwrap_or(false) && playing.item.is_some() {
-            let track = playing.item.unwrap();
-            let track_id_spotify = track.id.clone().unwrap_or_default();
-            let last_playing_id = host::get_state("last_playing_id").unwrap_or_default();
-            if track_id_spotify == last_playing_id { return vec![]; }
-            host::set_state("last_playing_id", &track_id_spotify);
+        if playing.is_playing.unwrap_or(false) {
+            if let Some(track) = playing.item {
+                let track_id_spotify = track.id.clone().unwrap_or_default();
+                let last_playing_id = host::get_state("last_playing_id").unwrap_or_default();
+                if track_id_spotify == last_playing_id { return vec![]; }
+                host::set_state("last_playing_id", &track_id_spotify);
 
-            let (artist_names, artist_ids_spotify) = Self::extract_artists(&track);
-            let track_name = track.name.clone().unwrap_or_default();
-            let track_id = identity::create_id(namespaces::MUSIC, &["track", &artist_names[0], &track_name]);
-            
-            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::NAME, &json!(track_name).to_string());
-            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::SUBTITLE, &json!(artist_names.join(", ")).to_string());
-            if let Some(img) = track.album.as_ref().and_then(|a| a.images.as_ref()).and_then(|imgs| imgs.first()).and_then(|i| i.url.clone()) {
-                host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::PHOTO, &json!(img).to_string());
-            }
-            let spotify_link = json!([{ "label": "Spotify", "url": format!("https://open.spotify.com/track/{}", track_id_spotify), "icon": "lucide:external-link" }]);
-            host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::LINKS, &spotify_link.to_string());
-
-            for (i, artist_name) in artist_names.iter().enumerate() {
-                let artist_id = identity::create_id(namespaces::MUSIC, &["artist", artist_name]);
-                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::NAME, &json!(artist_name).to_string());
-                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::ICON, &json!("lucide:mic").to_string());
-                if let Some(sid) = artist_ids_spotify.get(i) {
-                    if !sid.is_empty() {
-                        host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, "scry.spotify/artist_id", &json!(sid).to_string());
-                        let artist_link = json!([{ "label": "Spotify", "url": format!("https://open.spotify.com/artist/{}", sid), "icon": "lucide:external-link" }]);
-                        host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::LINKS, &artist_link.to_string());
-                        if host::get_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO).is_none() {
-                            if let Ok(Some(photo_url_json)) = self.resolve_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO) {
-                                host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO, &photo_url_json);
-                            }
-                        }
-                    }
+                let (artist_names, artist_ids_spotify) = Self::extract_artists(&track);
+                let track_name = track.name.clone().unwrap_or_default();
+                let track_id = identity::create_id(namespaces::MUSIC, &["track", &artist_names[0], &track_name]);
+                
+                host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::NAME, &json!(track_name).to_string());
+                host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::SUBTITLE, &json!(artist_names.join(", ")).to_string());
+                if let Some(img) = track.album.as_ref().and_then(|a| a.images.as_ref()).and_then(|imgs| imgs.first()).and_then(|i| i.url.clone()) {
+                    host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::PHOTO, &json!(img).to_string());
                 }
-                host::set_relationship(scry_plugin_sdk::Relationship {
-                    source_namespace: namespaces::MUSIC.to_string(), source_type: "track".to_string(), source_id: track_id.clone(),
-                    predicate: predicates::PLAYED_BY.to_string(), target_namespace: namespaces::MUSIC.to_string(), target_type: "artist".to_string(), target_id: artist_id,
-                });
+                let spotify_link = json!([{ "label": "Spotify", "url": format!("https://open.spotify.com/track/{}", track_id_spotify), "icon": "lucide:external-link" }]);
+                host::set_entity_trait(namespaces::MUSIC, "track", &track_id, traits::LINKS, &spotify_link.to_string());
+
+                for (i, artist_name) in artist_names.iter().enumerate() {
+                    let artist_id = identity::create_id(namespaces::MUSIC, &["artist", artist_name]);
+                    host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::NAME, &json!(artist_name).to_string());
+                    host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::ICON, &json!("lucide:mic").to_string());
+                    if let Some(sid) = artist_ids_spotify.get(i)
+                        && !sid.is_empty() {
+                            host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, "scry.spotify/artist_id", &json!(sid).to_string());
+                            let artist_link = json!([{ "label": "Spotify", "url": format!("https://open.spotify.com/artist/{}", sid), "icon": "lucide:external-link" }]);
+                            host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::LINKS, &artist_link.to_string());
+                            if host::get_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO).is_none()
+                                && let Ok(Some(photo_url_json)) = self.resolve_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO) {
+                                    host::set_entity_trait(namespaces::MUSIC, "artist", &artist_id, traits::PHOTO, &photo_url_json);
+                                }
+                        }
+                    host::set_relationship(scry_plugin_sdk::Relationship {
+                        source_namespace: namespaces::MUSIC.to_string(), source_type: "track".to_string(), source_id: track_id.clone(),
+                        predicate: predicates::PLAYED_BY.to_string(), target_namespace: namespaces::MUSIC.to_string(), target_type: "artist".to_string(), target_id: artist_id,
+                    });
+                }
+                let ref_link = format!("{}:track:{}", namespaces::MUSIC, track_id);
+                host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, &json!(ref_link).to_string());
             }
-            let ref_link = format!("{}:track:{}", namespaces::MUSIC, track_id);
-            host::set_entity_trait(namespaces::CORE, "user", "self", traits::NOW_PLAYING, &json!(ref_link).to_string());
         } else {
             let last_id = host::get_state("last_playing_id").unwrap_or_default();
             if !last_id.is_empty() {
@@ -568,9 +570,8 @@ impl SpotifyPlugin {
         let now = chrono::Utc::now().timestamp();
         let expires_at = expires_at_str.and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
 
-        if let Some(token) = cached_token {
-            if expires_at > now + 60 { return Some(token); }
-        }
+        if let Some(token) = cached_token
+            && expires_at > now + 60 { return Some(token); }
 
         let refresh_token = host::get_secret("oauth_refresh_token")?;
         let body = format!("grant_type=refresh_token&refresh_token={}", urlencoding::encode(&refresh_token));

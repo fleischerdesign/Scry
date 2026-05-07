@@ -74,15 +74,14 @@ impl PluginService {
 
     fn extract_secret_keys(&self, schema: &Option<serde_json::Value>) -> std::collections::HashSet<String> {
         let mut keys = std::collections::HashSet::new();
-        if let Some(s) = schema {
-            if let Some(props) = s.get("properties").and_then(|p| p.as_object()) {
+        if let Some(s) = schema
+            && let Some(props) = s.get("properties").and_then(|p| p.as_object()) {
                 for (k, prop) in props {
                     if prop.get("secret").and_then(|v| v.as_bool()).unwrap_or(false) {
                         keys.insert(k.clone());
                     }
                 }
             }
-        }
         keys
     }
 

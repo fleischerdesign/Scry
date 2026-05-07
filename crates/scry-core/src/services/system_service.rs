@@ -15,7 +15,7 @@ impl SystemService {
     }
 
     pub async fn health_check(&self) -> Result<()> {
-        self.db.acquire().await.map_err(|e| crate::error::Error::Database(e))?;
+        self.db.acquire().await.map_err(crate::error::Error::Database)?;
         Ok(())
     }
 

@@ -25,12 +25,11 @@ impl GraphService {
         let namespaces = names.into_iter().map(|name| {
             let mut icon = None;
             for m in manifests.values() {
-                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == name) {
-                    if domain.icon.is_some() {
+                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == name)
+                    && domain.icon.is_some() {
                         icon = domain.icon.clone();
                         break;
                     }
-                }
             }
             if icon.is_none() && name == "scry.core" {
                 icon = Some("lucide:shield-check".to_string());
@@ -51,12 +50,11 @@ impl GraphService {
             let semantic_type = format!("{}/{}", namespace, name);
             
             for m in manifests.values() {
-                if let Some(export) = m.exports.iter().find(|e| e.semantic_type == semantic_type) {
-                    if export.icon.is_some() {
+                if let Some(export) = m.exports.iter().find(|e| e.semantic_type == semantic_type)
+                    && export.icon.is_some() {
                         icon = export.icon.clone();
                         break;
                     }
-                }
             }
 
             ApiEntityType { name, display_icon: icon }
@@ -88,12 +86,11 @@ impl GraphService {
 
             let mut display_icon = None;
             for m in manifests.values() {
-                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == namespace) {
-                    if domain.icon.is_some() {
+                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == namespace)
+                    && domain.icon.is_some() {
                         display_icon = domain.icon.clone();
                         break;
                     }
-                }
             }
 
             ApiEntity {
@@ -135,18 +132,17 @@ impl GraphService {
 
             let mut display_icon = None;
             for m in manifests.values() {
-                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == ns) {
-                    if domain.icon.is_some() {
+                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == ns)
+                    && domain.icon.is_some() {
                         display_icon = domain.icon.clone();
                         break;
                     }
-                }
             }
 
             ApiEntity {
                 namespace: ns,
-                typ: typ,
-                id: id,
+                typ,
+                id,
                 display_title,
                 display_subtitle,
                 display_image,
@@ -175,7 +171,7 @@ impl GraphService {
             let direction = if sn == namespace && st == typ && si == id { "outgoing" } else { "incoming" };
             
             // Resolve display label for the predicate
-            let mut display_label = p.split('/').last().unwrap_or(&p).replace('_', " ");
+            let mut display_label = p.split('/').next_back().unwrap_or(&p).replace('_', " ");
             for m in manifests.values() {
                 if let Some(pred) = m.predicates.iter().find(|pr| pr.id == p || format!("{}/{}", sn, pr.id) == p || format!("{}/{}", tn, pr.id) == p) {
                     display_label = if direction == "outgoing" { pred.label.clone() } else { pred.inverse_label.clone() };
@@ -213,12 +209,11 @@ impl GraphService {
         let mut display_icon = db_icon;
         if display_icon.is_none() {
             for m in manifests.values() {
-                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == namespace) {
-                    if domain.icon.is_some() {
+                if let Some(domain) = m.domain_info.iter().find(|d| d.ns == namespace)
+                    && domain.icon.is_some() {
                         display_icon = domain.icon.clone();
                         break;
                     }
-                }
             }
         }
 
