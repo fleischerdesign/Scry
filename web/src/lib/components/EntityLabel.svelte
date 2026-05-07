@@ -3,14 +3,7 @@
  import { router } from '../router.svelte';
  import Icon from '@iconify/svelte';
 
- interface Props {
-  namespace: string;
-  typ: string;
-  id: string;
-  inline?: boolean;
- }
-
- let { namespace, typ, id, inline = false } = $props<Props>();
+ let { namespace, typ, id, inline = false } = $props<{ namespace: string; typ: string; id: string; inline?: boolean }>();
 
  // Resolve the display name from our identity service (with auto-loading)
  let displayTitle = $derived(identityService.resolve({ namespace, typ, id }));
