@@ -1,0 +1,17 @@
+{
+  "packages": {
+    ".": {
+      "package-type": "rust",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-pre-major": true
+    },
+    "web": {
+      "package-type": "node",
+      "changelog-path": "web/CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-pre-major": true
+    }
+  },
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+}
