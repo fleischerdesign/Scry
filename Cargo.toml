@@ -1,6 +1,5 @@
 [workspace]
-[workspace.package]
-version = "0.1.0"
+resolver = "2"
 members = [
     "crates/scry-core",
     "crates/scry-proto",
@@ -9,3 +8,6 @@ members = [
     "crates/scry-spotify-plugin",
     "crates/scry-github-plugin",
 ]
+
+[workspace.package]
+version = "0.1.0"
