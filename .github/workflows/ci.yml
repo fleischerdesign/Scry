@@ -1,50 +1,53 @@
 name: CI
 
 on:
+  push:
+    branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  format:
-    name: Format
+  validate:
+    name: Validate Codebase
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@v16
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v14
+
+      - name: Cache Cargo Registry & Target
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: cargo-${{ hashFiles('**/Cargo.lock') }}
-      - run: nix develop --command cargo fmt --all -- --check
+            target/
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
 
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@v16
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: cargo-${{ hashFiles('**/Cargo.lock') }}
-      - run: nix develop --command cargo clippy -- -D warnings
+      - name: Check Formatting
+        run: nix develop --command cargo fmt --all -- --check
 
-  typecheck:
-    name: Type Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@v16
-      - uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: npm-${{ hashFiles('web/pnpm-lock.yaml') }}
-      - run: nix develop --command pnpm --prefix web install --frozen-lockfile
-      - run: nix develop --command pnpm --prefix web check
+      - name: Run Clippy Lints
+        run: nix develop --command cargo clippy -- -D warnings
+
+      - name: Run Workspace Tests
+        run: nix develop --command cargo test
+
+      - name: Run Type Check (Frontend)
+        run: |
+          nix develop --command pnpm --prefix web install --frozen-lockfile
+          nix develop --command pnpm --prefix web check
