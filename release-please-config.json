@@ -1,13 +1,13 @@
 {
   "packages": {
     ".": {
-      "package-type": "rust",
+      "release-type": "rust",
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
       "bump-patch-pre-major": true
     },
     "web": {
-      "package-type": "node",
+      "release-type": "node",
       "changelog-path": "web/CHANGELOG.md",
       "bump-minor-pre-major": true,
       "bump-patch-pre-major": true
