@@ -119,7 +119,7 @@ dependencies = [
  "base64ct",
  "blake2",
  "cpufeatures",
- "password-hash",
+ "password-hash 0.5.0",
 ]
 
 [[package]]
@@ -2426,6 +2426,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "password-hash"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aab41826031698d6ffcd9cff78ef56ef998e39dc7e5067cdfebe373842d4723b"
+
+[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3124,7 +3130,7 @@ dependencies = [
  "governor",
  "jsonwebtoken",
  "notify",
- "password-hash",
+ "password-hash 0.6.1",
  "rand 0.8.5",
  "reqwest",
  "rust-embed",
