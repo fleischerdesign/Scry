@@ -3108,7 +3108,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scry-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3153,7 +3153,7 @@ dependencies = [
 
 [[package]]
 name = "scry-github-plugin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "scry-plugin-sdk",
@@ -3166,7 +3166,7 @@ dependencies = [
 
 [[package]]
 name = "scry-plugin-sdk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "scry-proto",
@@ -3178,7 +3178,7 @@ dependencies = [
 
 [[package]]
 name = "scry-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "serde",
@@ -3191,7 +3191,7 @@ dependencies = [
 
 [[package]]
 name = "scry-spotify-plugin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -3205,7 +3205,7 @@ dependencies = [
 
 [[package]]
 name = "scry-weather-plugin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "scry-plugin-sdk",
