@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/fleischerdesign/Scry/compare/v0.2.0...v0.2.1) (2026-06-26)
+
+
+### Bug Fixes
+
+* **ci:** correct dependabot target-branch interpolation ([d8bfa78](https://github.com/fleischerdesign/Scry/commit/d8bfa780491c7f1e28c0bc8a042112986ae2294b))
+
 ## [0.2.0](https://github.com/fleischerdesign/Scry/compare/v0.1.0...v0.2.0) (2026-06-25)
 
 
