@@ -51,3 +51,13 @@ jobs:
         run: |
           nix develop --command pnpm --prefix web install --frozen-lockfile
           nix develop --command pnpm --prefix web check
+
+  fix-cargo-lock:
+    name: Auto-fix Cargo.lock
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: validate
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: fleischerdesign/workflows/.github/workflows/fix-cargo-lock.yml@main
+    secrets: inherit
